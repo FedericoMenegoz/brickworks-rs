@@ -1,0 +1,20 @@
+# Binaries
+/target
+
+# Mac-OS
+.DS_Store
+
+# vscode
+.vscode/
+*.code-workspace
+
+# Rust
+**/*.rs.bk
+Cargo.lock
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
