@@ -1,6 +1,13 @@
 [package]
 name = "brickworks-rs"
-version = "0.1.0"
+version = "0.0.1"
+authors = ["Federico Menegoz"]
+description = "Rust port of the Brickworks audio DSP library"
 edition = "2024"
+licence = "GPL-3.0-only"
+
+[build-dependencies]
+# Bindgen need to be here (https://rust-lang.github.io/rust-bindgen/tutorial-1.html)
+bindgen = "0.71.1"
 
 [dependencies]
