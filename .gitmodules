@@ -1,0 +1,3 @@
+[submodule "brickworks"]
+	path = brickworks
+	url = https://git.orastron.com/orastron/brickworks.git
