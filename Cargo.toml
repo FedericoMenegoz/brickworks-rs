@@ -7,7 +7,6 @@ edition = "2024"
 license = "GPL-3.0-only"
 
 [build-dependencies]
-# Bindgen need to be here (https://rust-lang.github.io/rust-bindgen/tutorial-1.html)
 bindgen = "0.71.1"
 
 [dependencies]
