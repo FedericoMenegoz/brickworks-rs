@@ -14,8 +14,8 @@ Brickworks-rs is a Rust port of the [Brickworks](https://www.orastron.com/algori
 The submodules below are listed in topological order based on their dependency graph.
 
 #### Common definitions `bw_common`
-- [ ] `bw_common` wrapper
-- [ ] `bw_common` port skeleton and TDD
+- [X] `bw_common` wrapper
+- [X] `bw_common` port skeleton and TDD
 - [ ] `bw_common` port implementation
 - [ ] `bw_common` testing
 
