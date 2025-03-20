@@ -4,6 +4,10 @@
 # Mac-OS
 .DS_Store
 
+# Mac-Os for issue https://github.com/rust-lang/rust/issues/60059
+build.sh
+macos-linker.sh
+
 # vscode
 .vscode/
 *.code-workspace
