@@ -5,7 +5,7 @@ use std::process::Command;
 use bindgen::Builder;
 
 fn main() {
-    let wrapper_path = "src/c_wrapper/wrapper.h";
+    let wrapper_path = "src/c_wrapper/wrapper.hpp";
     let current_dir = env::current_dir().expect("Error unwrapping current_dir()");
     let absolute_wrapper_path = current_dir
         .join(wrapper_path)
@@ -21,25 +21,28 @@ fn main() {
     // Tell bindgen to generate wrappers for static functions
     let bindings = Builder::default()
         .header(&absolute_wrapper_path)
+        .clang_arg("-std=c++11")
         .generate_comments(false)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .wrap_static_fns(true)
-        .wrap_static_fns_path(&static_fns_path)
+        .wrap_static_fns_path("./extern.c")
+        // .wrap_static_fns_path(&static_fns_path)
         .generate()
         .expect("Unable to generate bindings");
 
-    // This is the path to the object file.
+    // This is the path to the object file
     let obj_path = output_path.join("extern.o");
     // This is the path to the static library file.
     let lib_path = output_path.join("libextern.a");
 
-    // Compile the generated wrappers into an object file.
+    // Compile the generated wrappers into an object file
     let clang_output = std::process::Command::new("clang")
         .arg("-O")
         .arg("-c")
         .arg("-o")
         .arg(&obj_path)
-        .arg(&static_fns_path)
+        .arg("extern.c")
+        // .arg(&static_fns_path)
         .arg("-include")
         .arg(wrapper_path)
         .output()
@@ -77,10 +80,10 @@ fn main() {
     }
     // So that cargo can find the brickworks wrapped library for inline static
     println!("cargo:rustc-link-search=native={}", output_path.display());
-    // Tell cargo to statically link against the `libextern` static library.
+    // Tell cargo to statically link against the `libextern` static library
     println!("cargo:rustc-link-lib=static=extern");
 
-    // Write the rust bindings.
+    // Write the rust bindings
     bindings
         .write_to_file(output_path.join("bindings.rs"))
         .expect("Cound not write bindings to the Rust file");
