@@ -7,3 +7,9 @@
 #![allow(improper_ctypes)]
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+// Remove these when implemented
+#[allow(unused_variables)]
+#[allow(dead_code)]
+// Remove these when implemented
+pub mod rust_api;
