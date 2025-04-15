@@ -12,4 +12,4 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 #[allow(unused_variables)]
 #[allow(dead_code)]
 // Remove these when implemented
-pub mod rust_api;
+pub mod one_pole_filter_rust_api;

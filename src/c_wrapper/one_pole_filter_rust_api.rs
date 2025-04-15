@@ -2,39 +2,23 @@ use super::*;
 
 struct OnePole<const N_CHANNELS: usize> {
     coeffs: bw_one_pole_coeffs,
-    states: [bw_one_pole_state; N_CHANNELS],
-    states_p: [bw_one_pole_state; N_CHANNELS], // BW_RESTRICT to check what is for
+    states: [*mut bw_one_pole_state; N_CHANNELS],
+    states_p: [*mut bw_one_pole_state; N_CHANNELS], // BW_RESTRICT to check what is for
 }
-// #[derive(Default)]
-// struct OnePoleCoeffs {
-//     pub fs_2pi: f32,
-//     pub m_a1u: f32,
-//     pub m_a1d: f32,
-//     pub st2: f32,
-//     pub cutoff_up: f32,
-//     pub cutoff_down: f32,
-//     pub sticky_thresh: f32,
-//     pub sticky_mode: u32,
-//     pub param_changed: i32,
-// }
-
-// enum OnePoleStickyMode {
-//     Abs,
-//     Rel,
-// }
-// struct OnePoleState {
-//     y_z1: f32,
-// }
 
 impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     pub fn new() -> Self {
-        let states: [bw_one_pole_state; N_CHANNELS] = [bw_one_pole_state {
-            y_z1: Default::default(),
-        }; N_CHANNELS];
-        let states_p: [bw_one_pole_state; N_CHANNELS] = [bw_one_pole_state {
-            y_z1: Default::default(),
-        }; N_CHANNELS];
 
+        let states: [*mut bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|_| {
+            let state = Box::new(bw_one_pole_state { y_z1: 0.0 });
+            Box::into_raw(state)
+        });
+
+        let states_p: [*mut bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|_| {
+            let state = Box::new(bw_one_pole_state { y_z1: 0.0 });
+            Box::into_raw(state)
+        });
+        
         let mut one_pole = OnePole {
             coeffs: bw_one_pole_coeffs {
                 fs_2pi: Default::default(),
@@ -50,7 +34,9 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
             states,
             states_p,
         };
-        unsafe { bw_one_pole_init(&mut one_pole.coeffs) }
+        unsafe { 
+            bw_one_pole_init(&mut one_pole.coeffs);
+        }
         one_pole
     }
 
@@ -67,7 +53,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
                 (0..N_CHANNELS).for_each(|i| {
                     y0_value[i] = bw_one_pole_reset_state(
                         &mut self.coeffs,
-                        &mut self.states[i],
+                    self.states[i],
                         x0.unwrap_or(0.),
                     )
                 });
@@ -75,7 +61,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
                 (0..N_CHANNELS).for_each(|i| {
                     bw_one_pole_reset_state(
                         &mut self.coeffs,
-                        &mut self.states[i],
+                        self.states[i],
                         x0.unwrap_or(0.),
                     );
                 });
@@ -91,7 +77,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
             bw_one_pole_process_multi(
                 &mut self.coeffs,
-                &self.states.as_mut_ptr(),
+                self.states.as_mut_ptr(),
                 x_ptrs.as_ptr(),
                 y_ptrs.as_ptr(),
                 N_CHANNELS,
@@ -157,7 +143,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     }
 
     pub fn get_yz1(&self, channel: usize) -> f32 {
-        unsafe { bw_one_pole_get_y_z1(&self.states[channel]) }
+        unsafe { bw_one_pole_get_y_z1(self.states[channel]) }
     }
 }
 
@@ -251,13 +237,13 @@ mod tests {
     }
 
     #[test]
-    // #[ignore = "Not working hehehe"]
-    fn process() {
+    fn processABC() {
         let mut f = OnePole::<N>::new();
         let x = vec![vec![0.0; 16]; N];
         let mut y = vec![vec![0.0; 16]; N];
         let x_refs: Vec<&[f32]> = x.iter().map(|v| v.as_slice()).collect();
         let mut y_refs: Vec<&mut [f32]> = y.iter_mut().map(|v| v.as_mut_slice()).collect();
+        
         f.process(&x_refs, &mut y_refs, 16);
     }
 
