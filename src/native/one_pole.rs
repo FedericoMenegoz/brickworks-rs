@@ -91,20 +91,14 @@ mod test {
     use std::panic;
 
     use super::*;
-    use crate::c_wrapper::*;
+    use crate::c_wrapper::{one_pole_wrapper::*, *};
 
     #[test]
     fn one_pole_initialization() {
-        // Arrange
-        let mut c_coeffs = bw_one_pole_coeffs::new();
-        let rust_one_pole: OnePole<1>;
+        let mut c_one_pole = OnePoleWrapper::<2>::new();
+        let mut rust_one_pole = OnePole::<2>::new();
 
-        // Act
-        unsafe { bw_one_pole_init(&mut c_coeffs) }
-        rust_one_pole = OnePole::<1>::new();
-
-        // Assert
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_coeffs);
+        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
