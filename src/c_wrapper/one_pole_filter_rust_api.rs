@@ -71,9 +71,13 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
     pub fn process(&mut self, x: &[&[f32]], y: &mut [&mut [f32]], n_samples: usize) {
         unsafe {
-            // Check if there is a better way!
-            let x_ptrs: Vec<*const f32> = x.iter().map(|slice| slice.as_ptr()).collect();
-            let y_ptrs: Vec<*mut f32> = y.iter_mut().map(|slice| slice.as_mut_ptr()).collect();
+            
+            let mut x_ptrs: [*const f32; N_CHANNELS] = [std::ptr::null(); N_CHANNELS];
+            let mut y_ptrs: [*mut f32; N_CHANNELS] = [std::ptr::null_mut(); N_CHANNELS];
+            (0..N_CHANNELS).for_each(|i| {
+                x_ptrs[i] = x[i].as_ptr();
+                y_ptrs[i] = y[i].as_mut_ptr();
+            });
 
             bw_one_pole_process_multi(
                 &mut self.coeffs,
@@ -237,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn processABC() {
+    fn process() {
         let mut f = OnePole::<N>::new();
         let x = vec![vec![0.0; 16]; N];
         let mut y = vec![vec![0.0; 16]; N];
