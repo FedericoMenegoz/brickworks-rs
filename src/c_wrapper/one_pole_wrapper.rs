@@ -91,6 +91,8 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
     }
 
     pub(crate) fn set_cutoff(&mut self, value: f32) {
+        assert!(value >= 0., "Value must be non negative, got {value}!");
+
         unsafe {
             bw_one_pole_set_cutoff(&mut self.coeffs, value);
         }
@@ -153,36 +155,75 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
 
 #[cfg(test)]
 mod tests {
+    use std::f32::consts::PI;
+
     use super::*;
     const N: usize = 2;
+    const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI); 
 
     #[test]
     fn new() {
-        let _ = OnePoleWrapper::<N>::new();
+        let one_pole = OnePoleWrapper::<N>::new();
+
+        assert_eq!(one_pole.coeffs.cutoff_up, f32::INFINITY);
+        assert_eq!(one_pole.coeffs.cutoff_down, f32::INFINITY);
+        assert_eq!(one_pole.coeffs.sticky_thresh, 0.);
+        assert_eq!(one_pole.coeffs.sticky_mode, bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs);
+        assert_eq!(one_pole.coeffs.param_changed, -1); // from brickworks lib coeffs->param_changed = ~0; // useless, just to make compilers happy about uninitialized variables
     }
 
     #[test]
     fn set_sample_rate() {
+        const SAMPLE_RATE:f32 = 48_000.0;
         let mut f = OnePoleWrapper::<N>::new();
-        f.set_sample_rate(48000.0);
+        
+        f.set_sample_rate(SAMPLE_RATE);
+
+        assert_eq!(f.coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE);
     }
 
     #[test]
     fn set_cutoff() {
+        const CUT_OFF:f32 = 1000.0;
         let mut f = OnePoleWrapper::<N>::new();
-        f.set_cutoff(1000.0);
+        
+        f.set_cutoff(CUT_OFF);
+
+        assert_eq!(f.coeffs.cutoff_up, CUT_OFF);
+        assert_eq!(f.coeffs.cutoff_down, CUT_OFF);
+    }
+
+    #[test]
+    #[should_panic]
+    fn set_negative_cutoff_should_panic() {
+        const CUT_OFF:f32 = -1000.0;
+        let mut f = OnePoleWrapper::<N>::new();
+        
+        f.set_cutoff(CUT_OFF);
     }
 
     #[test]
     fn set_cutoff_up() {
+        const CUT_OFF:f32 = 1200.0;
         let mut f = OnePoleWrapper::<N>::new();
-        f.set_cutoff_up(1200.0);
+        f.coeffs.param_changed = 0;
+        
+        f.set_cutoff_up(CUT_OFF);
+
+        assert_eq!(f.coeffs.cutoff_up, CUT_OFF);
+        assert!(f.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_CUTOFF_UP != 0);
     }
 
     #[test]
     fn set_cutoff_down() {
+        const CUT_OFF:f32 = 1200.0;
         let mut f = OnePoleWrapper::<N>::new();
-        f.set_cutoff_down(800.0);
+        f.coeffs.param_changed = 0;
+        
+        f.set_cutoff_down(CUT_OFF);
+
+        assert_eq!(f.coeffs.cutoff_down, CUT_OFF);
+        assert!(f.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_CUTOFF_DOWN != 0);
     }
 
     #[test]
@@ -242,13 +283,14 @@ mod tests {
 
     #[test]
     fn process() {
+        const N_SAMPLES: usize = 16;
         let mut f = OnePoleWrapper::<N>::new();
-        let x = vec![vec![0.0; 16]; N];
-        let mut y = vec![vec![0.0; 16]; N];
+        let x = vec![vec![0.0; N_SAMPLES]; N];
+        let mut y = vec![vec![0.0; N_SAMPLES]; N];
         let x_refs: Vec<&[f32]> = x.iter().map(|v| v.as_slice()).collect();
         let mut y_refs: Vec<&mut [f32]> = y.iter_mut().map(|v| v.as_mut_slice()).collect();
         
-        f.process(&x_refs, &mut y_refs, 16);
+        f.process(&x_refs, &mut y_refs, N_SAMPLES);
     }
 
     #[test]
