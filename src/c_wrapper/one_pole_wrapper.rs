@@ -2,20 +2,18 @@ use super::*;
 
 pub(crate) struct OnePoleWrapper<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_one_pole_coeffs,
-    pub(crate) states: [*mut bw_one_pole_state; N_CHANNELS],
-    pub(crate) states_p: [*mut bw_one_pole_state; N_CHANNELS], // BW_RESTRICT to check what is for
+    pub(crate) states: [bw_one_pole_state; N_CHANNELS],
+    pub(crate) states_p: [bw_one_pole_state; N_CHANNELS], // BW_RESTRICT to check what is for
 }
 
 impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
     pub(crate) fn new() -> Self {
-        let states: [*mut bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|_| {
-            let state = Box::new(bw_one_pole_state { y_z1: 0.0 });
-            Box::into_raw(state)
+        let states: [bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|_| {
+            bw_one_pole_state { y_z1: 0.0 }
         });
 
-        let states_p: [*mut bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|_| {
-            let state = Box::new(bw_one_pole_state { y_z1: 0.0 });
-            Box::into_raw(state)
+        let states_p: [bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|_| {
+            bw_one_pole_state { y_z1: 0.0 }
         });
 
         let mut one_pole = OnePoleWrapper {
@@ -50,7 +48,7 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
             bw_one_pole_reset_coeffs(&mut self.coeffs);
             (0..N_CHANNELS).for_each(|i| {
                 let x0_value = x0.map_or(0.0, |slice| slice[i]);
-                let result = bw_one_pole_reset_state(&mut self.coeffs, self.states[i], x0_value);
+                let result = bw_one_pole_reset_state(&mut self.coeffs, &mut self.states[i], x0_value);
                 if let Some(slice) = y0.as_deref_mut() {
                     slice[i] = result
                 }
@@ -62,14 +60,16 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         unsafe {
             let mut x_ptrs: [*const f32; N_CHANNELS] = [std::ptr::null(); N_CHANNELS];
             let mut y_ptrs: [*mut f32; N_CHANNELS] = [std::ptr::null_mut(); N_CHANNELS];
+            let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] = [std::ptr::null_mut(); N_CHANNELS];
             (0..N_CHANNELS).for_each(|i| {
                 x_ptrs[i] = x[i].as_ptr();
                 y_ptrs[i] = y[i].as_mut_ptr();
+                state_ptrs[i] = &mut self.states[i]
             });
 
             bw_one_pole_process_multi(
                 &mut self.coeffs,
-                self.states.as_mut_ptr(),
+                state_ptrs.as_mut_ptr(),
                 x_ptrs.as_ptr(),
                 y_ptrs.as_ptr(),
                 N_CHANNELS,
@@ -150,7 +150,7 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
     }
 
     pub(crate) fn get_yz1(&self, channel: usize) -> f32 {
-        unsafe { bw_one_pole_get_y_z1(self.states[channel]) }
+        unsafe { bw_one_pole_get_y_z1(&self.states[channel]) }
     }
 }
 
@@ -376,31 +376,23 @@ mod tests {
         assert_eq!(f.coeffs.st2, sticky_tresh * sticky_tresh);
     }
 
-    // #[test]
-    // fn reset_with_input_and_output() {
-    //     let cutoff = 1000.0;
-    //     let sticky_thresh = 0.2;
-    //     let x0_input = [0.5; N];
-    //     let mut y0_output = [0.0; N];
-    //     let mut f = OnePoleWrapper::<N>::new();
-    //     f.set_cutoff(cutoff);
-    //     f.set_sticky_thresh(sticky_thresh);
-    //     f.set_sample_rate(SAMPLE_RATE);
-
-    //     f.reset(Some(&x0_input), Some(&mut y0_output));
-
-    //     for i in 0..N {
-    //         assert_eq!(f.states[i].y_z1, x0_input[i]);
-    //         assert_eq!(y0_output[i], x0_input[i]);
-    //     }
-    // }
-
     #[test]
-    fn reset_some() {
+    fn reset_with_input_and_output() {
+        let cutoff = 1000.0;
+        let sticky_thresh = 0.2;
+        let x0_input = [0.5; N];
+        let mut y0_output = [0.0; N];
         let mut f = OnePoleWrapper::<N>::new();
-        let mut y = vec![0.0; N];
-        let x = vec![0.0; N];
-        f.reset(Some(&x), Some(&mut y));
+        f.set_cutoff(cutoff);
+        f.set_sticky_thresh(sticky_thresh);
+        f.set_sample_rate(SAMPLE_RATE);
+
+        f.reset(Some(&x0_input), Some(&mut y0_output));
+
+        for i in 0..N {
+            assert_eq!(f.states[i].y_z1, x0_input[i]);
+            assert_eq!(y0_output[i], x0_input[i]);
+        }
     }
 
     #[test]
