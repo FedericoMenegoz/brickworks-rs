@@ -58,14 +58,9 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
 
     pub(crate) fn process(&mut self, x: &[&[f32]], y: &mut [&mut [f32]], n_samples: usize) {
         unsafe {
-            let mut x_ptrs: [*const f32; N_CHANNELS] = [std::ptr::null(); N_CHANNELS];
-            let mut y_ptrs: [*mut f32; N_CHANNELS] = [std::ptr::null_mut(); N_CHANNELS];
-            let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] = [std::ptr::null_mut(); N_CHANNELS];
-            (0..N_CHANNELS).for_each(|i| {
-                x_ptrs[i] = x[i].as_ptr();
-                y_ptrs[i] = y[i].as_mut_ptr();
-                state_ptrs[i] = &mut self.states[i]
-            });
+            let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
+            let y_ptrs: [*mut f32; N_CHANNELS] = std::array::from_fn(|i| y[i].as_mut_ptr());
+            let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|i| self.states.as_mut_ptr());
 
             bw_one_pole_process_multi(
                 &mut self.coeffs,
