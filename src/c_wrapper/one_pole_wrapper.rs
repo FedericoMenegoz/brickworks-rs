@@ -1,4 +1,4 @@
-use std::ptr::{null, null_mut};
+use std::ptr::null_mut;
 
 use super::*;
 
@@ -59,11 +59,12 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
 
     pub(crate) fn process(&mut self, x: &[&[f32]], y: Option<&mut [&mut [f32]]>, n_samples: usize) {
         unsafe {
-            // These is not ok because all the elements point to the same address
-            let null_ptrs: [*mut f32; N_CHANNELS] = [ null_mut();N_CHANNELS];
+            // In case y is None this will be passed instead
+            let null_ptrs: [*mut f32; N_CHANNELS] = [null_mut(); N_CHANNELS];
             // Need to prepare the data into raw pointers for c
             let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
-            let y_ptrs: Option<[*mut f32; N_CHANNELS]> = y.map(|state| std::array::from_fn(|i| state[i].as_mut_ptr()));
+            let y_ptrs: Option<[*mut f32; N_CHANNELS]> =
+                y.map(|state| std::array::from_fn(|i| state[i].as_mut_ptr()));
             let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
                 std::array::from_fn(|i| &mut self.states[i] as *mut _);
 
@@ -393,22 +394,47 @@ mod tests {
     }
 
     #[test]
-    fn process() {
-        const N_SAMPLES: usize = 16;
-        let mut f = OnePoleWrapper::<N>::new();
-        let x = vec![vec![0.0; N_SAMPLES]; N];
-        let mut y = vec![vec![0.0; N_SAMPLES]; N];
-        let x_refs: Vec<&[f32]> = x.iter().map(|v| v.as_slice()).collect();
-        let mut y_refs: Vec<&mut [f32]> = y.iter_mut().map(|v| v.as_mut_slice()).collect();
+    fn process_with_y() {
+        const N_CHANNELS: usize = 2;
+        const N_SAMPLES: usize = 4;
 
-        f.process(&x_refs,None, N_SAMPLES);
+        let input_data: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
+        let mut output_data: [&mut [f32]; N_CHANNELS] =
+            [&mut [0.0, 0.0, 0.0, 0.0], &mut [0.0, 0.0, 0.0, 0.0]];
+
+        let mut filter = OnePoleWrapper::<N_CHANNELS>::new();
+        filter.set_cutoff(1000.0);
+        filter.set_sample_rate(44100.0);
+        filter.reset(None, None);
+
+        filter.process(&input_data, Some(&mut output_data), N_SAMPLES);
+
+        for ch in 0..N_CHANNELS {
+            for sample in 0..N_SAMPLES {
+                println!("Output[{}][{}] = {}", ch, sample, output_data[ch][sample]);
+                assert!(output_data[ch][sample].is_finite());
+            }
+        }
     }
 
     #[test]
-    fn test_get_yz1() {
-        let f = OnePoleWrapper::<N>::new();
-        for i in 0..N {
-            let _ = f.get_yz1(i);
+    fn get_yz1() {
+        const N_CHANNELS: usize = 2;
+        const SAMPLE_RATE: f32 = 44100.0;
+        const CUTOFF: f32 = 1000.0;
+        const N_SAMPLES: usize = 4;
+
+        let mut f = OnePoleWrapper::<N>::new();
+        f.set_sample_rate(SAMPLE_RATE);
+        f.set_cutoff(CUTOFF);
+        f.set_sticky_mode(bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel);
+        let input_data: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
+        let mut output_data: [&mut [f32]; N_CHANNELS] =
+            [&mut [0.0, 0.1, 0.2, 0.3], &mut [1.0, 1.1, 1.2, 1.3]];
+        f.process(&input_data, Some(&mut output_data), N_SAMPLES);
+
+        for i in 0..N_CHANNELS {
+            assert_eq!(f.get_yz1(i), output_data[i][3])
         }
     }
 }
