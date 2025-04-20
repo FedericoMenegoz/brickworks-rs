@@ -1,3 +1,5 @@
+use std::ptr::{null, null_mut};
+
 use super::*;
 
 pub(crate) struct OnePoleWrapper<const N_CHANNELS: usize> {
@@ -8,13 +10,11 @@ pub(crate) struct OnePoleWrapper<const N_CHANNELS: usize> {
 
 impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
     pub(crate) fn new() -> Self {
-        let states: [bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|_| {
-            bw_one_pole_state { y_z1: 0.0 }
-        });
+        let states: [bw_one_pole_state; N_CHANNELS] =
+            std::array::from_fn(|_| bw_one_pole_state { y_z1: 0.0 });
 
-        let states_p: [bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|_| {
-            bw_one_pole_state { y_z1: 0.0 }
-        });
+        let states_p: [bw_one_pole_state; N_CHANNELS] =
+            std::array::from_fn(|_| bw_one_pole_state { y_z1: 0.0 });
 
         let mut one_pole = OnePoleWrapper {
             coeffs: bw_one_pole_coeffs {
@@ -48,7 +48,8 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
             bw_one_pole_reset_coeffs(&mut self.coeffs);
             (0..N_CHANNELS).for_each(|i| {
                 let x0_value = x0.map_or(0.0, |slice| slice[i]);
-                let result = bw_one_pole_reset_state(&mut self.coeffs, &mut self.states[i], x0_value);
+                let result =
+                    bw_one_pole_reset_state(&mut self.coeffs, &mut self.states[i], x0_value);
                 if let Some(slice) = y0.as_deref_mut() {
                     slice[i] = result
                 }
@@ -56,17 +57,21 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         }
     }
 
-    pub(crate) fn process(&mut self, x: &[&[f32]], y: &mut [&mut [f32]], n_samples: usize) {
+    pub(crate) fn process(&mut self, x: &[&[f32]], y: Option<&mut [&mut [f32]]>, n_samples: usize) {
         unsafe {
+            // These is not ok because all the elements point to the same address
+            let null_ptrs: [*mut f32; N_CHANNELS] = [ null_mut();N_CHANNELS];
+            // Need to prepare the data into raw pointers for c
             let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
-            let y_ptrs: [*mut f32; N_CHANNELS] = std::array::from_fn(|i| y[i].as_mut_ptr());
-            let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|i| self.states.as_mut_ptr());
+            let y_ptrs: Option<[*mut f32; N_CHANNELS]> = y.map(|state| std::array::from_fn(|i| state[i].as_mut_ptr()));
+            let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
+                std::array::from_fn(|i| &mut self.states[i] as *mut _);
 
             bw_one_pole_process_multi(
                 &mut self.coeffs,
                 state_ptrs.as_mut_ptr(),
                 x_ptrs.as_ptr(),
-                y_ptrs.as_ptr(),
+                y_ptrs.unwrap_or(null_ptrs).as_mut_ptr(),
                 N_CHANNELS,
                 n_samples,
             );
@@ -305,7 +310,6 @@ mod tests {
 
         assert!(f.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_STICKY_THRESH != 0);
         assert_eq!(f.get_sticky_thresh(), sticky_tresh);
-
     }
 
     #[test]
@@ -359,9 +363,7 @@ mod tests {
         f.set_cutoff(cutoff);
         f.set_sticky_thresh(sticky_tresh);
         f.set_sample_rate(SAMPLE_RATE);
-        let inverse= unsafe {
-             f.coeffs.fs_2pi * bw_rcpf(f.coeffs.fs_2pi + cutoff)
-        };
+        let inverse = unsafe { f.coeffs.fs_2pi * bw_rcpf(f.coeffs.fs_2pi + cutoff) };
 
         f.reset(None, None);
 
@@ -399,7 +401,7 @@ mod tests {
         let x_refs: Vec<&[f32]> = x.iter().map(|v| v.as_slice()).collect();
         let mut y_refs: Vec<&mut [f32]> = y.iter_mut().map(|v| v.as_mut_slice()).collect();
 
-        f.process(&x_refs, &mut y_refs, N_SAMPLES);
+        f.process(&x_refs,None, N_SAMPLES);
     }
 
     #[test]
