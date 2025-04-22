@@ -4,5 +4,9 @@ Brickworks-rs is a Rust port of the [Brickworks](https://www.orastron.com/algori
 
 Check the Project Wiki [here](https://github.com/FedericoMenegoz/brickworks-rs/wiki).
 
+
+## Example of use
+[Here](https://github.com/FedericoMenegoz/Brickworks-rs-plugin) you can find a minimal example of how to build a VST3 and CLAP plugin using [nih_plugin](https://github.com/robbert-vdh/nih-plug.git).
+
 ## License
 Brickworks-rs is distributed under the [GPLv3](https://www.gnu.org/licenses/gpl-3.0.html) License.
