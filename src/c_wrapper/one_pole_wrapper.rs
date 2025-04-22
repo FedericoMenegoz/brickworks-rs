@@ -2,14 +2,14 @@ use std::ptr::null_mut;
 
 use super::*;
 
-pub(crate) struct OnePoleWrapper<const N_CHANNELS: usize> {
-    pub(crate) coeffs: bw_one_pole_coeffs,
-    pub(crate) states: [bw_one_pole_state; N_CHANNELS],
-    pub(crate) states_p: [bw_one_pole_state; N_CHANNELS], // BW_RESTRICT to check what is for
+pub struct OnePoleWrapper<const N_CHANNELS: usize> {
+    pub coeffs: bw_one_pole_coeffs,
+    pub states: [bw_one_pole_state; N_CHANNELS],
+    pub states_p: [bw_one_pole_state; N_CHANNELS], // BW_RESTRICT to check what is for
 }
 
 impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let states: [bw_one_pole_state; N_CHANNELS] =
             std::array::from_fn(|_| bw_one_pole_state { y_z1: 0.0 });
 
@@ -37,13 +37,13 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         one_pole
     }
 
-    pub(crate) fn set_sample_rate(&mut self, sample_rate: f32) {
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
         unsafe {
             bw_one_pole_set_sample_rate(&mut self.coeffs, sample_rate);
         }
     }
 
-    pub(crate) fn reset(&mut self, x0: Option<&[f32]>, mut y0: Option<&mut [f32]>) {
+    pub fn reset(&mut self, x0: Option<&[f32]>, mut y0: Option<&mut [f32]>) {
         unsafe {
             bw_one_pole_reset_coeffs(&mut self.coeffs);
             (0..N_CHANNELS).for_each(|i| {
@@ -57,7 +57,7 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         }
     }
 
-    pub(crate) fn process(&mut self, x: &[&[f32]], y: Option<&mut [&mut [f32]]>, n_samples: usize) {
+    pub fn process(&mut self, x: &[Vec<f32>], y: Option<&mut [&mut [f32]]>, n_samples: usize) {
         unsafe {
             // In case y is None this will be passed instead
             let null_ptrs: [*mut f32; N_CHANNELS] = [null_mut(); N_CHANNELS];
@@ -79,49 +79,49 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         }
     }
 
-    pub(crate) fn set_cutoff(&mut self, value: f32) {
+    pub fn set_cutoff(&mut self, value: f32) {
         assert!(value >= 0., "Value must be non negative, got {value}!");
         unsafe {
             bw_one_pole_set_cutoff(&mut self.coeffs, value);
         }
     }
 
-    pub(crate) fn set_cutoff_up(&mut self, value: f32) {
+    pub fn set_cutoff_up(&mut self, value: f32) {
         assert!(value >= 0., "Value must be non negative, got {value}!");
         unsafe {
             bw_one_pole_set_cutoff_up(&mut self.coeffs, value);
         }
     }
 
-    pub(crate) fn set_cutoff_down(&mut self, value: f32) {
+    pub fn set_cutoff_down(&mut self, value: f32) {
         assert!(value >= 0., "Value must be non negative, got {value}!");
         unsafe {
             bw_one_pole_set_cutoff_down(&mut self.coeffs, value);
         }
     }
 
-    pub(crate) fn set_tau(&mut self, value: f32) {
+    pub fn set_tau(&mut self, value: f32) {
         assert!(value >= 0., "Value must be non negative, got {value}!");
         unsafe {
             bw_one_pole_set_tau(&mut self.coeffs, value);
         }
     }
 
-    pub(crate) fn set_tau_up(&mut self, value: f32) {
+    pub fn set_tau_up(&mut self, value: f32) {
         assert!(value >= 0., "Value must be non negative, got {value}!");
         unsafe {
             bw_one_pole_set_tau_up(&mut self.coeffs, value);
         }
     }
 
-    pub(crate) fn set_tau_down(&mut self, value: f32) {
+    pub fn set_tau_down(&mut self, value: f32) {
         assert!(value >= 0., "Value must be non negative, got {value}.");
         unsafe {
             bw_one_pole_set_tau_down(&mut self.coeffs, value);
         }
     }
 
-    pub(crate) fn set_sticky_thresh(&mut self, value: f32) {
+    pub fn set_sticky_thresh(&mut self, value: f32) {
         assert!(
             value >= 0. && value <= 1.0e18,
             "Value must be in range [0.0, 1.0e18], got {value}."
@@ -131,7 +131,7 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         }
     }
 
-    pub(crate) fn set_sticky_mode(&mut self, value: bw_one_pole_sticky_mode) {
+    pub fn set_sticky_mode(&mut self, value: bw_one_pole_sticky_mode) {
         assert!(
             value == bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs
                 || value == bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel,
@@ -142,15 +142,15 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         }
     }
 
-    pub(crate) fn get_sticky_thresh(&self) -> f32 {
+    pub fn get_sticky_thresh(&self) -> f32 {
         unsafe { bw_one_pole_get_sticky_thresh(&self.coeffs) }
     }
 
-    pub(crate) fn get_sticky_mode(&self) -> bw_one_pole_sticky_mode {
+    pub fn get_sticky_mode(&self) -> bw_one_pole_sticky_mode {
         unsafe { bw_one_pole_get_sticky_mode(&self.coeffs) }
     }
 
-    pub(crate) fn get_yz1(&self, channel: usize) -> f32 {
+    pub fn get_yz1(&self, channel: usize) -> f32 {
         unsafe { bw_one_pole_get_y_z1(&self.states[channel]) }
     }
 }
@@ -398,7 +398,7 @@ mod tests {
         const N_CHANNELS: usize = 2;
         const N_SAMPLES: usize = 4;
 
-        let input_data: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
+        let input_data = [vec![1.0, 2.0, 3.0, 4.0], vec![0.5, 1.5, 2.5, 3.5]];
         let mut output_data: [&mut [f32]; N_CHANNELS] =
             [&mut [0.0, 0.0, 0.0, 0.0], &mut [0.0, 0.0, 0.0, 0.0]];
 
@@ -428,7 +428,7 @@ mod tests {
         f.set_sample_rate(SAMPLE_RATE);
         f.set_cutoff(CUTOFF);
         f.set_sticky_mode(bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel);
-        let input_data: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
+        let input_data = [vec![1.0, 2.0, 3.0, 4.0], vec![0.5, 1.5, 2.5, 3.5]];
         let mut output_data: [&mut [f32]; N_CHANNELS] =
             [&mut [0.0, 0.1, 0.2, 0.3], &mut [1.0, 1.1, 1.2, 1.3]];
         f.process(&input_data, Some(&mut output_data), N_SAMPLES);
