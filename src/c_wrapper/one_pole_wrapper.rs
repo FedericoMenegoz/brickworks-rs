@@ -59,7 +59,7 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
 
     pub fn process(&mut self, x: &[Vec<f32>], y: Option<&mut [&mut [f32]]>, n_samples: usize) {
         unsafe {
-            // In case y is None this will be passed instead this need fixing though as we still need to get the output back!!!
+            // In case y is None this will be passed
             let null_ptrs: [*mut f32; N_CHANNELS] = [null_mut(); N_CHANNELS];
             // Need to prepare the data into raw pointers for c
             let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
