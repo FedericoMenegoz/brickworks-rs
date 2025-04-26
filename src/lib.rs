@@ -7,3 +7,5 @@ pub mod c_wrapper;
 #[allow(dead_code)]
 // Remove these when implemented
 pub mod native;
+
+pub (crate) mod global;
