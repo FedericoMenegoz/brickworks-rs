@@ -122,7 +122,7 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
             bw_one_pole_set_tau_down(&mut self.coeffs, value);
         }
     }
-    
+
     pub fn set_sticky_thresh(&mut self, value: f32) {
         assert_range(0., 1.0e18, value);
         unsafe {
@@ -134,7 +134,7 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         assert!(
             value == bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs
                 || value == bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel,
-            "Sticky mode can be {bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs} or {bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel}, got {value}"
+            "Sticky mode can be {bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs} or {bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel}, got {value}!"
         );
         unsafe {
             bw_one_pole_set_sticky_mode(&mut self.coeffs, value as u32);
@@ -156,9 +156,9 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
 
 #[cfg(test)]
 mod tests {
-    use core::f32;
-    use crate::global::*;
     use super::*;
+    use crate::global::*;
+    use core::f32;
     const N_CHANNELS: usize = 2;
     const BW_RCPF_ERROR: f32 = 0.0013;
     const SAMPLE_RATE: f32 = 48_000.0;
@@ -345,7 +345,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Sticky mode can be 0 or 1, got 3!")]
     fn set_sticky_mode_not_valid() {
         let mode = 3;
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
