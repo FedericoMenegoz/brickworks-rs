@@ -115,17 +115,15 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
     }
 
     pub fn set_tau_down(&mut self, value: f32) {
-        assert!(value >= 0., "Value must be non negative, got {value}.");
+        assert!(value >= 0., "Value must be non negative, got {value}!");
         unsafe {
             bw_one_pole_set_tau_down(&mut self.coeffs, value);
         }
     }
-
+    
     pub fn set_sticky_thresh(&mut self, value: f32) {
-        assert!(
-            value >= 0. && value <= 1.0e18,
-            "Value must be in range [0.0, 1.0e18], got {value}."
-        );
+        assert!(value >= 0., "Value must be non negative, got {value}!");
+        assert!(value <= 1.0e18, "Value must be in range [0.0, 1.0e18], got {value:e}!");
         unsafe {
             bw_one_pole_set_sticky_thresh(&mut self.coeffs, value);
         }
@@ -158,17 +156,15 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
 #[cfg(test)]
 mod tests {
     use core::f32;
-    use std::f32::consts::PI;
-
+    use crate::global::*;
     use super::*;
-    const N: usize = 2;
-    const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
+    const N_CHANNELS: usize = 2;
     const BW_RCPF_ERROR: f32 = 0.0013;
     const SAMPLE_RATE: f32 = 48_000.0;
 
     #[test]
     fn new() {
-        let one_pole = OnePoleWrapper::<N>::new();
+        let one_pole = OnePoleWrapper::<N_CHANNELS>::new();
 
         assert_eq!(one_pole.coeffs.cutoff_up, f32::INFINITY);
         assert_eq!(one_pole.coeffs.cutoff_down, f32::INFINITY);
@@ -183,17 +179,17 @@ mod tests {
     #[test]
     fn set_sample_rate() {
         const SAMPLE_RATE: f32 = 48_000.0;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
 
         f.set_sample_rate(SAMPLE_RATE);
 
-        assert_eq!(f.coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE);
+        assert_eq!(f.coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE)
     }
 
     #[test]
     fn set_cutoff() {
         const CUT_OFF: f32 = 1000.0;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
         f.set_cutoff(CUT_OFF);
@@ -205,10 +201,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Value must be non negative, got -1000!")]
     fn set_cutoff_negative() {
         const CUT_OFF: f32 = -1000.0;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
 
         f.set_cutoff(CUT_OFF);
     }
@@ -216,7 +212,7 @@ mod tests {
     #[test]
     fn set_cutoff_up() {
         const CUT_OFF: f32 = 1200.0;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
         f.set_cutoff_up(CUT_OFF);
@@ -228,7 +224,7 @@ mod tests {
     #[test]
     fn set_cutoff_down() {
         const CUT_OFF: f32 = 1200.0;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
         f.set_cutoff_down(CUT_OFF);
@@ -241,7 +237,7 @@ mod tests {
     fn set_tau() {
         let cutoff = 150.0;
         let tau = INVERSE_2_PI / cutoff;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
         f.set_tau(tau);
@@ -257,7 +253,7 @@ mod tests {
     fn set_tau_up() {
         let cutoff = 1500.0;
         let tau = INVERSE_2_PI / cutoff;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
         f.set_tau_up(tau);
@@ -271,7 +267,7 @@ mod tests {
     fn set_tau_down() {
         let cutoff = 10_000.0;
         let tau = INVERSE_2_PI / cutoff;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
         f.set_tau_down(tau);
@@ -284,7 +280,7 @@ mod tests {
     #[test]
     fn set_tau_small_should_not_change_cutoff() {
         let tau = 0.1e-9;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
         f.set_tau(tau);
@@ -296,16 +292,16 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Value must be non negative, got -1!")]
     fn set_negative_tau() {
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_tau(-1.);
     }
 
     #[test]
     fn set_sticky_thresh() {
         let sticky_tresh = 0.01;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
 
         f.set_sticky_thresh(sticky_tresh);
 
@@ -314,23 +310,23 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Value must be non negative, got -1!")]
     fn set_sticky_tresh_negative() {
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_sticky_thresh(-1.);
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Value must be in range [0.0, 1.0e18], got 1.1e18!")]
     fn set_sticky_tresh_too_high() {
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_sticky_thresh(1.1e18);
     }
 
     #[test]
     fn set_sticky_mode_abs() {
         let mode = bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
 
         f.set_sticky_mode(mode);
 
@@ -340,7 +336,7 @@ mod tests {
     #[test]
     fn set_sticky_mode_rel() {
         let mode = bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
 
         f.set_sticky_mode(mode);
 
@@ -351,7 +347,7 @@ mod tests {
     #[should_panic]
     fn set_sticky_mode_not_valid() {
         let mode = 3;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
 
         f.set_sticky_mode(mode);
     }
@@ -360,7 +356,7 @@ mod tests {
     fn reset_none() {
         let cutoff = 1200.0;
         let sticky_tresh = 0.1;
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_cutoff(cutoff);
         f.set_sticky_thresh(sticky_tresh);
         f.set_sample_rate(SAMPLE_RATE);
@@ -378,16 +374,16 @@ mod tests {
     fn reset_with_input_and_output() {
         let cutoff = 1000.0;
         let sticky_thresh = 0.2;
-        let x0_input = [0.5; N];
-        let mut y0_output = [0.0; N];
-        let mut f = OnePoleWrapper::<N>::new();
+        let x0_input = [0.5; N_CHANNELS];
+        let mut y0_output = [0.0; N_CHANNELS];
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_cutoff(cutoff);
         f.set_sticky_thresh(sticky_thresh);
         f.set_sample_rate(SAMPLE_RATE);
 
         f.reset(Some(&x0_input), Some(&mut y0_output));
 
-        for i in 0..N {
+        for i in 0..N_CHANNELS {
             assert_eq!(f.states[i].y_z1, x0_input[i]);
             assert_eq!(y0_output[i], x0_input[i]);
         }
@@ -424,7 +420,7 @@ mod tests {
         const CUTOFF: f32 = 1000.0;
         const N_SAMPLES: usize = 4;
 
-        let mut f = OnePoleWrapper::<N>::new();
+        let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_sample_rate(SAMPLE_RATE);
         f.set_cutoff(CUTOFF);
         f.set_sticky_mode(bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel);
