@@ -148,15 +148,15 @@ mod tests {
 
     #[test]
     fn set_cutoff() {
-        const CUT_OFF: f32 = 1000.0;
+        const CUTOFF: f32 = 1000.0;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = 0;
 
-        c_one_pole.set_cutoff(CUT_OFF);
-        rust_one_pole.set_cutoff(CUT_OFF);
+        c_one_pole.set_cutoff(CUTOFF);
+        rust_one_pole.set_cutoff(CUTOFF);
 
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
@@ -164,102 +164,102 @@ mod tests {
     #[test]
     #[should_panic(expected = "Value must be non negative, got -1!")]
     fn set_cutoff_negative() {
-        const CUT_OFF: f32 = -1000.0;
+        const CUTOFF: f32 = -1000.0;
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
-        rust_one_pole.set_cutoff(CUT_OFF);
+        rust_one_pole.set_cutoff(CUTOFF);
     }
 
     #[test]
     fn set_cutoff_up() {
-        const CUT_OFF: f32 = 1200.0;
+        const CUTOFF: f32 = 1200.0;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = 0;
 
-        c_one_pole.set_cutoff_up(CUT_OFF);
-        rust_one_pole.set_cutoff_up(CUT_OFF);
+        c_one_pole.set_cutoff_up(CUTOFF);
+        rust_one_pole.set_cutoff_up(CUTOFF);
 
-        assert_eq!(rust_one_pole.coeffs.cutoff_up, CUT_OFF);
+        assert_eq!(rust_one_pole.coeffs.cutoff_up, CUTOFF);
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
     fn set_cutoff_down() {
-        const CUT_OFF: f32 = 1200.0;
+        const CUTOFF: f32 = 1200.0;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = 0;
 
-        c_one_pole.set_cutoff_down(CUT_OFF);
-        rust_one_pole.set_cutoff_down(CUT_OFF);
+        c_one_pole.set_cutoff_down(CUTOFF);
+        rust_one_pole.set_cutoff_down(CUTOFF);
 
-        assert_eq!(rust_one_pole.coeffs.cutoff_down, CUT_OFF);
+        assert_eq!(rust_one_pole.coeffs.cutoff_down, CUTOFF);
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
     fn set_tau() {
-        let cutoff = 150.0;
-        let tau = INVERSE_2_PI / cutoff;
+        const CUTOFF: f32 = 150.0;
+        const TAU: f32 = INVERSE_2_PI / CUTOFF;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = 0;
 
-        c_one_pole.set_tau(tau);
-        rust_one_pole.set_tau(tau);
+        c_one_pole.set_tau(TAU);
+        rust_one_pole.set_tau(TAU);
 
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
     fn set_tau_up() {
-        let cutoff = 1500.0;
-        let tau = INVERSE_2_PI / cutoff;
+        const CUTOFF: f32 = 1500.0;
+        const TAU: f32 = INVERSE_2_PI / CUTOFF;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
 
-        c_one_pole.set_tau_up(tau);
-        rust_one_pole.set_tau_up(tau);
+        c_one_pole.set_tau_up(TAU);
+        rust_one_pole.set_tau_up(TAU);
 
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
     fn set_tau_down() {
-        let cutoff = 10_000.0;
-        let tau = INVERSE_2_PI / cutoff;
+        const CUTOFF: f32 = 10_000.0;
+        const TAU: f32 = INVERSE_2_PI / CUTOFF;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = 0;
 
-        c_one_pole.set_tau_down(tau);
-        rust_one_pole.set_tau_down(tau);
+        c_one_pole.set_tau_down(TAU);
+        rust_one_pole.set_tau_down(TAU);
 
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
     fn set_tau_small_should_not_change_cutoff() {
-        let tau = 0.1e-9;
+        const TAU: f32 = 0.1e-9;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = 0;
 
-        c_one_pole.set_tau(tau);
-        rust_one_pole.set_tau(tau);
+        c_one_pole.set_tau(TAU);
+        rust_one_pole.set_tau(TAU);
 
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
@@ -341,16 +341,16 @@ mod tests {
 
     #[test]
     fn reset_none() {
-        let cutoff = 1200.0;
+        const CUTOFF: f32 = 1200.0;
         let sticky_tresh = 0.1;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
-        c_one_pole.set_cutoff(cutoff);
+        c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(sticky_tresh);
         c_one_pole.set_sample_rate(SAMPLE_RATE);
 
-        rust_one_pole.set_cutoff(cutoff);
+        rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_thresh(sticky_tresh);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
 
@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn reset_with_input_and_output() {
-        let cutoff = 1000.0;
+        const CUTOFF: f32 = 1000.0;
         let sticky_thresh = 0.2;
         let x0_input = [0.5; N_CHANNELS];
         let mut c_y0_output = [0.0; N_CHANNELS];
@@ -370,11 +370,11 @@ mod tests {
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
-        c_one_pole.set_cutoff(cutoff);
+        c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(sticky_thresh);
         c_one_pole.set_sample_rate(SAMPLE_RATE);
 
-        rust_one_pole.set_cutoff(cutoff);
+        rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_thresh(sticky_thresh);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
 
@@ -417,7 +417,10 @@ mod tests {
         for ch in 0..N_CHANNELS {
             for sample in 0..N_SAMPLES {
                 assert_eq!(rust_output[ch][sample], c_output[ch][sample]);
-                println!("C output: {}\nRust output: {}", c_output[ch][sample], rust_output[ch][sample])
+                println!(
+                    "C output: {}\nRust output: {}",
+                    c_output[ch][sample], rust_output[ch][sample]
+                )
             }
         }
     }

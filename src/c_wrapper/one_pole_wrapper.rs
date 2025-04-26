@@ -189,14 +189,14 @@ mod tests {
 
     #[test]
     fn set_cutoff() {
-        const CUT_OFF: f32 = 1000.0;
+        const CUTOFF: f32 = 1000.0;
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
-        f.set_cutoff(CUT_OFF);
+        f.set_cutoff(CUTOFF);
 
-        assert_eq!(f.coeffs.cutoff_up, CUT_OFF);
-        assert_eq!(f.coeffs.cutoff_down, CUT_OFF);
+        assert_eq!(f.coeffs.cutoff_up, CUTOFF);
+        assert_eq!(f.coeffs.cutoff_down, CUTOFF);
         assert!(f.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_CUTOFF_UP != 0);
         assert!(f.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_CUTOFF_DOWN != 0);
     }
@@ -204,33 +204,33 @@ mod tests {
     #[test]
     #[should_panic(expected = "Value must be non negative, got -1000!")]
     fn set_cutoff_negative() {
-        const CUT_OFF: f32 = -1000.0;
+        const CUTOFF: f32 = -1000.0;
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
 
-        f.set_cutoff(CUT_OFF);
+        f.set_cutoff(CUTOFF);
     }
 
     #[test]
     fn set_cutoff_up() {
-        const CUT_OFF: f32 = 1200.0;
+        const CUTOFF: f32 = 1200.0;
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
-        f.set_cutoff_up(CUT_OFF);
+        f.set_cutoff_up(CUTOFF);
 
-        assert_eq!(f.coeffs.cutoff_up, CUT_OFF);
+        assert_eq!(f.coeffs.cutoff_up, CUTOFF);
         assert!(f.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_CUTOFF_UP != 0);
     }
 
     #[test]
     fn set_cutoff_down() {
-        const CUT_OFF: f32 = 1200.0;
+        const CUTOFF: f32 = 1200.0;
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.coeffs.param_changed = 0;
 
-        f.set_cutoff_down(CUT_OFF);
+        f.set_cutoff_down(CUTOFF);
 
-        assert_eq!(f.coeffs.cutoff_down, CUT_OFF);
+        assert_eq!(f.coeffs.cutoff_down, CUTOFF);
         assert!(f.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_CUTOFF_DOWN != 0);
     }
 
