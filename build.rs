@@ -67,7 +67,7 @@ fn main() {
         .arg(obj_path)
         .arg(format!(
             "/OUT:{}",
-            out_dir_path
+            output_path
                 .join("lib".to_owned() + static_filename + ".lib")
                 .display()
         ))
