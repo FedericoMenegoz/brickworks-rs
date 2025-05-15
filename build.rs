@@ -1,6 +1,8 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::process::Command;
 
+use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
 use bindgen::Builder;
 
 fn main() {
@@ -29,7 +31,8 @@ fn main() {
     let bindings = Builder::default()
         .header(&wrapper_path)
         .generate_comments(false)
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .parse_callbacks(Box::new(IgnoreMacros::new()))
+        // .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .wrap_static_fns(true)
         .wrap_static_fns_path(&static_fns_path)
         .generate()
@@ -88,4 +91,35 @@ fn main() {
     bindings
         .write_to_file(output_path.join("bindings.rs"))
         .expect("Cound not write bindings to the Rust file");
+}
+
+
+// See https://github.com/rust-lang/rust-bindgen/issues/687#issuecomment-450750547
+const IGNORE_MACROS
+: [&str; 5] = [
+    "FP_INFINITE",
+    "FP_NAN",
+    "FP_NORMAL",
+    "FP_SUBNORMAL",
+    "FP_ZERO"
+];
+
+#[derive(Debug)]
+struct IgnoreMacros(HashSet<String>);
+
+impl ParseCallbacks for IgnoreMacros {
+    fn will_parse_macro(&self, name: &str) -> MacroParsingBehavior {
+        if self.0.contains(name) {
+            MacroParsingBehavior::Ignore
+        } else {
+            MacroParsingBehavior::Default
+        }
+    }
+}
+
+impl IgnoreMacros {
+    fn new() -> Self {
+        Self(IGNORE_MACROS
+            .into_iter().map(|s| s.to_owned()).collect())
+    }
 }
