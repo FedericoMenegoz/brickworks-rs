@@ -42,6 +42,7 @@ fn main() {
     let clang_output = std::process::Command::new("clang")
         .arg("-O")
         .arg("-c")
+        .arg("-fPIC")
         .arg("-o")
         .arg(&obj_path)
         .arg(&static_fns_path)
