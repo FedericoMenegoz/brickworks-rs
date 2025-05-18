@@ -1,4 +1,4 @@
-use crate::global::{INVERSE_2_PI, NANO, assert_positive};
+use crate::global::{assert_positive, assert_range, INVERSE_2_PI, NANO};
 use bitflags::bitflags;
 
 use super::math::rcpf;
@@ -43,6 +43,9 @@ bitflags! {
         const CUTOFF_UP = 1;
         const CUTOFF_DOWN = 1<<1;
         const STICKY_TRESH = 1<<2;
+
+        // to stop bitflags from unsetting unused label (one_pole_initialization test fail caused by param_changed)
+        const _ = !0;
     }
 }
 
@@ -116,23 +119,27 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     }
 
     pub fn set_sticky_thresh(&mut self, value: f32) {
-        todo!()
+        assert_range(0., 1.0e18, value);
+        if self.coeffs.sticky_thresh != value {
+            self.coeffs.sticky_thresh = value;
+            self.coeffs.param_changed |= ParamChanged::STICKY_TRESH;
+        }
     }
 
     pub fn set_sticky_mode(&mut self, value: OnePoleStickyMode) {
-        todo!()
+        self.coeffs.sticky_mode = value;
     }
 
     pub fn get_sticky_thresh(&self) -> f32 {
-        todo!()
+        self.coeffs.sticky_thresh
     }
 
     pub fn get_sticky_mode(&self) -> OnePoleStickyMode {
-        todo!()
+        self.coeffs.sticky_mode
     }
 
     pub fn get_yz1(&self, channel: usize) -> f32 {
-        todo!()
+        self.states[channel].y_z1
     }
 }
 
@@ -540,6 +547,8 @@ mod tests {
         assert_eq!(
             rust_coeffs.param_changed.bits(),
             c_coeffs.param_changed as u32,
+            // to check only the used flags, see ParamChanged struct
+            // c_coeffs.param_changed as u32 & (0b111),
             "{}param_changed {}",
             pre_message,
             post_message

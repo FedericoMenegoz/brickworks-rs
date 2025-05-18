@@ -10,7 +10,7 @@ pub(crate) fn assert_positive(value: f32) {
 pub(crate) fn assert_range(min: f32, max: f32, value: f32) {
     assert!(
         value >= min && value <= max,
-        "Value must be in range [{min:.9e}, {max:.9e}], got {value:e}!"
+        "Value must be in range [{min:e}, {max:e}], got {value:e}!"
     );
 }
 
