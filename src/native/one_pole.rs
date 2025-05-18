@@ -96,15 +96,23 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     }
 
     pub fn set_tau_up(&mut self, value: f32) {
+        assert_positive(value);
         let cutoff = if value < NANO {
             f32::INFINITY
         } else {
             INVERSE_2_PI * rcpf(value)
         };
+        self.set_cutoff_up(cutoff);
     }
 
     pub fn set_tau_down(&mut self, value: f32) {
-        todo!()
+        assert_positive(value);
+        let cutoff = if value < NANO {
+            f32::INFINITY
+        } else {
+            INVERSE_2_PI * rcpf(value)
+        };
+        self.set_cutoff_down(cutoff);
     }
 
     pub fn set_sticky_thresh(&mut self, value: f32) {
@@ -253,6 +261,7 @@ mod tests {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
+        rust_one_pole.coeffs.param_changed = ParamChanged::empty();
 
         c_one_pole.set_tau_up(TAU);
         rust_one_pole.set_tau_up(TAU);
@@ -293,7 +302,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Value must be non negative, got -1!")]
-    fn set_negative_tau() {
+    fn set_tau_negative() {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         rust_one_pole.set_tau(-1.);
@@ -486,17 +495,54 @@ mod tests {
     }
 
     fn assert_coeffs_rust_c(rust_coeffs: OnePoleCoeffs, c_coeffs: bw_one_pole_coeffs) {
-        assert_eq!(rust_coeffs.fs_2pi, c_coeffs.fs_2pi);
-        assert_eq!(rust_coeffs.m_a1u, c_coeffs.mA1u);
-        assert_eq!(rust_coeffs.m_a1d, c_coeffs.mA1d);
-        assert_eq!(rust_coeffs.st2, c_coeffs.st2);
-        assert_eq!(rust_coeffs.cutoff_up, c_coeffs.cutoff_up);
-        assert_eq!(rust_coeffs.cutoff_down, c_coeffs.cutoff_down);
-        assert_eq!(rust_coeffs.sticky_thresh, c_coeffs.sticky_thresh);
-        assert_eq!(rust_coeffs.sticky_mode as u32, c_coeffs.sticky_mode);
+        let pre_message = "one_pole.coeff.";
+        let post_message = "does not match";
+        assert_eq!(
+            rust_coeffs.fs_2pi, c_coeffs.fs_2pi,
+            "{}fs_2pi {}",
+            pre_message, post_message
+        );
+        assert_eq!(
+            rust_coeffs.m_a1u, c_coeffs.mA1u,
+            "{}mA1u {}",
+            pre_message, post_message
+        );
+        assert_eq!(
+            rust_coeffs.m_a1d, c_coeffs.mA1d,
+            "{}mA1d {}",
+            pre_message, post_message
+        );
+        assert_eq!(
+            rust_coeffs.st2, c_coeffs.st2,
+            "{}st2 {}",
+            pre_message, post_message
+        );
+        assert_eq!(
+            rust_coeffs.cutoff_up, c_coeffs.cutoff_up,
+            "{}cutoff_up {}",
+            pre_message, post_message
+        );
+        assert_eq!(
+            rust_coeffs.cutoff_down, c_coeffs.cutoff_down,
+            "{}cutoff_down {}",
+            pre_message, post_message
+        );
+        assert_eq!(
+            rust_coeffs.sticky_thresh, c_coeffs.sticky_thresh,
+            "{}sticky_thresh {}",
+            pre_message, post_message
+        );
+        assert_eq!(
+            rust_coeffs.sticky_mode as u32, c_coeffs.sticky_mode,
+            "{}sticky_mode {}",
+            pre_message, post_message
+        );
         assert_eq!(
             rust_coeffs.param_changed.bits(),
-            c_coeffs.param_changed as u32
+            c_coeffs.param_changed as u32,
+            "{}param_changed {}",
+            pre_message,
+            post_message
         );
     }
 }
