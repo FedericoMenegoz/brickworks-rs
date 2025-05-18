@@ -1,13 +1,12 @@
-use crate::global::{assert_positive, assert_range, INVERSE_2_PI, NANO};
+use crate::global::{INVERSE_2_PI, NANO, assert_positive, assert_range};
 use bitflags::bitflags;
 
 use super::math::rcpf;
 
-#[allow(dead_code)]
 struct OnePole<const N_CHANNELS: usize> {
     coeffs: OnePoleCoeffs,
     states: Vec<OnePoleState>,
-    states_p: Vec<OnePoleState>, // BW_RESTRICT to check what is for
+    _states_p: Vec<OnePoleState>, // BW_RESTRICT to check what is for
 }
 
 #[allow(dead_code, unused_mut, unused_variables)]
@@ -31,7 +30,6 @@ enum OnePoleStickyMode {
     Rel,
 }
 
-#[allow(dead_code, unused_mut, unused_variables)]
 #[derive(Debug, Clone, Copy)]
 struct OnePoleState {
     y_z1: f32,
@@ -55,7 +53,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         OnePole {
             coeffs: Default::default(),
             states: vec![OnePoleState { y_z1: 0.0 }; N_CHANNELS],
-            states_p: vec![OnePoleState { y_z1: 0.0 }; N_CHANNELS],
+            _states_p: vec![OnePoleState { y_z1: 0.0 }; N_CHANNELS],
         }
     }
 
