@@ -1,4 +1,5 @@
-use crate::global::INVERSE_2_PI;
+use crate::global::{assert_positive, INVERSE_2_PI};
+use bitflags::bitflags;
 
 #[allow(dead_code)]
 struct OnePole<const N_CHANNELS: usize> {
@@ -18,7 +19,7 @@ struct OnePoleCoeffs {
     pub cutoff_down: f32,
     pub sticky_thresh: f32,
     pub sticky_mode: OnePoleStickyMode,
-    pub param_changed: u32,
+    pub param_changed: ParamChanged,
 }
 
 #[allow(dead_code, unused_mut, unused_variables)]
@@ -32,6 +33,15 @@ enum OnePoleStickyMode {
 #[derive(Debug, Clone, Copy)]
 struct OnePoleState {
     y_z1: f32,
+}
+
+bitflags! {
+    #[derive(Clone, Debug, Copy)]
+    struct ParamChanged: u32 {
+        const CUTOFF_UP = 1;
+        const CUTOFF_DOWN = 1<<1;
+        const STICKY_TRESH = 1<<2;
+    }
 }
 
 #[allow(dead_code, unused_mut, unused_variables)]
@@ -57,15 +67,25 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     }
 
     pub fn set_cutoff(&mut self, value: f32) {
-        todo!()
+        assert_positive(value);
+        self.set_cutoff_up(value);
+        self.set_cutoff_down(value);
     }
 
     pub fn set_cutoff_up(&mut self, value: f32) {
-        todo!()
+        assert_positive(value);
+        if self.coeffs.cutoff_up != value {
+            self.coeffs.cutoff_up = value;
+            self.coeffs.param_changed |= ParamChanged::CUTOFF_UP;
+        }
     }
 
     pub fn set_cutoff_down(&mut self, value: f32) {
-        todo!()
+        assert_positive(value);
+        if self.coeffs.cutoff_down != value {
+            self.coeffs.cutoff_down = value;
+            self.coeffs.param_changed |= ParamChanged::CUTOFF_DOWN;
+        }
     }
 
     pub fn set_tau(&mut self, value: f32) {
@@ -112,7 +132,7 @@ impl Default for OnePoleCoeffs {
             cutoff_down: f32::INFINITY,
             sticky_thresh: 0.0,
             sticky_mode: OnePoleStickyMode::Abs,
-            param_changed: !0,
+            param_changed: ParamChanged::all(),
         }
     }
 }
@@ -153,7 +173,7 @@ mod tests {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
-        rust_one_pole.coeffs.param_changed = 0;
+        rust_one_pole.coeffs.param_changed = ParamChanged::empty();
 
         c_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_cutoff(CUTOFF);
@@ -164,7 +184,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Value must be non negative, got -1!")]
     fn set_cutoff_negative() {
-        const CUTOFF: f32 = -1000.0;
+        const CUTOFF: f32 = -1.0;
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         rust_one_pole.set_cutoff(CUTOFF);
@@ -177,7 +197,7 @@ mod tests {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
-        rust_one_pole.coeffs.param_changed = 0;
+        rust_one_pole.coeffs.param_changed = ParamChanged::empty();
 
         c_one_pole.set_cutoff_up(CUTOFF);
         rust_one_pole.set_cutoff_up(CUTOFF);
@@ -193,7 +213,7 @@ mod tests {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
-        rust_one_pole.coeffs.param_changed = 0;
+        rust_one_pole.coeffs.param_changed = ParamChanged::empty();
 
         c_one_pole.set_cutoff_down(CUTOFF);
         rust_one_pole.set_cutoff_down(CUTOFF);
@@ -210,7 +230,7 @@ mod tests {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
-        rust_one_pole.coeffs.param_changed = 0;
+        rust_one_pole.coeffs.param_changed = ParamChanged::empty();
 
         c_one_pole.set_tau(TAU);
         rust_one_pole.set_tau(TAU);
@@ -241,7 +261,7 @@ mod tests {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
-        rust_one_pole.coeffs.param_changed = 0;
+        rust_one_pole.coeffs.param_changed = ParamChanged::empty();
 
         c_one_pole.set_tau_down(TAU);
         rust_one_pole.set_tau_down(TAU);
@@ -256,7 +276,7 @@ mod tests {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
         c_one_pole.coeffs.param_changed = 0;
-        rust_one_pole.coeffs.param_changed = 0;
+        rust_one_pole.coeffs.param_changed = ParamChanged::empty();
 
         c_one_pole.set_tau(TAU);
         rust_one_pole.set_tau(TAU);
@@ -281,7 +301,7 @@ mod tests {
         c_one_pole.set_sticky_thresh(sticky_tresh);
         rust_one_pole.set_sticky_thresh(sticky_tresh);
 
-        assert!(rust_one_pole.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_STICKY_THRESH != 0);
+        assert!(rust_one_pole.coeffs.param_changed.bits() & BW_ONE_POLE_PARAM_STICKY_THRESH != 0);
         assert_eq!(rust_one_pole.get_sticky_thresh(), sticky_tresh);
         assert_eq!(
             rust_one_pole.get_sticky_thresh(),
@@ -467,6 +487,6 @@ mod tests {
         assert_eq!(rust_coeffs.cutoff_down, c_coeffs.cutoff_down);
         assert_eq!(rust_coeffs.sticky_thresh, c_coeffs.sticky_thresh);
         assert_eq!(rust_coeffs.sticky_mode as u32, c_coeffs.sticky_mode);
-        assert_eq!(rust_coeffs.param_changed, c_coeffs.param_changed as u32);
+        assert_eq!(rust_coeffs.param_changed.bits(), c_coeffs.param_changed as u32);
     }
 }
