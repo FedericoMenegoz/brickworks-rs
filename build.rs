@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::process::Command;
 
-use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
 use bindgen::Builder;
+use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
 
 fn main() {
     let wrapper_path = PathBuf::from("src/c_wrapper/wrapper.h")
@@ -94,15 +94,13 @@ fn main() {
         .expect("Cound not write bindings to the Rust file");
 }
 
-
 // See https://github.com/rust-lang/rust-bindgen/issues/687#issuecomment-450750547
-const IGNORE_MACROS
-: [&str; 5] = [
+const IGNORE_MACROS: [&str; 5] = [
     "FP_INFINITE",
     "FP_NAN",
     "FP_NORMAL",
     "FP_SUBNORMAL",
-    "FP_ZERO"
+    "FP_ZERO",
 ];
 
 #[derive(Debug)]
@@ -120,7 +118,6 @@ impl ParseCallbacks for IgnoreMacros {
 
 impl IgnoreMacros {
     fn new() -> Self {
-        Self(IGNORE_MACROS
-            .into_iter().map(|s| s.to_owned()).collect())
+        Self(IGNORE_MACROS.into_iter().map(|s| s.to_owned()).collect())
     }
 }

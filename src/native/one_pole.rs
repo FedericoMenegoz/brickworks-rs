@@ -1,5 +1,7 @@
-use crate::global::{assert_positive, INVERSE_2_PI};
+use crate::global::{INVERSE_2_PI, NANO, assert_positive};
 use bitflags::bitflags;
+
+use super::math::rcpf;
 
 #[allow(dead_code)]
 struct OnePole<const N_CHANNELS: usize> {
@@ -89,11 +91,16 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     }
 
     pub fn set_tau(&mut self, value: f32) {
-        todo!()
+        self.set_tau_up(value);
+        self.set_tau_down(value);
     }
 
     pub fn set_tau_up(&mut self, value: f32) {
-        todo!()
+        let cutoff = if value < NANO {
+            f32::INFINITY
+        } else {
+            INVERSE_2_PI * rcpf(value)
+        };
     }
 
     pub fn set_tau_down(&mut self, value: f32) {
@@ -487,6 +494,9 @@ mod tests {
         assert_eq!(rust_coeffs.cutoff_down, c_coeffs.cutoff_down);
         assert_eq!(rust_coeffs.sticky_thresh, c_coeffs.sticky_thresh);
         assert_eq!(rust_coeffs.sticky_mode as u32, c_coeffs.sticky_mode);
-        assert_eq!(rust_coeffs.param_changed.bits(), c_coeffs.param_changed as u32);
+        assert_eq!(
+            rust_coeffs.param_changed.bits(),
+            c_coeffs.param_changed as u32
+        );
     }
 }
