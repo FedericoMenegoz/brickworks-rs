@@ -266,7 +266,6 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     // Not implementing the process() defined with BW_CXX_NO_ARRAY
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,6 +273,65 @@ mod tests {
 
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
+
+    #[test]
+    fn do_update_coeffs_ctrl_all_changed() {
+        let cutoff = 100.;
+        let sticky_thresh = 0.01;
+
+        let mut rust_coeffs = OnePoleCoeffs {
+            cutoff_up: cutoff,
+            cutoff_down: cutoff,
+            sticky_thresh: sticky_thresh,
+            param_changed: ParamChanged::all(),
+            ..Default::default()
+        };
+        let mut c_coeffs = bw_one_pole_coeffs {
+            cutoff_up: cutoff,
+            cutoff_down: cutoff,
+            sticky_thresh: sticky_thresh,
+            param_changed: !0,
+            fs_2pi: Default::default(),
+            mA1u: Default::default(),
+            mA1d: Default::default(),
+            st2: Default::default(),
+            sticky_mode: Default::default(),
+        };
+
+        unsafe {
+            bw_one_pole_do_update_coeffs_ctrl(&mut c_coeffs);
+        }
+        rust_coeffs.do_update_coeffs_ctrl();
+
+        assert_coeffs_rust_c(rust_coeffs, c_coeffs);
+    }
+
+    #[test]
+    fn do_update_coeffs_ctrl_nothing_changed() {
+        let mut rust_coeffs = OnePoleCoeffs {
+            param_changed: ParamChanged::empty(),
+            ..Default::default()
+        };
+
+        let mut c_coeffs = bw_one_pole_coeffs {
+            cutoff_up: Default::default(),
+            cutoff_down: Default::default(),
+            sticky_thresh: Default::default(),
+            param_changed: 0,
+            fs_2pi: Default::default(),
+            mA1u: Default::default(),
+            mA1d: Default::default(),
+            st2: Default::default(),
+            sticky_mode: Default::default(),
+        };
+
+        unsafe {
+            bw_one_pole_do_update_coeffs_ctrl(&mut c_coeffs);
+        }
+        rust_coeffs.do_update_coeffs_ctrl();
+
+        assert_coeffs_rust_c(rust_coeffs, c_coeffs);
+    }
 
     #[test]
     fn one_pole_initialization() {
