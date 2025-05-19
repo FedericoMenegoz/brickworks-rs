@@ -54,18 +54,41 @@ impl OnePoleCoeffs {
     }
 
     fn do_update_coeffs_ctrl(&mut self) {
-        todo!()
+        if !self.param_changed.is_empty() {
+            if self.param_changed.contains(ParamChanged::CUTOFF_UP) {
+                // tau < 1 ns is instantaneous for any practical purpose
+                self.m_a1u = if self.cutoff_up > 1.591_549_4e8 {
+                    0.0
+                } else {
+                    self.fs_2pi * rcpf(self.fs_2pi + self.cutoff_up)
+                }
+            }
+            if self.param_changed.contains(ParamChanged::CUTOFF_DOWN) {
+                // as before
+                self.m_a1u = if self.cutoff_down > 1.591_549_4e8 {
+                    0.0
+                } else {
+                    self.fs_2pi * rcpf(self.fs_2pi + self.cutoff_down)
+                }
+            }
+            if self.param_changed.contains(ParamChanged::STICKY_TRESH) {
+                self.st2 = self.sticky_thresh * self.sticky_thresh;
+            }
+            self.param_changed = ParamChanged::empty()
+        }
     }
 
     fn reset_coeffs(&mut self) {
-        todo!()
+        self.param_changed = ParamChanged::all();
+        self.do_update_coeffs_ctrl();
     }
 
     fn update_coeffs_ctrl(&mut self) {
-        todo!()
+        self.do_update_coeffs_ctrl();
     }
 
     fn update_coeffs_audio(&self) {
+        // This is only asserting
         todo!()
     }
 
@@ -275,7 +298,7 @@ mod tests {
     const SAMPLE_RATE: f32 = 48_000.0;
 
     #[test]
-    fn do_update_coeffs_ctrl_all_changed() {
+    fn update_coeffs_ctrl_all_changed() {
         let cutoff = 100.;
         let sticky_thresh = 0.01;
 
@@ -287,10 +310,10 @@ mod tests {
             ..Default::default()
         };
         let mut c_coeffs = bw_one_pole_coeffs {
-            cutoff_up: cutoff,
-            cutoff_down: cutoff,
-            sticky_thresh: sticky_thresh,
-            param_changed: !0,
+            cutoff_up: Default::default(),
+            cutoff_down: Default::default(),
+            sticky_thresh: Default::default(),
+            param_changed: Default::default(),
             fs_2pi: Default::default(),
             mA1u: Default::default(),
             mA1d: Default::default(),
@@ -299,20 +322,23 @@ mod tests {
         };
 
         unsafe {
-            bw_one_pole_do_update_coeffs_ctrl(&mut c_coeffs);
+            bw_one_pole_init(&mut c_coeffs);
+            c_coeffs.cutoff_up = cutoff;
+            c_coeffs.cutoff_down = cutoff;
+            c_coeffs.sticky_thresh = sticky_thresh;
+            bw_one_pole_update_coeffs_ctrl(&mut c_coeffs);
         }
-        rust_coeffs.do_update_coeffs_ctrl();
+        rust_coeffs.update_coeffs_ctrl();
 
         assert_coeffs_rust_c(rust_coeffs, c_coeffs);
     }
 
     #[test]
-    fn do_update_coeffs_ctrl_nothing_changed() {
+    fn update_coeffs_ctrl_nothing_changed() {
         let mut rust_coeffs = OnePoleCoeffs {
             param_changed: ParamChanged::empty(),
             ..Default::default()
         };
-
         let mut c_coeffs = bw_one_pole_coeffs {
             cutoff_up: Default::default(),
             cutoff_down: Default::default(),
@@ -326,6 +352,7 @@ mod tests {
         };
 
         unsafe {
+            bw_one_pole_init(&mut c_coeffs);
             bw_one_pole_do_update_coeffs_ctrl(&mut c_coeffs);
         }
         rust_coeffs.do_update_coeffs_ctrl();
