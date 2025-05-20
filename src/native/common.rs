@@ -104,7 +104,9 @@ mod test {
     // BW_HAS_SDBM
     #[test]
     fn bw_hash_sdbm_is_consistent() {
-        let input = "test";
+        // Always send a reference to a string otherwise
+        // it won't have the '\0' and that is not good
+        let input = "Ti prego funzionalo!".to_string();
         unsafe {
             assert_eq!(hash_sdbm(&input), bw_hash_sdbm(input.as_ptr() as *const i8));
         }
