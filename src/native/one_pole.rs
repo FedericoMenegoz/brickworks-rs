@@ -198,16 +198,9 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         self.coeffs.set_sample_rate(sample_rate);
     }
 
-    pub fn reset(&mut self, x0: Option<&[f32]>, mut y0: Option<&mut [f32]>) {
+    pub fn reset(&mut self, x0: &[f32], mut y0: Option<&mut [f32]>) {
         self.coeffs.reset_coeffs();
-        (0..N_CHANNELS).for_each(|channel| {
-            let x0_value = x0.map_or(0.0, |slice| slice[channel]);
-            let result = self.states[channel].reset(x0_value);
-                
-            if let Some(slice) = y0.as_deref_mut() {
-                slice[channel] = result
-            }
-        });
+        self.reset_state_multi(x0, y0);
     }
 
     pub fn process(&mut self, x: &[Vec<f32>], y: Option<&mut [&mut [f32]]>, n_samples: usize) {
@@ -654,6 +647,7 @@ mod tests {
         let sticky_tresh = 0.1;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
+        let x0 = [0.5; N_CHANNELS];
 
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(sticky_tresh);
@@ -663,8 +657,8 @@ mod tests {
         rust_one_pole.set_sticky_thresh(sticky_tresh);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
 
-        c_one_pole.reset(None, None);
-        rust_one_pole.reset(None, None);
+        c_one_pole.reset(&x0, None);
+        rust_one_pole.reset(&x0, None);
 
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
@@ -687,8 +681,8 @@ mod tests {
         rust_one_pole.set_sticky_thresh(sticky_thresh);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
 
-        c_one_pole.reset(Some(&x0_input), Some(&mut c_y0_output));
-        rust_one_pole.reset(Some(&x0_input), Some(&mut rust_y0_output));
+        c_one_pole.reset(&x0_input, Some(&mut c_y0_output));
+        rust_one_pole.reset(&x0_input, Some(&mut rust_y0_output));
 
         for i in 0..N_CHANNELS {
             assert_eq!(rust_one_pole.states[i].y_z1, x0_input[i]);
@@ -702,23 +696,23 @@ mod tests {
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         const CUTOFF: f32 = 100.;
         const STICKY_TRESH: f32 = 0.;
-        let x = [45.0, 33.0];
+        let x0 = [45.0, 33.0];
         let mut c_y = [0.0, 0.0];
         let mut rust_y = [0.0, 0.0];
 
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(None, None);
+        rust_one_pole.reset(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_cutoff(CUTOFF);
-        c_one_pole.reset(None, None);
+        c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1(x[channel], channel);
-            rust_y[channel] = rust_one_pole.process1(x[channel], channel);
+            c_y[channel] = c_one_pole.process1(x0[channel], channel);
+            rust_y[channel] = rust_one_pole.process1(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
@@ -732,7 +726,7 @@ mod tests {
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         const CUTOFF: f32 = 100_000.;
         const STICKY_TRESH: f32 = 0.9;
-        let x = [1.0, 33.0];
+        let x0 = [1.0, 33.0];
         let mut c_y = [0.0, 0.0];
         let mut rust_y = [0.0, 0.0];
 
@@ -740,17 +734,17 @@ mod tests {
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_mode(OnePoleStickyMode::Abs);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(None, None);
+        rust_one_pole.reset(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_sticky_mode(bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs);
-        c_one_pole.reset(None, None);
+        c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_sticky_abs(x[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_sticky_abs(x[channel], channel);
+            c_y[channel] = c_one_pole.process1_sticky_abs(x0[channel], channel);
+            rust_y[channel] = rust_one_pole.process1_sticky_abs(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
@@ -764,7 +758,7 @@ mod tests {
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         const CUTOFF: f32 = 100_000.;
         const STICKY_TRESH: f32 = 0.9;
-        let x = [1.0, 33.0];
+        let x0 = [1.0, 33.0];
         let mut c_y = [0.0, 0.0];
         let mut rust_y = [0.0, 0.0];
 
@@ -772,17 +766,17 @@ mod tests {
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(None, None);
+        rust_one_pole.reset(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_sticky_mode(bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel);
-        c_one_pole.reset(None, None);
+        c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_sticky_rel(x[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_sticky_rel(x[channel], channel);
+            c_y[channel] = c_one_pole.process1_sticky_rel(x0[channel], channel);
+            rust_y[channel] = rust_one_pole.process1_sticky_rel(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
@@ -797,7 +791,7 @@ mod tests {
         const CUTOFF_UP: f32 = 100.;
         const CUTOFF_DOWN: f32 = 300.;
         const STICKY_TRESH: f32 = 0.;
-        let x = [0.5, 0.32];
+        let x0 = [0.5, 0.32];
         let mut c_y = [0.0, 0.0];
         let mut rust_y = [0.0, 0.0];
 
@@ -805,17 +799,17 @@ mod tests {
         rust_one_pole.set_cutoff_up(CUTOFF_UP);
         rust_one_pole.set_cutoff_down(CUTOFF_DOWN);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(None, None);
+        rust_one_pole.reset(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff_up(CUTOFF_UP);
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.reset(None, None);
+        c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_asym(x[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_asym(x[channel], channel);
+            c_y[channel] = c_one_pole.process1_asym(x0[channel], channel);
+            rust_y[channel] = rust_one_pole.process1_asym(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
@@ -830,7 +824,7 @@ mod tests {
         const CUTOFF_UP: f32 = 100.;
         const CUTOFF_DOWN: f32 = 300.;
         const STICKY_TRESH: f32 = 0.9;
-        let x = [0.5, 0.32];
+        let x0 = [0.5, 0.32];
         let mut c_y = [0.0, 0.0];
         let mut rust_y = [0.0, 0.0];
 
@@ -839,18 +833,18 @@ mod tests {
         rust_one_pole.set_cutoff_down(CUTOFF_DOWN);
         rust_one_pole.set_sticky_mode(OnePoleStickyMode::Abs);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(None, None);
+        rust_one_pole.reset(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff_up(CUTOFF_UP);
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_sticky_mode(bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs);
-        c_one_pole.reset(None, None);
+        c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_asym_sticky_abs(x[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_asym_sticky_abs(x[channel], channel);
+            c_y[channel] = c_one_pole.process1_asym_sticky_abs(x0[channel], channel);
+            rust_y[channel] = rust_one_pole.process1_asym_sticky_abs(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
@@ -865,7 +859,7 @@ mod tests {
         const CUTOFF_UP: f32 = 100.;
         const CUTOFF_DOWN: f32 = 300.;
         const STICKY_TRESH: f32 = 0.9;
-        let x = [0.5, 0.32];
+        let x0 = [0.5, 0.32];
         let mut c_y = [0.0, 0.0];
         let mut rust_y = [0.0, 0.0];
 
@@ -874,18 +868,18 @@ mod tests {
         rust_one_pole.set_cutoff_down(CUTOFF_DOWN);
         rust_one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(None, None);
+        rust_one_pole.reset(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff_up(CUTOFF_UP);
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_sticky_mode(bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel);
-        c_one_pole.reset(None, None);
+        c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_asym_sticky_rel(x[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_asym_sticky_rel(x[channel], channel);
+            c_y[channel] = c_one_pole.process1_asym_sticky_rel(x0[channel], channel);
+            rust_y[channel] = rust_one_pole.process1_asym_sticky_rel(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
@@ -899,7 +893,7 @@ mod tests {
         const N_SAMPLES: usize = 4;
         const CUTOFF: f32 = 1000.0;
 
-        let input = [vec![1.0, 2.0, 3.0, 4.0], vec![0.5, 1.5, 2.5, 3.5]];
+        let x0 = [vec![1.0, 2.0, 3.0, 4.0], vec![0.5, 1.5, 2.5, 3.5]];
         let mut c_output: [&mut [f32]; N_CHANNELS] =
             [&mut [0.0, 0.0, 0.0, 0.0], &mut [0.0, 0.0, 0.0, 0.0]];
         let mut rust_output: [&mut [f32]; N_CHANNELS] =
@@ -908,16 +902,16 @@ mod tests {
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sample_rate(SAMPLE_RATE);
-        c_one_pole.reset(None, None);
+        c_one_pole.reset(&[0.0,0.0], None);
 
-        c_one_pole.process(&input, Some(&mut c_output), N_SAMPLES);
+        c_one_pole.process(&x0, Some(&mut c_output), N_SAMPLES);
 
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
-        rust_one_pole.reset(None, None);
+        rust_one_pole.reset(&[0.0,0.0], None);
 
-        rust_one_pole.process(&input, Some(&mut rust_output), N_SAMPLES);
+        rust_one_pole.process(&x0, Some(&mut rust_output), N_SAMPLES);
 
         for ch in 0..N_CHANNELS {
             for sample in 0..N_SAMPLES {

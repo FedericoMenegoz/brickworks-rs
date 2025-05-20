@@ -45,15 +45,14 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         }
     }
 
-    pub fn reset(&mut self, x0: Option<&[f32]>, mut y0: Option<&mut [f32]>) {
+    pub fn reset(&mut self, x0: &[f32], mut y0: Option<&mut [f32]>) {
         unsafe {
             bw_one_pole_reset_coeffs(&mut self.coeffs);
-            (0..N_CHANNELS).for_each(|i| {
-                let x0_value = x0.map_or(0.0, |slice| slice[i]);
+            (0..N_CHANNELS).for_each(|channel| {
                 let result =
-                    bw_one_pole_reset_state(&mut self.coeffs, &mut self.states[i], x0_value);
+                    bw_one_pole_reset_state(&mut self.coeffs, &mut self.states[channel], x0[channel]);
                 if let Some(slice) = y0.as_deref_mut() {
-                    slice[i] = result
+                    slice[channel] = result
                 }
             });
         }
@@ -390,13 +389,14 @@ mod tests {
     fn reset_none() {
         let cutoff = 1200.0;
         let sticky_tresh = 0.1;
+        let x0_input = [0.5; N_CHANNELS];
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_cutoff(cutoff);
         f.set_sticky_thresh(sticky_tresh);
         f.set_sample_rate(SAMPLE_RATE);
         let inverse = unsafe { f.coeffs.fs_2pi * bw_rcpf(f.coeffs.fs_2pi + cutoff) };
 
-        f.reset(None, None);
+        f.reset(&x0_input, None);
 
         assert!(f.coeffs.param_changed == 0);
         assert_eq!(f.coeffs.mA1u, inverse);
@@ -415,7 +415,7 @@ mod tests {
         f.set_sticky_thresh(sticky_thresh);
         f.set_sample_rate(SAMPLE_RATE);
 
-        f.reset(Some(&x0_input), Some(&mut y0_output));
+        f.reset(&x0_input, Some(&mut y0_output));
 
         for i in 0..N_CHANNELS {
             assert_eq!(f.states[i].y_z1, x0_input[i]);
@@ -427,6 +427,7 @@ mod tests {
     fn process_with_y() {
         const N_CHANNELS: usize = 2;
         const N_SAMPLES: usize = 4;
+        let x0_input = [0.5; N_CHANNELS];
 
         let input_data = [vec![1.0, 2.0, 3.0, 4.0], vec![0.5, 1.5, 2.5, 3.5]];
         let mut output_data: [&mut [f32]; N_CHANNELS] =
@@ -435,7 +436,7 @@ mod tests {
         let mut filter = OnePoleWrapper::<N_CHANNELS>::new();
         filter.set_cutoff(1000.0);
         filter.set_sample_rate(44100.0);
-        filter.reset(None, None);
+        filter.reset(&x0_input, None);
 
         filter.process(&input_data, Some(&mut output_data), N_SAMPLES);
 
