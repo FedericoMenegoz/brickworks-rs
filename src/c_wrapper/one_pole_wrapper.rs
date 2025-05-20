@@ -49,8 +49,11 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         unsafe {
             bw_one_pole_reset_coeffs(&mut self.coeffs);
             (0..N_CHANNELS).for_each(|channel| {
-                let result =
-                    bw_one_pole_reset_state(&mut self.coeffs, &mut self.states[channel], x0[channel]);
+                let result = bw_one_pole_reset_state(
+                    &mut self.coeffs,
+                    &mut self.states[channel],
+                    x0[channel],
+                );
                 if let Some(slice) = y0.as_deref_mut() {
                     slice[channel] = result
                 }
@@ -153,26 +156,18 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
     }
 
     pub(crate) fn process1(&mut self, x: f32, channel: usize) -> f32 {
-        unsafe {
-            bw_one_pole_process1(&mut self.coeffs, &mut self.states[channel], x)
-        }
+        unsafe { bw_one_pole_process1(&mut self.coeffs, &mut self.states[channel], x) }
     }
-    
+
     pub(crate) fn process1_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
-        unsafe {
-            bw_one_pole_process1_sticky_abs(&mut self.coeffs, &mut self.states[channel], x)
-        }
+        unsafe { bw_one_pole_process1_sticky_abs(&mut self.coeffs, &mut self.states[channel], x) }
     }
 
     pub(crate) fn process1_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
-        unsafe {
-            bw_one_pole_process1_sticky_rel(&mut self.coeffs, &mut self.states[channel], x)
-        }
+        unsafe { bw_one_pole_process1_sticky_rel(&mut self.coeffs, &mut self.states[channel], x) }
     }
     pub(crate) fn process1_asym(&mut self, x: f32, channel: usize) -> f32 {
-        unsafe {
-            bw_one_pole_process1_asym(&mut self.coeffs, &mut self.states[channel], x)
-        }
+        unsafe { bw_one_pole_process1_asym(&mut self.coeffs, &mut self.states[channel], x) }
     }
     pub(crate) fn process1_asym_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
         unsafe {
