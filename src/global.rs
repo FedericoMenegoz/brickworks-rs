@@ -14,6 +14,9 @@ pub(crate) fn assert_range(min: f32, max: f32, value: f32) {
     );
 }
 
+// Need to contitionally add this whole module when refactored
+// the assertion conditionally as well
+#[allow(dead_code)]
 pub(crate) fn assert_is_finite(value: f32) {
     debug_assert!(value.is_finite(), "value must be finite, got {}", value);
 }
