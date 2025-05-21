@@ -1147,7 +1147,10 @@ mod tests {
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.reset(&[0.0; N_CHANNELS], None);
-        c_one_pole.process(&x0, Some(&mut c_output), N_SAMPLES);
+        
+        let mut c_output_wrapped: Vec<Option<&mut [f32]>> =
+            c_output.iter_mut().map(|ch| Some(&mut **ch)).collect();
+        c_one_pole.process(&x0, Some(&mut c_output_wrapped), N_SAMPLES);
 
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
         rust_one_pole.set_cutoff(CUTOFF);
@@ -1197,7 +1200,9 @@ mod tests {
         let mut c_output: [&mut [f32]; N_CHANNELS] = [&mut c_buf0, &mut c_buf1];
         let mut rust_output: [&mut [f32]; N_CHANNELS] = [&mut rust_buf0, &mut rust_buf1];
 
-        c_one_pole.process(&input, Some(&mut c_output), N_SAMPLES);
+        let mut c_output_wrapped: Vec<Option<&mut [f32]>> =
+            c_output.iter_mut().map(|ch| Some(&mut **ch)).collect();
+        c_one_pole.process(&input, Some(&mut c_output_wrapped), N_SAMPLES);
 
         let mut output_wrapped: Vec<Option<&mut [f32]>> =
             rust_output.iter_mut().map(|ch| Some(&mut **ch)).collect();

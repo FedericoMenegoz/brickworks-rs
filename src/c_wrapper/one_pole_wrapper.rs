@@ -62,14 +62,27 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         }
     }
 
-    pub fn process(&mut self, x: &[Vec<f32>], y: Option<&mut [&mut [f32]]>, n_samples: usize) {
+    pub fn process(
+        &mut self,
+        x: &[Vec<f32>],
+        y: Option<&mut [Option<&mut [f32]>]>,
+        n_samples: usize,
+    ) {
         unsafe {
             // In case y is None this will be passed
             let null_ptrs: [*mut f32; N_CHANNELS] = [null_mut(); N_CHANNELS];
             // Need to prepare the data into raw pointers for c
             let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
-            let y_ptrs: Option<[*mut f32; N_CHANNELS]> =
-                y.map(|state| std::array::from_fn(|i| state[i].as_mut_ptr()));
+            let y_ptrs: Option<[*mut f32; N_CHANNELS]> = y.map(|y_channel| {
+                std::array::from_fn(|i| {
+                    // state[i].unwrap_or(null_mut::<[f32]>()).as_mut_ptr()
+                    if let Some(y_samples) = y_channel[i].as_mut() {
+                        y_samples.as_mut_ptr()
+                    } else {
+                        null_ptrs[0]
+                    }
+                })
+            });
             let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
                 std::array::from_fn(|i| &mut self.states[i] as *mut _);
 
@@ -455,7 +468,16 @@ mod tests {
         filter.set_sample_rate(44100.0);
         filter.reset(&x0_input, None);
 
-        filter.process(&input_data, Some(&mut output_data), N_SAMPLES);
+        filter.process(
+            &input_data,
+            Some(
+                &mut output_data
+                    .iter_mut()
+                    .map(|ch| Some(&mut **ch))
+                    .collect::<Vec<_>>(),
+            ),
+            N_SAMPLES,
+        );
 
         for ch in 0..N_CHANNELS {
             for sample in 0..N_SAMPLES {
@@ -479,7 +501,17 @@ mod tests {
         let input_data = [vec![1.0, 2.0, 3.0, 4.0], vec![0.5, 1.5, 2.5, 3.5]];
         let mut output_data: [&mut [f32]; N_CHANNELS] =
             [&mut [0.0, 0.1, 0.2, 0.3], &mut [1.0, 1.1, 1.2, 1.3]];
-        f.process(&input_data, Some(&mut output_data), N_SAMPLES);
+        // f.process(&input_data, Some(&mut output_data), N_SAMPLES);
+        f.process(
+            &input_data,
+            Some(
+                &mut output_data
+                    .iter_mut()
+                    .map(|ch| Some(&mut **ch))
+                    .collect::<Vec<_>>(),
+            ),
+            N_SAMPLES,
+        );
 
         for i in 0..N_CHANNELS {
             assert_eq!(f.get_y_z1(i), output_data[i][3])
