@@ -564,6 +564,12 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     }
 }
 
+impl<const N_CHANNELS: usize> Default for OnePole<N_CHANNELS> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::f32;
