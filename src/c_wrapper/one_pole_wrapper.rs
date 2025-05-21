@@ -159,7 +159,7 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         unsafe { bw_one_pole_get_sticky_mode(&self.coeffs) }
     }
 
-    pub fn get_yz1(&self, channel: usize) -> f32 {
+    pub fn get_y_z1(&self, channel: usize) -> f32 {
         unsafe { bw_one_pole_get_y_z1(&self.states[channel]) }
     }
 
@@ -457,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn get_yz1() {
+    fn get_y_z1() {
         const N_CHANNELS: usize = 2;
         const SAMPLE_RATE: f32 = 44100.0;
         const CUTOFF: f32 = 1000.0;
@@ -473,7 +473,7 @@ mod tests {
         f.process(&input_data, Some(&mut output_data), N_SAMPLES);
 
         for i in 0..N_CHANNELS {
-            assert_eq!(f.get_yz1(i), output_data[i][3])
+            assert_eq!(f.get_y_z1(i), output_data[i][3])
         }
     }
 }

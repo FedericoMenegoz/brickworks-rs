@@ -298,7 +298,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     }
 
     #[inline(always)]
-    pub fn get_yz1(&self, channel: usize) -> f32 {
+    pub fn get_y_z1(&self, channel: usize) -> f32 {
         self.states[channel].y_z1
     }
 
@@ -320,14 +320,14 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
     #[inline(always)]
     fn process1(&mut self, x: f32, channel: usize) -> f32 {
-        let y = x + self.coeffs.m_a1u * (self.get_yz1(channel) - x);
+        let y = x + self.coeffs.m_a1u * (self.get_y_z1(channel) - x);
         self.states[channel].y_z1 = y;
         y
     }
 
     #[inline(always)]
     fn process1_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
-        let mut y = x + self.coeffs.m_a1u * (self.get_yz1(channel) - x);
+        let mut y = x + self.coeffs.m_a1u * (self.get_y_z1(channel) - x);
         let d = y - x;
         if d * d <= self.coeffs.st2 {
             y = x
@@ -339,7 +339,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
     #[inline(always)]
     fn process1_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
-        let mut y = x + self.coeffs.m_a1u * (self.get_yz1(channel) - x);
+        let mut y = x + self.coeffs.m_a1u * (self.get_y_z1(channel) - x);
         let d = y - x;
         if d * d <= self.coeffs.st2 * x * x {
             y = x
@@ -351,7 +351,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
     #[inline(always)]
     fn process1_asym(&mut self, x: f32, channel: usize) -> f32 {
-        let y_z1 = self.get_yz1(channel);
+        let y_z1 = self.get_y_z1(channel);
         let ma1 = if x >= y_z1 {
             self.coeffs.m_a1u
         } else {
@@ -366,7 +366,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
     #[inline(always)]
     fn process1_asym_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
-        let y_z1 = self.get_yz1(channel);
+        let y_z1 = self.get_y_z1(channel);
         let ma1 = if x >= y_z1 {
             self.coeffs.m_a1u
         } else {
@@ -385,7 +385,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
     #[inline(always)]
     fn process1_asym_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
-        let y_z1 = self.get_yz1(channel);
+        let y_z1 = self.get_y_z1(channel);
         let ma1 = if x >= y_z1 {
             self.coeffs.m_a1u
         } else {
@@ -934,7 +934,7 @@ mod tests {
             rust_y[channel] = rust_one_pole.process1(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
-            assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
+            assert_eq!(rust_one_pole.get_y_z1(channel), c_one_pole.get_y_z1(channel));
             assert_eq!(rust_y[channel], c_y[channel]);
         });
     }
@@ -966,7 +966,7 @@ mod tests {
             rust_y[channel] = rust_one_pole.process1_sticky_abs(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
-            assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
+            assert_eq!(rust_one_pole.get_y_z1(channel), c_one_pole.get_y_z1(channel));
             assert_eq!(rust_y[channel], c_y[channel]);
         });
     }
@@ -998,7 +998,7 @@ mod tests {
             rust_y[channel] = rust_one_pole.process1_sticky_rel(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
-            assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
+            assert_eq!(rust_one_pole.get_y_z1(channel), c_one_pole.get_y_z1(channel));
             assert_eq!(rust_y[channel], c_y[channel]);
         });
     }
@@ -1031,7 +1031,7 @@ mod tests {
             rust_y[channel] = rust_one_pole.process1_asym(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
-            assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
+            assert_eq!(rust_one_pole.get_y_z1(channel), c_one_pole.get_y_z1(channel));
             assert_eq!(rust_y[channel], c_y[channel]);
         });
     }
@@ -1066,7 +1066,7 @@ mod tests {
             rust_y[channel] = rust_one_pole.process1_asym_sticky_abs(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
-            assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
+            assert_eq!(rust_one_pole.get_y_z1(channel), c_one_pole.get_y_z1(channel));
             assert_eq!(rust_y[channel], c_y[channel]);
         });
     }
@@ -1101,7 +1101,7 @@ mod tests {
             rust_y[channel] = rust_one_pole.process1_asym_sticky_rel(x0[channel], channel);
 
             assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
-            assert_eq!(rust_one_pole.get_yz1(channel), c_one_pole.get_yz1(channel));
+            assert_eq!(rust_one_pole.get_y_z1(channel), c_one_pole.get_y_z1(channel));
             assert_eq!(rust_y[channel], c_y[channel]);
         });
     }
@@ -1150,7 +1150,7 @@ mod tests {
     }
 
     #[test]
-    fn get_yz1() {
+    fn get_y_z1() {
         const N_CHANNELS: usize = 2;
         const SAMPLE_RATE: f32 = 44100.0;
         const CUTOFF: f32 = 1000.0;
@@ -1184,8 +1184,8 @@ mod tests {
         rust_one_pole.process(&input, Some(&mut output_wrapped), N_SAMPLES);
 
         for i in 0..N_CHANNELS {
-            assert_eq!(rust_one_pole.get_yz1(i), c_one_pole.get_yz1(i));
-            assert_eq!(rust_one_pole.get_yz1(i), rust_output[i][3]);
+            assert_eq!(rust_one_pole.get_y_z1(i), c_one_pole.get_y_z1(i));
+            assert_eq!(rust_one_pole.get_y_z1(i), rust_output[i][3]);
         }
     }
 
