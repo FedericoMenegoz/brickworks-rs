@@ -141,10 +141,10 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
     }
 
     pub fn set_sticky_mode(&mut self, value: bw_one_pole_sticky_mode) {
-        assert!(
+        debug_assert!(
             value == bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs
                 || value == bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel,
-            "Sticky mode can be {bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs} or {bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel}, got {value}!"
+            "sticky mode can be {bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs} or {bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel}, got {value}"
         );
         unsafe {
             bw_one_pole_set_sticky_mode(&mut self.coeffs, value as u32);
@@ -238,7 +238,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be non negative, got -1000!")]
+    #[should_panic(expected = "value must be non negative, got -1000")]
     fn set_cutoff_negative() {
         const CUTOFF: f32 = -1000.0;
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
@@ -330,7 +330,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be non negative, got -1!")]
+    #[should_panic(expected = "value must be non negative, got -1")]
     fn set_negative_tau() {
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_tau(-1.);
@@ -349,7 +349,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be in range [0e0, 1e18], got -1e0!")]
+    #[should_panic(expected = "value must be in range [0e0, 1e18], got -1e0")]
     fn set_sticky_tresh_negative() {
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_sticky_thresh(-1.);
@@ -357,7 +357,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be in range [0e0, 1e18], got 1.1e18!")]
+    #[should_panic(expected = "value must be in range [0e0, 1e18], got 1.1e18")]
     fn set_sticky_tresh_too_high() {
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();
         f.set_sticky_thresh(1.1e18);
@@ -385,7 +385,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Sticky mode can be 0 or 1, got 3!")]
+    #[should_panic(expected = "sticky mode can be 0 or 1, got 3")]
     fn set_sticky_mode_not_valid() {
         let mode = 3;
         let mut f = OnePoleWrapper::<N_CHANNELS>::new();

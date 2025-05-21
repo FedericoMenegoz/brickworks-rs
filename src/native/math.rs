@@ -41,7 +41,7 @@ mod tests {
     }
 
     #[cfg(debug_assertions)]
-    #[should_panic(expected = "Value must be in range [8.077936e-28, 1.2379401e27], got 8e-28")]
+    #[should_panic(expected = "value must be in range [8.077936e-28, 1.2379401e27], got 8e-28")]
     #[test]
     fn rcpf_should_panic_with_small_number() {
         let value = 8.0e-28;
@@ -49,7 +49,7 @@ mod tests {
     }
 
     #[cfg(debug_assertions)]
-    #[should_panic(expected = "Value must be in range [-1.2379401e27, -8.077936e-28], got -1.3e27")]
+    #[should_panic(expected = "value must be in range [-1.2379401e27, -8.077936e-28], got -1.3e27")]
     #[test]
     fn rcpf_should_panic_with_big_negative_number() {
         let value = -1.3e27;

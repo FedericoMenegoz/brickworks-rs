@@ -679,7 +679,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be non negative, got -1!")]
+    #[should_panic(expected = "value must be non negative, got -1")]
     fn set_cutoff_negative() {
         const CUTOFF: f32 = -1.0;
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
@@ -784,7 +784,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be non negative, got -1!")]
+    #[should_panic(expected = "value must be non negative, got -1")]
     fn set_tau_negative() {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
@@ -810,7 +810,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be in range [0e0, 1e18], got -1e0!")]
+    #[should_panic(expected = "value must be in range [0e0, 1e18], got -1e0")]
     fn set_sticky_tresh_negative() {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
@@ -819,7 +819,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be in range [0e0, 1e18], got 1.1e18!")]
+    #[should_panic(expected = "value must be in range [0e0, 1e18], got 1.1e18")]
     fn set_sticky_tresh_too_high() {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
 
@@ -1193,7 +1193,7 @@ mod tests {
     // By design I can not insert a non valid value
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be non negative, got NaN!")]
+    #[should_panic(expected = "value must be non negative, got NaN")]
     fn set_cutoff_to_nan() {
         let result = panic::catch_unwind(|| {
             let mut one_pole_coeffs = OnePoleCoeffs::default();
@@ -1213,7 +1213,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "Value must be in range [0e0, 1e18], got inf!")]
+    #[should_panic(expected = "value must be in range [0e0, 1e18], got inf")]
     fn set_sticky_thresh_to_infinite() {
         let mut one_pole_coeffs = OnePoleCoeffs::default();
 
