@@ -8,4 +8,4 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-pub mod one_pole_wrapper;
+pub mod one_pole;

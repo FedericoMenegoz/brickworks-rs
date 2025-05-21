@@ -702,7 +702,7 @@ mod tests {
     use std::panic;
 
     use super::*;
-    use crate::c_wrapper::{one_pole_wrapper::*, *};
+    use crate::c_wrapper::{one_pole::OnePole as OnePoleWrapper, *};
 
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
