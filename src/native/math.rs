@@ -2,7 +2,7 @@
 use crate::global::{assert_is_finite, assert_range};
 
 //  Newton-Raphson reciprocal approsimation
-// #[inline(always)]
+#[inline(always)]
 pub(crate) fn rcpf(x: f32) -> f32 {
     #[cfg(debug_assertions)]
     {

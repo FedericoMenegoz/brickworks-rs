@@ -4,7 +4,7 @@ use bitflags::bitflags;
 use super::math::rcpf;
 
 #[derive(Debug)]
-struct OnePole<const N_CHANNELS: usize> {
+pub struct OnePole<const N_CHANNELS: usize> {
     coeffs: OnePoleCoeffs,
     states: Vec<OnePoleState>,
     _states_p: Vec<OnePoleState>, // BW_RESTRICT to check what is for
@@ -26,7 +26,7 @@ struct OnePoleCoeffs {
 
 #[allow(dead_code, unused_mut, unused_variables)]
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum OnePoleStickyMode {
+pub enum OnePoleStickyMode {
     Abs,
     Rel,
 }
@@ -37,6 +37,7 @@ struct OnePoleState {
 }
 
 impl OnePoleState {
+    #[inline(always)]
     fn reset(&mut self, x_0: f32) -> f32 {
         self.y_z1 = x_0;
         x_0
@@ -57,10 +58,12 @@ bitflags! {
 
 #[allow(dead_code)]
 impl OnePoleCoeffs {
+    #[inline(always)]
     fn set_sample_rate(&mut self, sample_rate: f32) {
         self.fs_2pi = INVERSE_2_PI * sample_rate;
     }
 
+    #[inline(always)]
     fn do_update_coeffs_ctrl(&mut self) {
         if !self.param_changed.is_empty() {
             if self.param_changed.contains(ParamChanged::CUTOFF_UP) {
@@ -86,26 +89,31 @@ impl OnePoleCoeffs {
         }
     }
 
+    #[inline(always)]
     fn reset_coeffs(&mut self) {
         self.param_changed = ParamChanged::all();
         self.do_update_coeffs_ctrl();
     }
 
+    #[inline(always)]
     fn update_coeffs_ctrl(&mut self) {
         self.do_update_coeffs_ctrl();
     }
 
+    #[inline(always)]
     fn update_coeffs_audio(&self) {
         // This is only asserting
         todo!()
     }
 
+    #[inline(always)]
     fn set_cutoff(&mut self, value: f32) {
         assert_positive(value);
         self.set_cutoff_up(value);
         self.set_cutoff_down(value);
     }
 
+    #[inline(always)]
     fn set_cutoff_up(&mut self, value: f32) {
         assert_positive(value);
         if self.cutoff_up != value {
@@ -114,6 +122,7 @@ impl OnePoleCoeffs {
         }
     }
 
+    #[inline(always)]
     fn set_cutoff_down(&mut self, value: f32) {
         assert_positive(value);
         if self.cutoff_down != value {
@@ -122,11 +131,13 @@ impl OnePoleCoeffs {
         }
     }
 
+    #[inline(always)]
     fn set_tau(&mut self, value: f32) {
         self.set_tau_up(value);
         self.set_tau_down(value);
     }
 
+    #[inline(always)]
     fn set_tau_up(&mut self, value: f32) {
         assert_positive(value);
         let cutoff = if value < NANO {
@@ -137,6 +148,7 @@ impl OnePoleCoeffs {
         self.set_cutoff_up(cutoff);
     }
 
+    #[inline(always)]
     fn set_tau_down(&mut self, value: f32) {
         assert_positive(value);
         let cutoff = if value < NANO {
@@ -147,6 +159,7 @@ impl OnePoleCoeffs {
         self.set_cutoff_down(cutoff);
     }
 
+    #[inline(always)]
     fn set_sticky_thresh(&mut self, value: f32) {
         assert_range(0., 1.0e18, value);
         if self.sticky_thresh != value {
@@ -155,20 +168,24 @@ impl OnePoleCoeffs {
         }
     }
 
+    #[inline(always)]
     fn set_sticky_mode(&mut self, value: OnePoleStickyMode) {
         self.sticky_mode = value;
     }
 
+    #[inline(always)]
     fn get_sticky_thresh(&self) -> f32 {
         self.sticky_thresh
     }
 
+    #[inline(always)]
     fn get_sticky_mode(&self) -> OnePoleStickyMode {
         self.sticky_mode
     }
 }
 
 impl Default for OnePoleCoeffs {
+    #[inline(always)]
     fn default() -> Self {
         Self {
             fs_2pi: Default::default(),
@@ -186,6 +203,7 @@ impl Default for OnePoleCoeffs {
 
 #[allow(dead_code, unused_mut, unused_variables)]
 impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
+    #[inline(always)]
     pub fn new() -> Self {
         OnePole {
             coeffs: Default::default(),
@@ -194,15 +212,18 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         }
     }
 
+    #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
 
+    #[inline(always)]
     pub fn reset(&mut self, x0: &[f32], mut y0: Option<&mut [f32]>) {
         self.coeffs.reset_coeffs();
         self.reset_state_multi(x0, y0);
     }
 
+    #[inline(always)]
     pub fn process(
         &mut self,
         x: &[Vec<f32>],
@@ -212,51 +233,63 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         self.process_multi(x, y, n_samples);
     }
 
+    #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         self.coeffs.set_cutoff(value);
     }
 
+    #[inline(always)]
     pub fn set_cutoff_up(&mut self, value: f32) {
         self.coeffs.set_cutoff_up(value);
     }
 
+    #[inline(always)]
     pub fn set_cutoff_down(&mut self, value: f32) {
         self.coeffs.set_cutoff_down(value);
     }
 
+    #[inline(always)]
     pub fn set_tau(&mut self, value: f32) {
         self.coeffs.set_tau(value);
     }
 
+    #[inline(always)]
     pub fn set_tau_up(&mut self, value: f32) {
         self.coeffs.set_tau_up(value);
     }
 
+    #[inline(always)]
     pub fn set_tau_down(&mut self, value: f32) {
         self.coeffs.set_tau_down(value);
     }
 
+    #[inline(always)]
     pub fn set_sticky_thresh(&mut self, value: f32) {
         self.coeffs.set_sticky_thresh(value);
     }
 
+    #[inline(always)]
     pub fn set_sticky_mode(&mut self, value: OnePoleStickyMode) {
         self.coeffs.set_sticky_mode(value);
     }
 
+    #[inline(always)]
     pub fn get_sticky_thresh(&self) -> f32 {
         self.coeffs.get_sticky_thresh()
     }
 
+    #[inline(always)]
     pub fn get_sticky_mode(&self) -> OnePoleStickyMode {
         self.coeffs.get_sticky_mode()
     }
 
+    #[inline(always)]
     pub fn get_yz1(&self, channel: usize) -> f32 {
         self.states[channel].y_z1
     }
 
     // private methods
+    #[inline(always)]
     fn reset_state_multi(&mut self, x_0: &[f32], y_0: Option<&mut [f32]>) {
         // No need to check states are in different addresses cause it is
         // enforced by design
@@ -271,12 +304,14 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         }
     }
 
+    #[inline(always)]
     fn process1(&mut self, x: f32, channel: usize) -> f32 {
         let y = x + self.coeffs.m_a1u * (self.get_yz1(channel) - x);
         self.states[channel].y_z1 = y;
         y
     }
 
+    #[inline(always)]
     fn process1_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
         let mut y = x + self.coeffs.m_a1u * (self.get_yz1(channel) - x);
         let d = y - x;
@@ -288,6 +323,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y
     }
 
+    #[inline(always)]
     fn process1_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
         let mut y = x + self.coeffs.m_a1u * (self.get_yz1(channel) - x);
         let d = y - x;
@@ -299,6 +335,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y
     }
 
+    #[inline(always)]
     fn process1_asym(&mut self, x: f32, channel: usize) -> f32 {
         let y_z1 = self.get_yz1(channel);
         let ma1 = if x >= y_z1 {
@@ -313,6 +350,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y
     }
 
+    #[inline(always)]
     fn process1_asym_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
         let y_z1 = self.get_yz1(channel);
         let ma1 = if x >= y_z1 {
@@ -331,6 +369,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y
     }
 
+    #[inline(always)]
     fn process1_asym_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
         let y_z1 = self.get_yz1(channel);
         let ma1 = if x >= y_z1 {
@@ -349,6 +388,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y
     }
 
+    #[inline(always)]
     fn process_multi(
         &mut self,
         x: &[Vec<f32>],
@@ -504,9 +544,11 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     // Not implementing the process() defined with BW_CXX_NO_ARRAY
 
     // Helper functions for clarity sake
+    #[inline(always)]
     fn is_asym(&self) -> bool {
         self.coeffs.m_a1d != self.coeffs.m_a1u
     }
+    #[inline(always)]
     fn is_sticky(&self) -> bool {
         self.coeffs.st2 != 0.
     }

@@ -1,15 +1,19 @@
+#[inline(always)]
 fn has_inf(x: &[f32]) -> bool {
     x.iter().any(|val| val.is_infinite())
 }
 
+#[inline(always)]
 fn has_nan(x: &[f32]) -> bool {
     x.iter().any(|val| val.is_nan())
 }
 
+#[inline(always)]
 fn has_only_finite(x: &[f32]) -> bool {
     x.iter().all(|val| val.is_finite())
 }
 
+#[inline(always)]
 fn hash_sdbm(s: &str) -> u32 {
     let mut hash: u32 = 0;
 
