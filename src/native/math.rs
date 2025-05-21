@@ -1,5 +1,5 @@
 #[cfg(debug_assertions)]
-use crate::global::{debug_assert_is_finite, debug_assert_range};
+use crate::native::common::{debug_assert_is_finite, debug_assert_range};
 
 //  Newton-Raphson reciprocal approsimation
 #[inline(always)]

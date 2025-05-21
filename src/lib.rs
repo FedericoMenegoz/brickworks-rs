@@ -3,5 +3,3 @@
 // Silence clippy warnings for the wrapper
 pub mod c_wrapper;
 pub mod native;
-
-pub(crate) mod global;

@@ -1,10 +1,9 @@
-use crate::global::{INVERSE_2_PI, NANO};
+use super::math::rcpf;
+use crate::native::common::{INVERSE_2_PI, NANO};
 #[cfg(debug_assertions)]
-use crate::global::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
+use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 
 use bitflags::bitflags;
-
-use super::math::rcpf;
 
 #[derive(Debug)]
 pub struct OnePole<const N_CHANNELS: usize> {
@@ -1147,7 +1146,7 @@ mod tests {
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.reset(&[0.0; N_CHANNELS], None);
-        
+
         let mut c_output_wrapped: Vec<Option<&mut [f32]>> =
             c_output.iter_mut().map(|ch| Some(&mut **ch)).collect();
         c_one_pole.process(&x0, Some(&mut c_output_wrapped), N_SAMPLES);
