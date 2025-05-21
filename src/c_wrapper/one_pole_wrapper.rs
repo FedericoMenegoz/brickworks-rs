@@ -163,25 +163,34 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         unsafe { bw_one_pole_get_y_z1(&self.states[channel]) }
     }
 
+    #[cfg(test)]
     pub(crate) fn process1(&mut self, x: f32, channel: usize) -> f32 {
         unsafe { bw_one_pole_process1(&mut self.coeffs, &mut self.states[channel], x) }
     }
 
+    #[cfg(test)]
     pub(crate) fn process1_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
         unsafe { bw_one_pole_process1_sticky_abs(&mut self.coeffs, &mut self.states[channel], x) }
     }
 
+    #[cfg(test)]
     pub(crate) fn process1_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
         unsafe { bw_one_pole_process1_sticky_rel(&mut self.coeffs, &mut self.states[channel], x) }
     }
+
+    #[cfg(test)]
     pub(crate) fn process1_asym(&mut self, x: f32, channel: usize) -> f32 {
         unsafe { bw_one_pole_process1_asym(&mut self.coeffs, &mut self.states[channel], x) }
     }
+
+    #[cfg(test)]
     pub(crate) fn process1_asym_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
         unsafe {
             bw_one_pole_process1_asym_sticky_abs(&mut self.coeffs, &mut self.states[channel], x)
         }
     }
+
+    #[cfg(test)]
     pub(crate) fn process1_asym_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
         unsafe {
             bw_one_pole_process1_asym_sticky_rel(&mut self.coeffs, &mut self.states[channel], x)

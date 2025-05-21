@@ -8,8 +8,4 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-// Remove these when implemented
-#[allow(unused_variables)]
-#[allow(dead_code)]
-// Remove these when implemented
 pub mod one_pole_wrapper;
