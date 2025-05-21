@@ -1,6 +1,7 @@
 use std::ptr::null_mut;
 
-use crate::global::{assert_positive, assert_range};
+#[cfg(debug_assertions)]
+use crate::global::{debug_assert_positive, debug_assert_range};
 
 use super::*;
 
@@ -84,49 +85,56 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
     }
 
     pub fn set_cutoff(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         unsafe {
             bw_one_pole_set_cutoff(&mut self.coeffs, value);
         }
     }
 
     pub fn set_cutoff_up(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         unsafe {
             bw_one_pole_set_cutoff_up(&mut self.coeffs, value);
         }
     }
 
     pub fn set_cutoff_down(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         unsafe {
             bw_one_pole_set_cutoff_down(&mut self.coeffs, value);
         }
     }
 
     pub fn set_tau(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         unsafe {
             bw_one_pole_set_tau(&mut self.coeffs, value);
         }
     }
 
     pub fn set_tau_up(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         unsafe {
             bw_one_pole_set_tau_up(&mut self.coeffs, value);
         }
     }
 
     pub fn set_tau_down(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         unsafe {
             bw_one_pole_set_tau_down(&mut self.coeffs, value);
         }
     }
 
     pub fn set_sticky_thresh(&mut self, value: f32) {
-        assert_range(0., 1.0e18, value);
+        #[cfg(debug_assertions)]
+        debug_assert_range(0., 1.0e18, value);
         unsafe {
             bw_one_pole_set_sticky_thresh(&mut self.coeffs, value);
         }
@@ -228,6 +236,7 @@ mod tests {
         assert!(f.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_CUTOFF_DOWN != 0);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "Value must be non negative, got -1000!")]
     fn set_cutoff_negative() {
@@ -319,6 +328,7 @@ mod tests {
         assert!(f.coeffs.param_changed as u32 & BW_ONE_POLE_PARAM_CUTOFF_UP == 0);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "Value must be non negative, got -1!")]
     fn set_negative_tau() {
@@ -337,6 +347,7 @@ mod tests {
         assert_eq!(f.get_sticky_thresh(), sticky_tresh);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "Value must be in range [0e0, 1e18], got -1e0!")]
     fn set_sticky_tresh_negative() {
@@ -344,6 +355,7 @@ mod tests {
         f.set_sticky_thresh(-1.);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "Value must be in range [0e0, 1e18], got 1.1e18!")]
     fn set_sticky_tresh_too_high() {
@@ -371,6 +383,7 @@ mod tests {
         assert_eq!(f.get_sticky_mode(), mode);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "Sticky mode can be 0 or 1, got 3!")]
     fn set_sticky_mode_not_valid() {

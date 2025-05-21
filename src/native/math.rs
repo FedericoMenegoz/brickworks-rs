@@ -1,16 +1,16 @@
 #[cfg(debug_assertions)]
-use crate::global::{assert_is_finite, assert_range};
+use crate::global::{debug_assert_is_finite, debug_assert_range};
 
 //  Newton-Raphson reciprocal approsimation
 #[inline(always)]
 pub(crate) fn rcpf(x: f32) -> f32 {
     #[cfg(debug_assertions)]
     {
-        assert_is_finite(x);
+        debug_assert_is_finite(x);
         if x > 0. {
-            assert_range(8.077_936e-28, 1.237_940_1e27, x);
+            debug_assert_range(8.077_936e-28, 1.237_940_1e27, x);
         } else {
-            assert_range(-1.237_940_1e27, -8.077_936e-28, x);
+            debug_assert_range(-1.237_940_1e27, -8.077_936e-28, x);
         }
     }
 
@@ -22,7 +22,7 @@ pub(crate) fn rcpf(x: f32) -> f32 {
     result = result + result - x * result * result;
 
     #[cfg(debug_assertions)]
-    assert_is_finite(result);
+    debug_assert_is_finite(result);
     result
 }
 

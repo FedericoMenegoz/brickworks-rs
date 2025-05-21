@@ -1,4 +1,7 @@
-use crate::global::{INVERSE_2_PI, NANO, assert_positive, assert_range};
+use crate::global::{INVERSE_2_PI, NANO};
+#[cfg(debug_assertions)]
+use crate::global::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
+
 use bitflags::bitflags;
 
 use super::math::rcpf;
@@ -60,6 +63,11 @@ bitflags! {
 impl OnePoleCoeffs {
     #[inline(always)]
     fn set_sample_rate(&mut self, sample_rate: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert_positive(sample_rate);
+            debug_assert_is_finite(sample_rate);
+        }
         self.fs_2pi = INVERSE_2_PI * sample_rate;
     }
 
@@ -108,14 +116,16 @@ impl OnePoleCoeffs {
 
     #[inline(always)]
     fn set_cutoff(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         self.set_cutoff_up(value);
         self.set_cutoff_down(value);
     }
 
     #[inline(always)]
     fn set_cutoff_up(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         if self.cutoff_up != value {
             self.cutoff_up = value;
             self.param_changed |= ParamChanged::CUTOFF_UP;
@@ -124,7 +134,8 @@ impl OnePoleCoeffs {
 
     #[inline(always)]
     fn set_cutoff_down(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         if self.cutoff_down != value {
             self.cutoff_down = value;
             self.param_changed |= ParamChanged::CUTOFF_DOWN;
@@ -139,7 +150,8 @@ impl OnePoleCoeffs {
 
     #[inline(always)]
     fn set_tau_up(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         let cutoff = if value < NANO {
             f32::INFINITY
         } else {
@@ -150,7 +162,8 @@ impl OnePoleCoeffs {
 
     #[inline(always)]
     fn set_tau_down(&mut self, value: f32) {
-        assert_positive(value);
+        #[cfg(debug_assertions)]
+        debug_assert_positive(value);
         let cutoff = if value < NANO {
             f32::INFINITY
         } else {
@@ -161,7 +174,8 @@ impl OnePoleCoeffs {
 
     #[inline(always)]
     fn set_sticky_thresh(&mut self, value: f32) {
-        assert_range(0., 1.0e18, value);
+        #[cfg(debug_assertions)]
+        debug_assert_range(0., 1.0e18, value);
         if self.sticky_thresh != value {
             self.sticky_thresh = value;
             self.param_changed |= ParamChanged::STICKY_TRESH;
@@ -556,6 +570,10 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
 #[cfg(test)]
 mod tests {
+    use std::f32;
+    #[cfg(debug_assertions)]
+    use std::panic;
+
     use super::*;
     use crate::c_wrapper::{one_pole_wrapper::*, *};
 
@@ -659,6 +677,7 @@ mod tests {
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "Value must be non negative, got -1!")]
     fn set_cutoff_negative() {
@@ -763,6 +782,7 @@ mod tests {
         assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "Value must be non negative, got -1!")]
     fn set_tau_negative() {
@@ -788,6 +808,7 @@ mod tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "Value must be in range [0e0, 1e18], got -1e0!")]
     fn set_sticky_tresh_negative() {
@@ -796,6 +817,7 @@ mod tests {
         rust_one_pole.set_sticky_thresh(-1.);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "Value must be in range [0e0, 1e18], got 1.1e18!")]
     fn set_sticky_tresh_too_high() {
@@ -1165,6 +1187,46 @@ mod tests {
             assert_eq!(rust_one_pole.get_yz1(i), c_one_pole.get_yz1(i));
             assert_eq!(rust_one_pole.get_yz1(i), rust_output[i][3]);
         }
+    }
+
+    // Do we need c sanity checks??
+    // By design I can not insert a non valid value
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "Value must be non negative, got NaN!")]
+    fn set_cutoff_to_nan() {
+        let result = panic::catch_unwind(|| {
+            let mut one_pole_coeffs = OnePoleCoeffs::default();
+            one_pole_coeffs.set_cutoff_down(f32::NAN);
+        });
+        assert!(result.is_err());
+
+        let result = panic::catch_unwind(|| {
+            let mut one_pole_coeffs = OnePoleCoeffs::default();
+            one_pole_coeffs.set_cutoff_up(f32::NAN);
+        });
+        assert!(result.is_err());
+
+        let mut one_pole_coeffs = OnePoleCoeffs::default();
+        one_pole_coeffs.set_cutoff(f32::NAN);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "Value must be in range [0e0, 1e18], got inf!")]
+    fn set_sticky_thresh_to_infinite() {
+        let mut one_pole_coeffs = OnePoleCoeffs::default();
+
+        one_pole_coeffs.set_sticky_thresh(f32::INFINITY);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "value must be finite, got inf")]
+    fn set_sample_rate_invalid() {
+        let mut one_pole_coeffs = OnePoleCoeffs::default();
+
+        one_pole_coeffs.set_sample_rate(f32::INFINITY);
     }
 
     fn assert_coeffs_rust_c(rust_coeffs: OnePoleCoeffs, c_coeffs: bw_one_pole_coeffs) {
