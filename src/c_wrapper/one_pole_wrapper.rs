@@ -153,6 +153,7 @@ impl<const N_CHANNELS: usize> OnePoleWrapper<N_CHANNELS> {
         unsafe { bw_one_pole_get_y_z1(&self.states[channel]) }
     }
 
+    // Wrapping these to test them against the native ones
     #[cfg(test)]
     pub(crate) fn process1(&mut self, x: f32, channel: usize) -> f32 {
         unsafe { bw_one_pole_process1(&mut self.coeffs, &mut self.states[channel], x) }
