@@ -5,7 +5,7 @@
 .DS_Store
 
 # Mac-Os for issue https://github.com/rust-lang/rust/issues/60059
-build.sh
+build_with_lto.sh
 macos-linker.sh
 
 # vscode
