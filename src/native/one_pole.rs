@@ -41,9 +41,9 @@ struct OnePoleState {
 
 impl OnePoleState {
     #[inline(always)]
-    fn reset(&mut self, x_0: f32) -> f32 {
-        self.y_z1 = x_0;
-        x_0
+    fn reset(&mut self, x0: f32) -> f32 {
+        self.y_z1 = x0;
+        x0
     }
 }
 
@@ -304,16 +304,16 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
     // private methods
     #[inline(always)]
-    fn reset_state_multi(&mut self, x_0: &[f32], y_0: Option<&mut [f32]>) {
+    fn reset_state_multi(&mut self, x0: &[f32], y0: Option<&mut [f32]>) {
         // No need to check states are in different addresses cause it is
         // enforced by design
-        if let Some(out) = y_0 {
+        if let Some(out) = y0 {
             (0..N_CHANNELS).for_each(|channel| {
-                out[channel] = self.states[channel].reset(x_0[channel]);
+                out[channel] = self.states[channel].reset(x0[channel]);
             });
         } else {
             (0..N_CHANNELS).for_each(|channel| {
-                self.states[channel].reset(x_0[channel]);
+                self.states[channel].reset(x0[channel]);
             });
         }
     }
