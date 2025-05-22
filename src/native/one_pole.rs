@@ -205,6 +205,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     ///
     /// ### Parameters
     /// - `value`: sticky threshhold, default is `f32::0.0` and its valid range is [0.f, 1e18f].
+    /// - `value`: sticky threshhold, default is `f32::0.0` and its valid range is [0.f, 1e18f].
     ///
     #[inline(always)]
     pub fn set_sticky_thresh(&mut self, value: f32) {
@@ -213,6 +214,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// Sets the current distance metric for sticky behavior to value in `OnePole<N_CHANNELS>`.
     ///
     /// ### Parameters
+    /// - `value`: sticky mode, default is [OnePoleStickyMode::Abs]
     /// - `value`: sticky mode, default is [OnePoleStickyMode::Abs]
     ///
     #[inline(always)]
@@ -707,7 +709,7 @@ mod tests {
     use std::panic;
 
     use super::*;
-    use crate::c_wrapper::{one_pole::OnePole as OnePoleWrapper, one_pole::OnePoleStickyMode as WrapperStikyMode, *};
+    use crate::c_wrapper::{one_pole::OnePole as OnePoleWrapper, one_pole::OnePoleStickyMode as OnePoleStikyModeWrapper, *};
 
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
@@ -960,7 +962,7 @@ mod tests {
 
     #[test]
     fn set_sticky_mode_abs() {
-        let c_mode = WrapperStikyMode::Abs;
+        let c_mode = OnePoleStikyModeWrapper::Abs;
         let rust_mode = OnePoleStickyMode::Abs;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
@@ -971,13 +973,14 @@ mod tests {
         assert_eq!(
             rust_one_pole.get_sticky_mode() as u32,
             c_one_pole.get_sticky_mode() as u32
+            c_one_pole.get_sticky_mode() as u32
         );
         assert_eq!(rust_one_pole.get_sticky_mode(), rust_mode);
     }
 
     #[test]
     fn set_sticky_mode_rel() {
-        let c_mode = WrapperStikyMode::Rel;
+        let c_mode = OnePoleStikyModeWrapper::Rel;
         let rust_mode = OnePoleStickyMode::Rel;
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
@@ -987,6 +990,7 @@ mod tests {
 
         assert_eq!(
             rust_one_pole.get_sticky_mode() as u32,
+            c_one_pole.get_sticky_mode() as u32
             c_one_pole.get_sticky_mode() as u32
         );
         assert_eq!(rust_one_pole.get_sticky_mode(), rust_mode);
@@ -1093,7 +1097,7 @@ mod tests {
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.set_sticky_mode(WrapperStikyMode::Abs);
+        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Abs);
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -1128,7 +1132,7 @@ mod tests {
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.set_sticky_mode(WrapperStikyMode::Rel);
+        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Rel);
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -1202,7 +1206,7 @@ mod tests {
         c_one_pole.set_cutoff_up(CUTOFF_UP);
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.set_sticky_mode(WrapperStikyMode::Abs);
+        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Abs);
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -1240,7 +1244,7 @@ mod tests {
         c_one_pole.set_cutoff_up(CUTOFF_UP);
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.set_sticky_mode(WrapperStikyMode::Rel);
+        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Rel);
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -1314,7 +1318,7 @@ mod tests {
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
-        c_one_pole.set_sticky_mode(WrapperStikyMode::Rel);
+        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Rel);
 
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff(CUTOFF);
