@@ -1,6 +1,56 @@
 use super::*;
 use std::ptr::null_mut;
 
+
+/// One-pole filter: Rust binding to the C library by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
+///
+/// One-pole (6 dB/oct) lowpass filter with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
+///
+/// This is better suited to implement smoothing than bw_lp1.
+///
+/// # Example
+/// ```
+/// use brickworks_rs::c_wrapper::one_pole::*;
+///
+/// const CUTOFF: f32 = 100_000.0;
+/// const STICKY_THRESH: f32 = 0.9;
+/// const SAMPLE_RATE: f32 = 48_100.0;
+/// const N_CHANNELS: usize = 2;
+/// const N_SAMPLES: usize = 1;
+/// fn main() {
+///     // Create a new OnePole filter instance for N_CHANNELS
+///     let mut one_pole = OnePole::<N_CHANNELS>::new();
+///
+///     // Input signal: one sample per channel
+///     let x = vec![vec![1.0], vec![33.0]];
+///
+///     // Output buffer, same shape as input
+///     let mut y = vec![vec![0.0], vec![0.0]];
+///
+///     // Configure the filter
+///     one_pole.set_sample_rate(SAMPLE_RATE);
+///     one_pole.set_cutoff(CUTOFF);
+///     one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
+///     one_pole.set_sticky_thresh(STICKY_THRESH);
+///
+///     // Initialize the filter state for each channel
+///     one_pole.reset(&[0.0, 0.0], None);
+///     // !!! This is ugly yeah...need to investigate
+///     let mut y_wrapped: Vec<Option<&mut [f32]>> =
+///         y.iter_mut().map(|ch| Some(&mut **ch)).collect();
+///
+///     // Process one sample per channel
+///     one_pole.process(&x, Some(&mut y_wrapped), N_SAMPLES);
+///
+///     // Output the filtered result
+///     println!("Filtered output: {:?}", y);
+/// }
+///
+/// ```
+/// 
+/// # Notes
+/// This module provides Rust bindings to the original C implementation.
+/// For a fully native Rust implementation with the same interface, see [crate::native::one_pole].
 pub struct OnePole<const N_CHANNELS: usize> {
     pub coeffs: bw_one_pole_coeffs,
     pub states: [bw_one_pole_state; N_CHANNELS],
@@ -8,6 +58,7 @@ pub struct OnePole<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
+    /// Creates a new `OnePole` filter with default parameters and zeroed state.
     pub fn new() -> Self {
         let states: [bw_one_pole_state; N_CHANNELS] =
             std::array::from_fn(|_| bw_one_pole_state { y_z1: 0.0 });
@@ -35,13 +86,14 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         }
         one_pole
     }
-
+    /// Sets the filter's sample rate, required for accurate time constant conversion.
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         unsafe {
             bw_one_pole_set_sample_rate(&mut self.coeffs, sample_rate);
         }
     }
-
+    /// Resets the filter state for all channels using the initial input `x0`.
+    /// If `y0` is provided, the resulting initial outputs are stored in it.
     pub fn reset(&mut self, x0: &[f32], mut y0: Option<&mut [f32]>) {
         unsafe {
             bw_one_pole_reset_coeffs(&mut self.coeffs);
@@ -57,7 +109,28 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
             });
         }
     }
-
+    /// Processes a block of input samples using a one-pole filter per channel.
+    ///
+    /// This method applies a one-pole low-pass filter to `n_samples` of input per channel.
+    /// It supports multiple filtering modes based on whether the filter is *asymmetric*
+    /// (`cutoff_up != cutoff_down`), and whether it uses *sticky*
+    /// behavior (which prevents updates when the change is below a threshold).
+    ///
+    /// ### Parameters
+    /// - `x`: A slice of input sample vectors, one per channel.
+    /// - `y`: An optional mutable slice of output buffers, one per channel.
+    /// - `n_samples`: Number of samples to process per channel.
+    ///
+    /// ### Filter Behavior
+    /// The internal logic chooses the processing mode based on the current coefficients:
+    ///
+    /// - `process1`: Symmetric filtering with no sticky behavior.
+    /// - `process1_sticky_abs`: Symmetric filtering with sticky behavior using an absolute difference metric.
+    /// - `process1_sticky_rel`: Symmetric filtering with sticky behavior using a relative difference metric.
+    /// - `process1_asym`: Asymmetric filtering with no sticky behavior.
+    /// - `process1_asym_sticky_abs`: Asymmetric filtering with sticky behavior using an absolute difference metric.
+    /// - `process1_asym_sticky_rel`: Asymmetric filtering with sticky behavior using a relative difference metric.
+    ///
     pub fn process(
         &mut self,
         x: &[Vec<f32>],
@@ -92,67 +165,122 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
             );
         }
     }
-
+    /// Sets both the upgoing (attack) and downgoing (decay) cutoff frequency to the given value (Hz) in `OnePole<N_CHANNELS>`.
+    ///
+    /// ### Parameters
+    /// - `value`: cutoff value to be set, default is `f32::INFINITE`, must be non-negative.
+    ///
+    /// ### Note
+    /// This is equivalent to calling both `set_cutoff_up()` and `set_cutoff_down()` with same
+    /// value or calling `set_tau()` with value = 1 / (2 * pi * value) (net of numerical errors).
+    ///
     pub fn set_cutoff(&mut self, value: f32) {
         unsafe {
             bw_one_pole_set_cutoff(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the upgoing (attack) cutoff frequency to the given value (Hz) in `OnePole<N_CHANNELS>`.
+    ///
+    /// ### Parameters
+    /// - `value`: cutoff value to be set, default is `f32::INFINITE`, must be non-negative.
+    ///
+    /// ### Note
+    /// This is equivalent to calling `set_tau_up()` with value = 1 / (2 * pi * value) (net of numerical errors).
+    ///
     pub fn set_cutoff_up(&mut self, value: f32) {
         unsafe {
             bw_one_pole_set_cutoff_up(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the downgoing (decay) cutoff frequency to the given value (Hz) in `OnePole<N_CHANNELS>`.
+    ///
+    /// ### Parameters
+    /// - `value`: cutoff value to be set, default is `f32::INFINITE`, must be non-negative.
+    ///
+    /// ### Note
+    /// This is equivalent to calling `set_tau_down()` with value = 1 / (2 * pi * value) (net of numerical errors).
+    ///
     pub fn set_cutoff_down(&mut self, value: f32) {
         unsafe {
             bw_one_pole_set_cutoff_down(&mut self.coeffs, value);
         }
     }
-
+    /// Sets both the upgoing (attack) and downgoing (decay) time constant to the given value (s) in `OnePole<N_CHANNELS>`.
+    ///
+    /// ### Parameters
+    /// - `value`: tau value to be set, default is `f32::0.0`, must be non-negative.
+    ///
+    /// ### Note
+    /// This is equivalent to calling both `set_tau_up()` and `set_tau_down()` with same
+    /// value or calling set_cutoff() with value = 1 / (2 * pi * value) (net of numerical errors).
+    ///
     pub fn set_tau(&mut self, value: f32) {
         unsafe {
             bw_one_pole_set_tau(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the upgoing (attack) time constant to the given value (s) in `OnePole<N_CHANNELS>`.
+    ///
+    /// ### Parameters
+    /// - `value`: tau value to be set, default is `f32::0.0`, must be non-negative.
+    ///
+    /// ### Note
+    /// This is equivalent to calling `set_cutoff_up()` with value = 1 / (2 * pi * value) (net of numerical errors).
+    ///
     pub fn set_tau_up(&mut self, value: f32) {
         unsafe {
             bw_one_pole_set_tau_up(&mut self.coeffs, value);
         }
     }
-
+    /// Sets both the downgoing (decay) time constant to the given value (s) in `OnePole<N_CHANNELS>`.
+    ///
+    /// ### Parameters
+    /// - `value`: tau value to be set, default is `f32::0.0`, must be non-negative.
+    ///
+    /// ### Note
+    /// This is equivalent to calling `set_cutoff_down()` with value = 1 / (2 * pi * value) (net of numerical errors).
+    ///
     pub fn set_tau_down(&mut self, value: f32) {
         unsafe {
             bw_one_pole_set_tau_down(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the target-reach threshold specified by value in `OnePole<N_CHANNELS>`.
+    ///
+    /// When the difference between the output and the input would fall under such threshold according
+    /// to the current distance metric (absolute or relative), the output is forcefully set to be equal to the input value.
+    ///
+    ///
+    /// ### Parameters
+    /// - `value`: stycky threshhold, default is `f32::0.0` and its valid range is [0.f, 1e18f].
+    ///    
     pub fn set_sticky_thresh(&mut self, value: f32) {
         unsafe {
             bw_one_pole_set_sticky_thresh(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the current distance metric for sticky behavior to value in `OnePole<N_CHANNELS>`.
+    ///
+    /// ### Parameters
+    /// - `value`: stycky mode, default is absolute.
+    ///
     pub fn set_sticky_mode(&mut self, value: bw_one_pole_sticky_mode) {
         unsafe {
             bw_one_pole_set_sticky_mode(&mut self.coeffs, value as u32);
         }
     }
-
+    /// Returns the current target-reach threshold in `OnePole<N_CHANNELS>`.
     pub fn get_sticky_thresh(&self) -> f32 {
         unsafe { bw_one_pole_get_sticky_thresh(&self.coeffs) }
     }
-
+    /// Returns the current distance metric for sticky behavior in `OnePole<N_CHANNELS>`.
     pub fn get_sticky_mode(&self) -> bw_one_pole_sticky_mode {
         unsafe { bw_one_pole_get_sticky_mode(&self.coeffs) }
     }
-
+    /// Returns the last output sample as stored in `OnePole<N_CHANNELS>`.
     pub fn get_y_z1(&self, channel: usize) -> f32 {
         unsafe { bw_one_pole_get_y_z1(&self.states[channel]) }
     }
-
     // Wrapping these to test them against the native ones
     #[cfg(test)]
     pub(crate) fn process1(&mut self, x: f32, channel: usize) -> f32 {

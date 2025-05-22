@@ -6,8 +6,10 @@
 // see comments here https://stackoverflow.com/questions/63526076/what-to-do-about-warning-extern-block-uses-type-u128-which-is-not-ffi-safe
 #![allow(improper_ctypes)]
 
+//! Rust bindings to C library [Orastron](https://www.orastron.com/algorithms)
+//! 
+//! 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
 pub mod one_pole;
 #[allow(dead_code, unused_variables, unused_mut)]
 pub mod clip;

@@ -5,11 +5,12 @@ use crate::native::common::{INVERSE_2_PI, NANO};
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 
+/// One-pole filter: Rust native port of the original implementation by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
+///
 /// One-pole (6 dB/oct) lowpass filter with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
 ///
 /// This is better suited to implement smoothing than bw_lp1.
 ///
-/// From [Orastron](https://www.orastron.com/algorithms/bw_one_pole)
 /// # Example
 /// ```
 /// use brickworks_rs::native::one_pole::*;
@@ -49,7 +50,11 @@ use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug
 /// }
 ///
 /// ```
-///
+/// 
+///# Notes
+/// This module provides a native Rust implementation of the filter, but the same interface is 
+/// also available via bindings to the original C library at [crate::c_wrapper::one_pole].
+/// 
 #[derive(Debug)]
 pub struct OnePole<const N_CHANNELS: usize> {
     coeffs: OnePoleCoeffs,
