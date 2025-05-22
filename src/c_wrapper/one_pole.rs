@@ -57,6 +57,15 @@ pub struct OnePole<const N_CHANNELS: usize> {
     pub states_p: [bw_one_pole_state; N_CHANNELS], // BW_RESTRICT to check what is for
 }
 
+/// Distance metrics for sticky behavior.
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum OnePoleStickyMode {
+    /// `OnePoleStickyMode::Abs`: absolute difference ( `|out - in|` );
+    Abs,
+    /// `OnePoleStickyMode::Rel`: relative difference with respect to input (`|out - in| / |in|`).
+    Rel,
+}
+
 impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// Creates a new `OnePole` filter with default parameters and zeroed state.
     pub fn new() -> Self {
@@ -137,23 +146,23 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y: Option<&mut [Option<&mut [f32]>]>,
         n_samples: usize,
     ) {
+        // In case y is None this will be passed
+        let null_ptrs: [*mut f32; N_CHANNELS] = [null_mut(); N_CHANNELS];
+        // Need to prepare the data into raw pointers for c
+        let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
+        let y_ptrs: Option<[*mut f32; N_CHANNELS]> = y.map(|y_channel| {
+            std::array::from_fn(|i| {
+                // state[i].unwrap_or(null_mut::<[f32]>()).as_mut_ptr()
+                if let Some(y_samples) = y_channel[i].as_mut() {
+                    y_samples.as_mut_ptr()
+                } else {
+                    null_ptrs[0]
+                }
+            })
+        });
+        let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
+            std::array::from_fn(|i| &mut self.states[i] as *mut _);
         unsafe {
-            // In case y is None this will be passed
-            let null_ptrs: [*mut f32; N_CHANNELS] = [null_mut(); N_CHANNELS];
-            // Need to prepare the data into raw pointers for c
-            let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
-            let y_ptrs: Option<[*mut f32; N_CHANNELS]> = y.map(|y_channel| {
-                std::array::from_fn(|i| {
-                    // state[i].unwrap_or(null_mut::<[f32]>()).as_mut_ptr()
-                    if let Some(y_samples) = y_channel[i].as_mut() {
-                        y_samples.as_mut_ptr()
-                    } else {
-                        null_ptrs[0]
-                    }
-                })
-            });
-            let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
-                std::array::from_fn(|i| &mut self.states[i] as *mut _);
 
             bw_one_pole_process_multi(
                 &mut self.coeffs,
@@ -252,7 +261,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     ///
     ///
     /// ### Parameters
-    /// - `value`: stycky threshhold, default is `f32::0.0` and its valid range is [0.f, 1e18f].
+    /// - `value`: sticky threshhold, default is `f32::0.0` and its valid range is [0.f, 1e18f].
     ///    
     pub fn set_sticky_thresh(&mut self, value: f32) {
         unsafe {
@@ -262,11 +271,11 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// Sets the current distance metric for sticky behavior to value in `OnePole<N_CHANNELS>`.
     ///
     /// ### Parameters
-    /// - `value`: stycky mode, default is absolute.
+    /// - `value`: sticky mode, default is absolute.
     ///
-    pub fn set_sticky_mode(&mut self, value: bw_one_pole_sticky_mode) {
+    pub fn set_sticky_mode(&mut self, value: OnePoleStickyMode) {
         unsafe {
-            bw_one_pole_set_sticky_mode(&mut self.coeffs, value as u32);
+            bw_one_pole_set_sticky_mode(&mut self.coeffs, value.to_bw());
         }
     }
     /// Returns the current target-reach threshold in `OnePole<N_CHANNELS>`.
@@ -274,8 +283,8 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         unsafe { bw_one_pole_get_sticky_thresh(&self.coeffs) }
     }
     /// Returns the current distance metric for sticky behavior in `OnePole<N_CHANNELS>`.
-    pub fn get_sticky_mode(&self) -> bw_one_pole_sticky_mode {
-        unsafe { bw_one_pole_get_sticky_mode(&self.coeffs) }
+    pub fn get_sticky_mode(&self) -> OnePoleStickyMode {
+        unsafe { OnePoleStickyMode::from_bw(bw_one_pole_get_sticky_mode(&self.coeffs)) }
     }
     /// Returns the last output sample as stored in `OnePole<N_CHANNELS>`.
     pub fn get_y_z1(&self, channel: usize) -> f32 {
@@ -313,6 +322,22 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     pub(crate) fn process1_asym_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
         unsafe {
             bw_one_pole_process1_asym_sticky_rel(&mut self.coeffs, &mut self.states[channel], x)
+        }
+    }
+}
+
+impl OnePoleStickyMode {
+    fn to_bw(&self) -> bw_one_pole_sticky_mode {
+        match self {
+            OnePoleStickyMode::Abs => bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs,
+            OnePoleStickyMode::Rel => bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel,
+        }
+    }
+    fn from_bw(bw_sticky_mode: bw_one_pole_sticky_mode) -> Self {
+        match bw_sticky_mode {
+            bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs => OnePoleStickyMode::Abs,
+            bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel => OnePoleStickyMode::Rel,
+            err_val => panic!("non valid bw_one_pole_sticky_mode (0, 1) got {err_val}")
         }
     }
 }
@@ -460,7 +485,7 @@ mod tests {
 
     #[test]
     fn set_sticky_mode_abs() {
-        let mode = bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs;
+        let mode = OnePoleStickyMode::Abs;
         let mut f = OnePole::<N_CHANNELS>::new();
 
         f.set_sticky_mode(mode);
@@ -470,7 +495,7 @@ mod tests {
 
     #[test]
     fn set_sticky_mode_rel() {
-        let mode = bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel;
+        let mode = OnePoleStickyMode::Rel;
         let mut f = OnePole::<N_CHANNELS>::new();
 
         f.set_sticky_mode(mode);
@@ -560,7 +585,7 @@ mod tests {
         let mut f = OnePole::<N_CHANNELS>::new();
         f.set_sample_rate(SAMPLE_RATE);
         f.set_cutoff(CUTOFF);
-        f.set_sticky_mode(bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel);
+        f.set_sticky_mode(OnePoleStickyMode::Rel);
         let input_data = [vec![1.0, 2.0, 3.0, 4.0], vec![0.5, 1.5, 2.5, 3.5]];
         let mut output_data: [&mut [f32]; N_CHANNELS] =
             [&mut [0.0, 0.1, 0.2, 0.3], &mut [1.0, 1.1, 1.2, 1.3]];
