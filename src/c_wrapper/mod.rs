@@ -9,3 +9,5 @@
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 pub mod one_pole;
+#[allow(dead_code, unused_variables, unused_mut)]
+pub mod clip;
