@@ -976,7 +976,6 @@ mod tests {
         assert_eq!(
             rust_one_pole.get_sticky_mode() as u32,
             c_one_pole.get_sticky_mode() as u32
-            c_one_pole.get_sticky_mode() as u32
         );
         assert_eq!(rust_one_pole.get_sticky_mode(), rust_mode);
     }
@@ -993,7 +992,6 @@ mod tests {
 
         assert_eq!(
             rust_one_pole.get_sticky_mode() as u32,
-            c_one_pole.get_sticky_mode() as u32
             c_one_pole.get_sticky_mode() as u32
         );
         assert_eq!(rust_one_pole.get_sticky_mode(), rust_mode);
