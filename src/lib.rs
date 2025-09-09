@@ -11,11 +11,11 @@
 //!
 //! ---
 //! ### Currently included:
-//! - [X] One pole filter 
-//! 
+//! - [X] One pole filter
+//!
 //! ### Working on:
 //! - [ ] Clip
-//! - [ ] Gain 
+//! - [ ] Gain
 //! - [ ] Antialiased tanh-based saturation
 //! - [ ] First-order lowpass filter
 //! - [ ] First-order highpass filter

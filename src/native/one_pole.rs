@@ -50,11 +50,11 @@ use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug
 /// }
 ///
 /// ```
-/// 
+///
 ///# Notes
-/// This module provides a native Rust implementation of the filter, but the same interface is 
+/// This module provides a native Rust implementation of the filter, but the same interface is
 /// also available via bindings to the original C library at [crate::c_wrapper::one_pole].
-/// 
+///
 #[derive(Debug)]
 pub struct OnePole<const N_CHANNELS: usize> {
     coeffs: OnePoleCoeffs,
@@ -709,7 +709,10 @@ mod tests {
     use std::panic;
 
     use super::*;
-    use crate::c_wrapper::{one_pole::OnePole as OnePoleWrapper, one_pole::OnePoleStickyMode as OnePoleStikyModeWrapper, *};
+    use crate::c_wrapper::{
+        one_pole::OnePole as OnePoleWrapper,
+        one_pole::OnePoleStickyMode as OnePoleStikyModeWrapper, *,
+    };
 
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
