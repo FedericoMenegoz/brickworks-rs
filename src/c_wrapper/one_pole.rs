@@ -1,6 +1,7 @@
+use crate::c_wrapper::utils::make_array;
+
 use super::*;
 use std::ptr::null_mut;
-
 
 /// One-pole filter: Rust binding to the C library by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
 ///
@@ -47,7 +48,7 @@ use std::ptr::null_mut;
 /// }
 ///
 /// ```
-/// 
+///
 /// # Notes
 /// This module provides Rust bindings to the original C implementation.
 /// For a fully native Rust implementation with the same interface, see [crate::native::one_pole].
@@ -69,23 +70,12 @@ pub enum OnePoleStickyMode {
 impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// Creates a new `OnePole` filter with default parameters and zeroed state.
     pub fn new() -> Self {
-        let states: [bw_one_pole_state; N_CHANNELS] =
-            std::array::from_fn(|_| bw_one_pole_state { y_z1: 0.0 });
-
-        let states_p: [bw_one_pole_state; N_CHANNELS] =
-            std::array::from_fn(|_| bw_one_pole_state { y_z1: 0.0 });
+        let states = make_array::<bw_one_pole_state, N_CHANNELS>();
+        let states_p = make_array::<bw_one_pole_state, N_CHANNELS>();
 
         let mut one_pole = OnePole {
             coeffs: bw_one_pole_coeffs {
-                fs_2pi: Default::default(),
-                mA1u: Default::default(),
-                mA1d: Default::default(),
-                st2: Default::default(),
-                cutoff_up: Default::default(),
-                cutoff_down: Default::default(),
-                sticky_thresh: Default::default(),
-                sticky_mode: Default::default(),
-                param_changed: Default::default(),
+                ..Default::default()
             },
             states,
             states_p,
@@ -163,7 +153,6 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
             std::array::from_fn(|i| &mut self.states[i] as *mut _);
         unsafe {
-
             bw_one_pole_process_multi(
                 &mut self.coeffs,
                 state_ptrs.as_mut_ptr(),
@@ -337,15 +326,37 @@ impl OnePoleStickyMode {
         match bw_sticky_mode {
             bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs => OnePoleStickyMode::Abs,
             bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel => OnePoleStickyMode::Rel,
-            err_val => panic!("non valid bw_one_pole_sticky_mode (0, 1) got {err_val}")
+            err_val => panic!("non valid bw_one_pole_sticky_mode (0, 1) got {err_val}"),
         }
+    }
+}
+
+// Helper functions DRY
+impl Default for bw_one_pole_coeffs {
+    fn default() -> Self {
+        bw_one_pole_coeffs {
+            fs_2pi: Default::default(),
+            mA1u: Default::default(),
+            mA1d: Default::default(),
+            st2: Default::default(),
+            cutoff_up: Default::default(),
+            cutoff_down: Default::default(),
+            sticky_thresh: Default::default(),
+            sticky_mode: Default::default(),
+            param_changed: Default::default(),
+        }
+    }
+}
+
+impl Default for bw_one_pole_state {
+    fn default() -> Self {
+        Self { y_z1: 0.0 }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::f32;
     use std::f32::consts::PI;
     const N_CHANNELS: usize = 2;
     const BW_RCPF_ERROR: f32 = 0.0013;
