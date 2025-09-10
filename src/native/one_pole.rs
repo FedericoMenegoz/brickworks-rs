@@ -1275,7 +1275,8 @@ mod tests {
         let mut rust_buf1 = [0.0; N_SAMPLES];
 
         let mut c_output: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut c_buf0), Some(&mut c_buf1)];
-        let mut rust_output: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut rust_buf0), Some(&mut rust_buf1)];
+        let mut rust_output: [Option<&mut [f32]>; N_CHANNELS] =
+            [Some(&mut rust_buf0), Some(&mut rust_buf1)];
 
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         c_one_pole.set_cutoff(CUTOFF);
@@ -1293,10 +1294,14 @@ mod tests {
 
         for ch in 0..N_CHANNELS {
             for sample in 0..N_SAMPLES {
-                assert_eq!(rust_output[ch].as_ref().unwrap()[sample], c_output[ch].as_ref().unwrap()[sample]);
+                assert_eq!(
+                    rust_output[ch].as_ref().unwrap()[sample],
+                    c_output[ch].as_ref().unwrap()[sample]
+                );
                 println!(
                     "C output: {}\nRust output: {}",
-                    c_output[ch].as_ref().unwrap()[sample], rust_output[ch].as_ref().unwrap()[sample]
+                    c_output[ch].as_ref().unwrap()[sample],
+                    rust_output[ch].as_ref().unwrap()[sample]
                 );
             }
         }
@@ -1328,7 +1333,8 @@ mod tests {
         let mut rust_buf1 = [1.0, 1.1, 1.2, 1.3];
 
         let mut c_output: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut c_buf0), Some(&mut c_buf1)];
-        let mut rust_output: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut rust_buf0), Some(&mut rust_buf1)];
+        let mut rust_output: [Option<&mut [f32]>; N_CHANNELS] =
+            [Some(&mut rust_buf0), Some(&mut rust_buf1)];
 
         c_one_pole.process(&input, Some(&mut c_output), N_SAMPLES);
 
@@ -1336,7 +1342,10 @@ mod tests {
 
         for i in 0..N_CHANNELS {
             assert_eq!(rust_one_pole.get_y_z1(i), c_one_pole.get_y_z1(i));
-            assert_eq!(rust_one_pole.get_y_z1(i), rust_output[i].as_ref().unwrap()[3]);
+            assert_eq!(
+                rust_one_pole.get_y_z1(i),
+                rust_output[i].as_ref().unwrap()[3]
+            );
         }
     }
 

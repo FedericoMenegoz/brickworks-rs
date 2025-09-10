@@ -560,7 +560,7 @@ mod tests {
         let input_data: [&[f32]; 2] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
         let mut output_ch1 = [0.0, 0.0, 0.0, 0.0];
         let mut output_ch2 = [0.0, 0.0, 0.0, 0.0];
-        let mut output_data: [Option<&mut[f32]>; N_CHANNELS] =
+        let mut output_data: [Option<&mut [f32]>; N_CHANNELS] =
             [Some(&mut output_ch1), Some(&mut output_ch2)];
 
         let mut filter = OnePole::<N_CHANNELS>::new();
@@ -568,17 +568,16 @@ mod tests {
         filter.set_sample_rate(44100.0);
         filter.reset(&x0_input, None);
 
-        filter.process(
-            &input_data,
-            Some(
-                &mut output_data
-            ),
-            N_SAMPLES,
-        );
+        filter.process(&input_data, Some(&mut output_data), N_SAMPLES);
 
         for ch in 0..N_CHANNELS {
             for sample in 0..N_SAMPLES {
-                println!("Output[{}][{}] = {}", ch, sample, output_data[ch].as_ref().unwrap()[sample]);
+                println!(
+                    "Output[{}][{}] = {}",
+                    ch,
+                    sample,
+                    output_data[ch].as_ref().unwrap()[sample]
+                );
                 assert!(output_data[ch].as_ref().unwrap()[sample].is_finite());
             }
         }
@@ -598,16 +597,10 @@ mod tests {
         let input_data: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
         let mut output_ch1 = [0.0, 0.1, 0.2, 0.3];
         let mut output_ch2 = [1.0, 1.1, 1.2, 1.3];
-        let mut output_data: [Option<&mut[f32]>; N_CHANNELS] =
+        let mut output_data: [Option<&mut [f32]>; N_CHANNELS] =
             [Some(&mut output_ch1), Some(&mut output_ch2)];
         // f.process(&input_data, Some(&mut output_data), N_SAMPLES);
-        f.process(
-            &input_data,
-            Some(
-                &mut output_data
-            ),
-            N_SAMPLES,
-        );
+        f.process(&input_data, Some(&mut output_data), N_SAMPLES);
 
         for i in 0..N_CHANNELS {
             assert_eq!(f.get_y_z1(i), output_data[i].as_ref().unwrap()[3])
