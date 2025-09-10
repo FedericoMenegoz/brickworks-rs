@@ -25,10 +25,12 @@ use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug
 ///     let mut one_pole = OnePole::<N_CHANNELS>::new();
 ///
 ///     // Input signal: one sample per channel
-///     let x = vec![vec![1.0], vec![33.0]];
+///     let x:[&[f32]; N_CHANNELS] = [&[1.0], &[33.0]];
 ///
 ///     // Output buffer, same shape as input
-///     let mut y = vec![vec![0.0], vec![0.0]];
+///     let mut y_ch1 = [0.0];
+///     let mut y_ch2 = [0.0];
+///     let mut y: [Option<&mut[f32]>; N_CHANNELS] = [Some(&mut y_ch1), Some(&mut y_ch2)];
 ///
 ///     // Configure the filter
 ///     one_pole.set_sample_rate(SAMPLE_RATE);
@@ -38,12 +40,9 @@ use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug
 ///
 ///     // Initialize the filter state for each channel
 ///     one_pole.reset(&[0.0, 0.0], None);
-///     // !!! This is ugly yeah...need to investigate
-///     let mut y_wrapped: Vec<Option<&mut [f32]>> =
-///         y.iter_mut().map(|ch| Some(&mut **ch)).collect();
 ///
 ///     // Process one sample per channel
-///     one_pole.process(&x, Some(&mut y_wrapped), N_SAMPLES);
+///     one_pole.process(&x, Some(&mut y), N_SAMPLES);
 ///
 ///     // Output the filtered result
 ///     println!("Filtered output: {:?}", y);
@@ -88,7 +87,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// Resets the filter state for all channels using the initial input `x0`.
     /// If `y0` is provided, the resulting initial outputs are stored in it.
     #[inline(always)]
-    pub fn reset(&mut self, x0: &[f32], y0: Option<&mut [f32]>) {
+    pub fn reset(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
         self.reset_state_multi(x0, y0);
     }
@@ -117,8 +116,8 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     #[inline(always)]
     pub fn process(
         &mut self,
-        x: &[Vec<f32>],
-        y: Option<&mut [Option<&mut [f32]>]>,
+        x: &[&[f32]; N_CHANNELS],
+        y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         n_samples: usize,
     ) {
         self.process_multi(x, y, n_samples);
@@ -239,7 +238,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 
     // private methods
     #[inline(always)]
-    fn reset_state_multi(&mut self, x0: &[f32], y0: Option<&mut [f32]>) {
+    fn reset_state_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         // No need to check states are in different addresses cause it is
         // enforced by design
         if let Some(out) = y0 {
@@ -340,8 +339,8 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     #[inline(always)]
     fn process_multi(
         &mut self,
-        x: &[Vec<f32>],
-        y: Option<&mut [Option<&mut [f32]>]>,
+        x: &[&[f32]; N_CHANNELS],
+        y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         n_samples: usize,
     ) {
         // As for reset_multi no need to check states are in
@@ -1268,40 +1267,36 @@ mod tests {
         const CUTOFF: f32 = 1000.0;
         const SAMPLE_RATE: f32 = 48000.0;
 
-        let x0 = [vec![1.0, 2.0, 3.0, 4.0], vec![0.5, 1.5, 2.5, 3.5]];
+        let x0: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
 
         let mut c_buf0 = [0.0; N_SAMPLES];
         let mut c_buf1 = [0.0; N_SAMPLES];
         let mut rust_buf0 = [0.0; N_SAMPLES];
         let mut rust_buf1 = [0.0; N_SAMPLES];
 
-        let mut c_output: [&mut [f32]; N_CHANNELS] = [&mut c_buf0, &mut c_buf1];
-        let mut rust_output: [&mut [f32]; N_CHANNELS] = [&mut rust_buf0, &mut rust_buf1];
+        let mut c_output: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut c_buf0), Some(&mut c_buf1)];
+        let mut rust_output: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut rust_buf0), Some(&mut rust_buf1)];
 
         let mut c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.reset(&[0.0; N_CHANNELS], None);
 
-        let mut c_output_wrapped: Vec<Option<&mut [f32]>> =
-            c_output.iter_mut().map(|ch| Some(&mut **ch)).collect();
-        c_one_pole.process(&x0, Some(&mut c_output_wrapped), N_SAMPLES);
+        c_one_pole.process(&x0, Some(&mut c_output), N_SAMPLES);
 
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.reset(&[0.0; N_CHANNELS], None);
 
-        let mut output_wrapped: Vec<Option<&mut [f32]>> =
-            rust_output.iter_mut().map(|ch| Some(&mut **ch)).collect();
-        rust_one_pole.process(&x0, Some(&mut output_wrapped), N_SAMPLES);
+        rust_one_pole.process(&x0, Some(&mut rust_output), N_SAMPLES);
 
         for ch in 0..N_CHANNELS {
             for sample in 0..N_SAMPLES {
-                assert_eq!(rust_output[ch][sample], c_output[ch][sample]);
+                assert_eq!(rust_output[ch].as_ref().unwrap()[sample], c_output[ch].as_ref().unwrap()[sample]);
                 println!(
                     "C output: {}\nRust output: {}",
-                    c_output[ch][sample], rust_output[ch][sample]
+                    c_output[ch].as_ref().unwrap()[sample], rust_output[ch].as_ref().unwrap()[sample]
                 );
             }
         }
@@ -1325,27 +1320,23 @@ mod tests {
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
 
-        let input = [vec![1.0, 2.0, 3.0, 4.0], vec![0.5, 1.5, 2.5, 3.5]];
+        let input: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
 
         let mut c_buf0 = [0.0, 0.1, 0.2, 0.3];
         let mut c_buf1 = [1.0, 1.1, 1.2, 1.3];
         let mut rust_buf0 = [0.0, 0.1, 0.2, 0.3];
         let mut rust_buf1 = [1.0, 1.1, 1.2, 1.3];
 
-        let mut c_output: [&mut [f32]; N_CHANNELS] = [&mut c_buf0, &mut c_buf1];
-        let mut rust_output: [&mut [f32]; N_CHANNELS] = [&mut rust_buf0, &mut rust_buf1];
+        let mut c_output: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut c_buf0), Some(&mut c_buf1)];
+        let mut rust_output: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut rust_buf0), Some(&mut rust_buf1)];
 
-        let mut c_output_wrapped: Vec<Option<&mut [f32]>> =
-            c_output.iter_mut().map(|ch| Some(&mut **ch)).collect();
-        c_one_pole.process(&input, Some(&mut c_output_wrapped), N_SAMPLES);
+        c_one_pole.process(&input, Some(&mut c_output), N_SAMPLES);
 
-        let mut output_wrapped: Vec<Option<&mut [f32]>> =
-            rust_output.iter_mut().map(|ch| Some(&mut **ch)).collect();
-        rust_one_pole.process(&input, Some(&mut output_wrapped), N_SAMPLES);
+        rust_one_pole.process(&input, Some(&mut rust_output), N_SAMPLES);
 
         for i in 0..N_CHANNELS {
             assert_eq!(rust_one_pole.get_y_z1(i), c_one_pole.get_y_z1(i));
-            assert_eq!(rust_one_pole.get_y_z1(i), rust_output[i][3]);
+            assert_eq!(rust_one_pole.get_y_z1(i), rust_output[i].as_ref().unwrap()[3]);
         }
     }
 

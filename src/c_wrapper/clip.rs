@@ -46,11 +46,11 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
         }
     }
 
-    pub fn reset(&mut self, x0: &[f32], mut y0: Option<&mut [f32]>) {}
+    pub fn reset(&mut self, x0: &[f32], mut y0: Option<&mut [f32; N_CHANNELS]>) {}
     pub fn process(
         &mut self,
         x: &[Vec<f32>],
-        y: Option<&mut [Option<&mut [f32]>]>,
+        y: Option<&mut [Option<&mut [f32; N_CHANNELS]>]>,
         n_samples: usize,
     ) {
     }
