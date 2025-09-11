@@ -509,7 +509,7 @@ impl<const N_CHANNELS: usize> Default for OnePole<N_CHANNELS> {
 }
 
 #[derive(Clone, Debug, Copy)]
-struct OnePoleCoeffs {
+pub struct OnePoleCoeffs {
     fs_2pi: f32,
     m_a1u: f32,
     m_a1d: f32,
@@ -534,7 +534,7 @@ bitflags! {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct OnePoleState {
+pub struct OnePoleState {
     y_z1: f32,
 }
 
@@ -702,7 +702,7 @@ impl Default for OnePoleCoeffs {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::f32;
     #[cfg(debug_assertions)]
     use std::panic;
@@ -749,7 +749,7 @@ mod tests {
         }
         rust_coeffs.update_coeffs_ctrl();
 
-        assert_coeffs_rust_c(rust_coeffs, c_coeffs);
+        assert_one_pole_coeffs_rust_c(rust_coeffs, c_coeffs);
     }
 
     #[test]
@@ -776,7 +776,7 @@ mod tests {
         }
         rust_coeffs.do_update_coeffs_ctrl();
 
-        assert_coeffs_rust_c(rust_coeffs, c_coeffs);
+        assert_one_pole_coeffs_rust_c(rust_coeffs, c_coeffs);
     }
 
     #[test]
@@ -784,7 +784,7 @@ mod tests {
         let c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let rust_one_pole = OnePole::<N_CHANNELS>::new();
 
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
@@ -810,7 +810,7 @@ mod tests {
         c_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_cutoff(CUTOFF);
 
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[cfg(debug_assertions)]
@@ -836,7 +836,7 @@ mod tests {
         rust_one_pole.set_cutoff_up(CUTOFF);
 
         assert_eq!(rust_one_pole.coeffs.cutoff_up, CUTOFF);
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
@@ -852,7 +852,7 @@ mod tests {
         rust_one_pole.set_cutoff_down(CUTOFF);
 
         assert_eq!(rust_one_pole.coeffs.cutoff_down, CUTOFF);
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
@@ -868,7 +868,7 @@ mod tests {
         c_one_pole.set_tau(TAU);
         rust_one_pole.set_tau(TAU);
 
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
@@ -884,7 +884,7 @@ mod tests {
         c_one_pole.set_tau_up(TAU);
         rust_one_pole.set_tau_up(TAU);
 
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
@@ -900,7 +900,7 @@ mod tests {
         c_one_pole.set_tau_down(TAU);
         rust_one_pole.set_tau_down(TAU);
 
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
@@ -915,7 +915,7 @@ mod tests {
         c_one_pole.set_tau(TAU);
         rust_one_pole.set_tau(TAU);
 
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[cfg(debug_assertions)]
@@ -1015,7 +1015,7 @@ mod tests {
         c_one_pole.reset(&x0, None);
         rust_one_pole.reset(&x0, None);
 
-        assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
@@ -1069,7 +1069,7 @@ mod tests {
             c_y[channel] = c_one_pole.process1(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1(x0[channel], channel);
 
-            assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1104,7 +1104,7 @@ mod tests {
             c_y[channel] = c_one_pole.process1_sticky_abs(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_sticky_abs(x0[channel], channel);
 
-            assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1139,7 +1139,7 @@ mod tests {
             c_y[channel] = c_one_pole.process1_sticky_rel(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_sticky_rel(x0[channel], channel);
 
-            assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1175,7 +1175,7 @@ mod tests {
             c_y[channel] = c_one_pole.process1_asym(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_asym(x0[channel], channel);
 
-            assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1213,7 +1213,7 @@ mod tests {
             c_y[channel] = c_one_pole.process1_asym_sticky_abs(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_asym_sticky_abs(x0[channel], channel);
 
-            assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1251,7 +1251,7 @@ mod tests {
             c_y[channel] = c_one_pole.process1_asym_sticky_rel(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_asym_sticky_rel(x0[channel], channel);
 
-            assert_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1389,7 +1389,10 @@ mod tests {
         one_pole_coeffs.set_sample_rate(f32::INFINITY);
     }
 
-    fn assert_coeffs_rust_c(rust_coeffs: OnePoleCoeffs, c_coeffs: bw_one_pole_coeffs) {
+    pub(crate) fn assert_one_pole_coeffs_rust_c(
+        rust_coeffs: OnePoleCoeffs,
+        c_coeffs: bw_one_pole_coeffs,
+    ) {
         let pre_message = "one_pole.coeff.";
         let post_message = "does not match";
         assert_eq!(
