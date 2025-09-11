@@ -1,33 +1,24 @@
 use crate::c_wrapper::{
-    bw_clip_set_bias, bw_clip_set_gain, bw_clip_set_gain_compensation, bw_clip_set_sample_rate,
-    bw_one_pole_coeffs, bw_one_pole_init, bw_one_pole_set_sticky_thresh, bw_one_pole_set_tau,
-    utils::make_array,
+    bw_clip_process_multi, bw_clip_reset_coeffs, bw_clip_reset_state, bw_clip_set_bias,
+    bw_clip_set_gain, bw_clip_set_gain_compensation, bw_clip_set_sample_rate, bw_one_pole_coeffs,
+    bw_one_pole_init, bw_one_pole_set_sticky_thresh, bw_one_pole_set_tau,
+    utils::{make_array, prepare_input_output_states_ptrs},
 };
 
 use super::{bw_clip_coeffs, bw_clip_state};
 
+#[derive(Debug)]
 pub(crate) struct Clip<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_clip_coeffs,
-    pub(crate) state: [bw_clip_state; N_CHANNELS],
+    pub(crate) states: [bw_clip_state; N_CHANNELS],
     pub(crate) states_p: [bw_clip_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
     pub fn new() -> Self {
         let mut clip = Clip {
-            coeffs: bw_clip_coeffs {
-                smooth_coeffs: bw_one_pole_coeffs {
-                    ..Default::default()
-                },
-                smooth_bias_state: Default::default(),
-                smooth_gain_state: Default::default(),
-                bias_dc: Default::default(),
-                inv_gain: Default::default(),
-                bias: 0.,
-                gain: 1.,
-                gain_compensation: 0,
-            },
-            state: make_array::<bw_clip_state, N_CHANNELS>(),
+            coeffs: bw_clip_coeffs::default(),
+            states: make_array::<bw_clip_state, N_CHANNELS>(),
             states_p: make_array::<bw_clip_state, N_CHANNELS>(),
         };
 
@@ -46,13 +37,42 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
         }
     }
 
-    pub fn reset(&mut self, x0: &[f32], mut y0: Option<&mut [f32; N_CHANNELS]>) {}
+    pub fn reset(&mut self, x0: &[f32; N_CHANNELS], mut y0: Option<&mut [f32; N_CHANNELS]>) {
+        unsafe {
+            bw_clip_reset_coeffs(&mut self.coeffs);
+            if let Some(out) = y0 {
+                (0..N_CHANNELS).for_each(|channel| {
+                    out[channel] = bw_clip_reset_state(
+                        &mut self.coeffs,
+                        &mut self.states[channel],
+                        x0[channel],
+                    );
+                });
+            } else {
+                (0..N_CHANNELS).for_each(|channel| {
+                    bw_clip_reset_state(&mut self.coeffs, &mut self.states[channel], x0[channel]);
+                });
+            }
+        }
+    }
     pub fn process(
         &mut self,
-        x: &[Vec<f32>],
-        y: Option<&mut [Option<&mut [f32; N_CHANNELS]>]>,
+        x: &[&[f32]; N_CHANNELS],
+        y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         n_samples: usize,
     ) {
+        let (x_ptrs, mut y_ptrs, mut state_ptrs) =
+            prepare_input_output_states_ptrs::<bw_clip_state, N_CHANNELS>(x, y, &mut self.states);
+        unsafe {
+            bw_clip_process_multi(
+                &mut self.coeffs,
+                state_ptrs.as_mut_ptr(),
+                x_ptrs.as_ptr(),
+                y_ptrs.as_mut_ptr(),
+                N_CHANNELS,
+                n_samples,
+            );
+        }
     }
 
     pub fn set_bias(&mut self, value: f32) {
@@ -83,13 +103,36 @@ impl Default for bw_clip_state {
     }
 }
 
+impl Default for bw_clip_coeffs {
+    fn default() -> Self {
+        Self {
+            smooth_coeffs: bw_one_pole_coeffs {
+                ..Default::default()
+            },
+            smooth_bias_state: Default::default(),
+            smooth_gain_state: Default::default(),
+            bias_dc: Default::default(),
+            inv_gain: Default::default(),
+            bias: 0.,
+            gain: 1.,
+            gain_compensation: 0,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::c_wrapper::bw_rcpf;
+    use crate::c_wrapper::{
+        bw_clip_init, bw_clip_process1_comp, bw_clip_update_coeffs_audio, bw_clipf,
+        bw_one_pole_get_y_z1, bw_one_pole_process1_sticky_abs, bw_one_pole_process1_sticky_rel,
+        bw_rcpf,
+    };
     use std::f32::consts::PI;
 
     const N_CHANNELS: usize = 2;
+    const SAMPLE_RATE: f32 = 48_000.0;
+    const GAIN: f32 = 200_000.0;
     const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
 
     #[test]
@@ -111,7 +154,6 @@ mod tests {
 
     #[test]
     fn set_sample_rate() {
-        const SAMPLE_RATE: f32 = 48_000.0;
         let mut clip = Clip::<N_CHANNELS>::new();
 
         clip.set_sample_rate(SAMPLE_RATE);
@@ -140,15 +182,13 @@ mod tests {
     fn set_gain_default() {
         let mut clip = Clip::<N_CHANNELS>::new();
         // Default value: 1.f.
-        let GAIN = 1.;
-
-        assert_eq!(clip.coeffs.gain, GAIN);
+        let gain = 1.;
+        assert_eq!(clip.coeffs.gain, gain);
     }
 
     #[test]
     fn set_gain_in_range() {
         let mut clip = Clip::<N_CHANNELS>::new();
-        let GAIN = 200_000.0;
         clip.set_gain(GAIN);
 
         assert_eq!(clip.coeffs.gain, GAIN);
@@ -162,5 +202,98 @@ mod tests {
         clip.set_gain_compensation(GAIN_COMPENSATION);
 
         assert_eq!(clip.coeffs.gain_compensation != 0, GAIN_COMPENSATION);
+    }
+
+    #[test]
+    fn reset() {
+        let mut clip = Clip::<N_CHANNELS>::new();
+        let x0: [f32; N_CHANNELS] = [6.0, 2.0];
+        let mut out: [f32; N_CHANNELS] = [3.0, 4.0];
+
+        clip.set_sample_rate(SAMPLE_RATE);
+        clip.set_gain_compensation(true);
+        clip.reset(&x0, Some(&mut out));
+
+        let mut inv_gain;
+        let mut bias_dc;
+        let mut y;
+        unsafe {
+            inv_gain = bw_rcpf(bw_one_pole_process1_sticky_abs(
+                &clip.coeffs.smooth_coeffs,
+                &mut clip.coeffs.smooth_gain_state,
+                clip.coeffs.gain,
+            ));
+            bias_dc = bw_one_pole_process1_sticky_rel(
+                &clip.coeffs.smooth_coeffs,
+                &mut clip.coeffs.smooth_bias_state,
+                clip.coeffs.bias,
+            );
+            let x = bw_one_pole_get_y_z1(&clip.coeffs.smooth_gain_state) * x0[0]
+                + bw_one_pole_get_y_z1(&clip.coeffs.smooth_bias_state);
+            let yb = bw_clipf(x, -1., 1.);
+            y = if clip.coeffs.gain_compensation != 0 {
+                clip.coeffs.inv_gain
+            } else {
+                1.
+            } * (yb - clip.coeffs.bias_dc)
+        }
+
+        assert_eq!(out[0], y);
+        assert_eq!(clip.coeffs.inv_gain, inv_gain);
+        assert_eq!(clip.coeffs.bias_dc, bias_dc);
+    }
+
+    #[test]
+    fn process() {
+        const N_SAMPLES: usize = 2;
+        // Wrapper
+        let mut clip = Clip::<N_CHANNELS>::new();
+
+        let sample_0: [f32; N_CHANNELS] = [6.0, 2.0];
+        let sample_1: [f32; N_CHANNELS] = [6.0, 2.0];
+        let x: [&[f32]; 2] = [&sample_0, &sample_1];
+
+        let mut out_0: [f32; N_CHANNELS] = [3.0, 4.0];
+        let mut out_1: [f32; N_CHANNELS] = [3.0, 4.0];
+        let mut y: [Option<&mut [f32]>; 2] = [Some(&mut out_0), Some(&mut out_1)];
+
+        // C
+        let mut states = [bw_clip_state::default(), bw_clip_state::default()];
+        let mut coeffs = bw_clip_coeffs::default();
+
+        let sample_0_c: [f32; N_CHANNELS] = [6.0, 2.0];
+        let sample_1_c: [f32; N_CHANNELS] = [6.0, 2.0];
+        let x_c: [&[f32]; 2] = [&sample_0, &sample_1];
+
+        let mut out_0_c: [f32; N_CHANNELS] = [3.0, 4.0];
+        let mut out_1_c: [f32; N_CHANNELS] = [3.0, 4.0];
+        let mut y_c: [Option<&mut [f32]>; 2] = [Some(&mut out_0_c), Some(&mut out_1_c)];
+
+        // Process wrapper
+        clip.set_gain_compensation(true);
+        clip.process(&x, Some(&mut y), N_SAMPLES);
+
+        // Process C
+        unsafe {
+            bw_clip_init(&mut coeffs);
+            coeffs.gain_compensation = 1;
+            (0..N_SAMPLES).for_each(|sample| {
+                bw_clip_update_coeffs_audio(&mut coeffs);
+                (0..N_CHANNELS).for_each(|channel| {
+                    y_c[channel].as_mut().unwrap()[sample] =
+                        bw_clip_process1_comp(&coeffs, &mut states[channel], x_c[channel][sample])
+                });
+            });
+        }
+
+        (0..N_SAMPLES).for_each(|sample| {
+            (0..N_CHANNELS).for_each(|channel| {
+                assert_eq!(
+                    y[channel].as_mut().unwrap()[sample],
+                    y_c[channel].as_mut().unwrap()[sample],
+                    "sample {sample} and channel {channel} does not match"
+                );
+            });
+        });
     }
 }
