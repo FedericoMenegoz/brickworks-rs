@@ -1,7 +1,5 @@
-use crate::c_wrapper::utils::make_array;
-
 use super::*;
-use std::ptr::null_mut;
+use crate::c_wrapper::utils::{make_array, prepare_input_output_states_ptrs};
 
 /// One-pole filter: Rust binding to the C library by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
 ///
@@ -135,28 +133,31 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         n_samples: usize,
     ) {
-        // In case y is None this will be passed
-        let null_ptrs: [*mut f32; N_CHANNELS] = [null_mut(); N_CHANNELS];
-        // Need to prepare the data into raw pointers for c
-        let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
-        let y_ptrs: Option<[*mut f32; N_CHANNELS]> = y.map(|y_channel| {
-            std::array::from_fn(|i| {
-                // state[i].unwrap_or(null_mut::<[f32]>()).as_mut_ptr()
-                if let Some(y_samples) = y_channel[i].as_mut() {
-                    y_samples.as_mut_ptr()
-                } else {
-                    null_ptrs[0]
-                }
-            })
-        });
-        let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
-            std::array::from_fn(|i| &mut self.states[i] as *mut _);
+        // // In case y is None this will be passed
+        // let null_ptrs: [*mut f32; N_CHANNELS] = [null_mut(); N_CHANNELS];
+        // let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
+        // let y_ptrs: Option<[*mut f32; N_CHANNELS]> = y.map(|y_channel| {
+        //     std::array::from_fn(|i| {
+        //         // state[i].unwrap_or(null_mut::<[f32]>()).as_mut_ptr()
+        //         if let Some(y_samples) = y_channel[i].as_mut() {
+        //             y_samples.as_mut_ptr()
+        //         } else {
+        //             null_ptrs[0]
+        //         }
+        //     })
+        // });
+        // let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
+        //     std::array::from_fn(|i| &mut self.states[i] as *mut _);
+        let (x_ptrs, mut y_ptrs, mut state_ptrs) = prepare_input_output_states_ptrs::<
+            bw_one_pole_state,
+            N_CHANNELS,
+        >(x, y, &mut self.states);
         unsafe {
             bw_one_pole_process_multi(
                 &mut self.coeffs,
                 state_ptrs.as_mut_ptr(),
                 x_ptrs.as_ptr(),
-                y_ptrs.unwrap_or(null_ptrs).as_mut_ptr(),
+                y_ptrs.as_mut_ptr(),
                 N_CHANNELS,
                 n_samples,
             );
