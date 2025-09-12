@@ -1,11 +1,5 @@
-use crate::c_wrapper::{
-    bw_clip_process_multi, bw_clip_reset_coeffs, bw_clip_reset_state, bw_clip_set_bias,
-    bw_clip_set_gain, bw_clip_set_gain_compensation, bw_clip_set_sample_rate, bw_one_pole_coeffs,
-    bw_one_pole_init, bw_one_pole_set_sticky_thresh, bw_one_pole_set_tau,
-    utils::{make_array, prepare_input_output_states_ptrs},
-};
-
-use super::{bw_clip_coeffs, bw_clip_state};
+use super::*;
+use crate::c_wrapper::utils::{make_array, prepare_input_output_states_ptrs};
 
 #[derive(Debug)]
 pub(crate) struct Clip<const N_CHANNELS: usize> {
@@ -90,6 +84,43 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
     pub fn set_gain_compensation(&mut self, value: bool) {
         unsafe {
             bw_clip_set_gain_compensation(&mut self.coeffs, value as i8);
+        }
+    }
+
+    // Wrapping these to test them against the native ones
+    #[cfg(test)]
+    pub(crate) fn do_update_coeffs(&mut self, force: bool) {
+        unsafe {
+            bw_clip_do_update_coeffs(&mut self.coeffs, if force { 1 } else { 0 });
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn process1(&mut self, x: f32, channel: usize) -> f32 {
+        unsafe { bw_clip_process1(&mut self.coeffs, &mut self.states[channel], x) }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn process1_comp(&mut self, x: f32, channel: usize) -> f32 {
+        unsafe { bw_clip_process1_comp(&mut self.coeffs, &mut self.states[channel], x) }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn process_samples(
+        &mut self,
+        x: &[f32],
+        y: &mut [f32],
+        n_samples: usize,
+        channel: usize,
+    ) {
+        unsafe {
+            bw_clip_process(
+                &mut self.coeffs,
+                &mut self.states[channel],
+                x.as_ptr(),
+                y.as_mut_ptr(),
+                n_samples,
+            );
         }
     }
 }

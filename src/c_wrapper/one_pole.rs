@@ -13,7 +13,7 @@ use crate::c_wrapper::utils::{make_array, prepare_input_output_states_ptrs};
 ///
 /// const CUTOFF: f32 = 100_000.0;
 /// const STICKY_THRESH: f32 = 0.9;
-/// const SAMPLE_RATE: f32 = 48_100.0;
+/// const SAMPLE_RATE: f32 = 48_000.0;
 /// const N_CHANNELS: usize = 2;
 /// const N_SAMPLES: usize = 1;
 /// fn main() {

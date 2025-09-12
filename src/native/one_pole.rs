@@ -17,7 +17,7 @@ use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug
 ///
 /// const CUTOFF: f32 = 100_000.0;
 /// const STICKY_THRESH: f32 = 0.9;
-/// const SAMPLE_RATE: f32 = 48_100.0;
+/// const SAMPLE_RATE: f32 = 48_000.0;
 /// const N_CHANNELS: usize = 2;
 /// const N_SAMPLES: usize = 1;
 /// fn main() {
@@ -57,8 +57,8 @@ use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug
 #[derive(Debug)]
 pub struct OnePole<const N_CHANNELS: usize> {
     coeffs: OnePoleCoeffs,
-    states: Vec<OnePoleState>,
-    _states_p: Vec<OnePoleState>, // BW_RESTRICT to check what is for
+    states: [OnePoleState; N_CHANNELS],
+    _states_p: [OnePoleState; N_CHANNELS], // BW_RESTRICT to check what is for
 }
 /// Distance metrics for sticky behavior.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -75,8 +75,8 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     pub fn new() -> Self {
         OnePole {
             coeffs: Default::default(),
-            states: vec![OnePoleState { y_z1: 0.0 }; N_CHANNELS],
-            _states_p: vec![OnePoleState { y_z1: 0.0 }; N_CHANNELS],
+            states: [OnePoleState { y_z1: 0.0 }; N_CHANNELS],
+            _states_p: [OnePoleState { y_z1: 0.0 }; N_CHANNELS],
         }
     }
     /// Sets the filter's sample rate, required for accurate time constant conversion.
@@ -535,7 +535,7 @@ bitflags! {
 
 #[derive(Debug, Clone, Copy)]
 pub struct OnePoleState {
-    y_z1: f32,
+    pub(crate) y_z1: f32,
 }
 
 impl OnePoleState {
@@ -548,7 +548,7 @@ impl OnePoleState {
 
 impl OnePoleCoeffs {
     #[inline(always)]
-    fn set_sample_rate(&mut self, sample_rate: f32) {
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
         {
             debug_assert_positive(sample_rate);
@@ -558,7 +558,7 @@ impl OnePoleCoeffs {
     }
 
     #[inline(always)]
-    fn do_update_coeffs_ctrl(&mut self) {
+    pub fn do_update_coeffs_ctrl(&mut self) {
         if !self.param_changed.is_empty() {
             if self.param_changed.contains(ParamChanged::CUTOFF_UP) {
                 // tau < 1 ns is instantaneous for any practical purpose
@@ -584,13 +584,13 @@ impl OnePoleCoeffs {
     }
 
     #[inline(always)]
-    fn reset_coeffs(&mut self) {
+    pub fn reset_coeffs(&mut self) {
         self.param_changed = ParamChanged::all();
         self.do_update_coeffs_ctrl();
     }
 
     #[inline(always)]
-    fn update_coeffs_ctrl(&mut self) {
+    pub fn update_coeffs_ctrl(&mut self) {
         self.do_update_coeffs_ctrl();
     }
 
@@ -601,7 +601,7 @@ impl OnePoleCoeffs {
     // }
 
     #[inline(always)]
-    fn set_cutoff(&mut self, value: f32) {
+    pub fn set_cutoff(&mut self, value: f32) {
         #[cfg(debug_assertions)]
         debug_assert_positive(value);
         self.set_cutoff_up(value);
@@ -609,7 +609,7 @@ impl OnePoleCoeffs {
     }
 
     #[inline(always)]
-    fn set_cutoff_up(&mut self, value: f32) {
+    pub fn set_cutoff_up(&mut self, value: f32) {
         #[cfg(debug_assertions)]
         debug_assert_positive(value);
         if self.cutoff_up != value {
@@ -619,7 +619,7 @@ impl OnePoleCoeffs {
     }
 
     #[inline(always)]
-    fn set_cutoff_down(&mut self, value: f32) {
+    pub fn set_cutoff_down(&mut self, value: f32) {
         #[cfg(debug_assertions)]
         debug_assert_positive(value);
         if self.cutoff_down != value {
@@ -629,13 +629,13 @@ impl OnePoleCoeffs {
     }
 
     #[inline(always)]
-    fn set_tau(&mut self, value: f32) {
+    pub fn set_tau(&mut self, value: f32) {
         self.set_tau_up(value);
         self.set_tau_down(value);
     }
 
     #[inline(always)]
-    fn set_tau_up(&mut self, value: f32) {
+    pub fn set_tau_up(&mut self, value: f32) {
         #[cfg(debug_assertions)]
         debug_assert_positive(value);
         let cutoff = if value < NANO {
@@ -647,7 +647,7 @@ impl OnePoleCoeffs {
     }
 
     #[inline(always)]
-    fn set_tau_down(&mut self, value: f32) {
+    pub fn set_tau_down(&mut self, value: f32) {
         #[cfg(debug_assertions)]
         debug_assert_positive(value);
         let cutoff = if value < NANO {
@@ -659,7 +659,7 @@ impl OnePoleCoeffs {
     }
 
     #[inline(always)]
-    fn set_sticky_thresh(&mut self, value: f32) {
+    pub fn set_sticky_thresh(&mut self, value: f32) {
         #[cfg(debug_assertions)]
         debug_assert_range(0., 1.0e18, value);
         if self.sticky_thresh != value {
@@ -669,17 +669,17 @@ impl OnePoleCoeffs {
     }
 
     #[inline(always)]
-    fn set_sticky_mode(&mut self, value: OnePoleStickyMode) {
+    pub fn set_sticky_mode(&mut self, value: OnePoleStickyMode) {
         self.sticky_mode = value;
     }
 
     #[inline(always)]
-    fn get_sticky_thresh(&self) -> f32 {
+    pub fn get_sticky_thresh(&self) -> f32 {
         self.sticky_thresh
     }
 
     #[inline(always)]
-    fn get_sticky_mode(&self) -> OnePoleStickyMode {
+    pub fn get_sticky_mode(&self) -> OnePoleStickyMode {
         self.sticky_mode
     }
 }
@@ -728,17 +728,7 @@ pub(crate) mod tests {
             param_changed: ParamChanged::all(),
             ..Default::default()
         };
-        let mut c_coeffs = bw_one_pole_coeffs {
-            cutoff_up: Default::default(),
-            cutoff_down: Default::default(),
-            sticky_thresh: Default::default(),
-            param_changed: Default::default(),
-            fs_2pi: Default::default(),
-            mA1u: Default::default(),
-            mA1d: Default::default(),
-            st2: Default::default(),
-            sticky_mode: Default::default(),
-        };
+        let mut c_coeffs = bw_one_pole_coeffs::default();
 
         unsafe {
             bw_one_pole_init(&mut c_coeffs);
@@ -749,7 +739,7 @@ pub(crate) mod tests {
         }
         rust_coeffs.update_coeffs_ctrl();
 
-        assert_one_pole_coeffs_rust_c(rust_coeffs, c_coeffs);
+        assert_one_pole_coeffs(rust_coeffs, c_coeffs);
     }
 
     #[test]
@@ -758,17 +748,7 @@ pub(crate) mod tests {
             param_changed: ParamChanged::empty(),
             ..Default::default()
         };
-        let mut c_coeffs = bw_one_pole_coeffs {
-            cutoff_up: Default::default(),
-            cutoff_down: Default::default(),
-            sticky_thresh: Default::default(),
-            param_changed: 0,
-            fs_2pi: Default::default(),
-            mA1u: Default::default(),
-            mA1d: Default::default(),
-            st2: Default::default(),
-            sticky_mode: Default::default(),
-        };
+        let mut c_coeffs = bw_one_pole_coeffs::default();
 
         unsafe {
             bw_one_pole_init(&mut c_coeffs);
@@ -776,7 +756,7 @@ pub(crate) mod tests {
         }
         rust_coeffs.do_update_coeffs_ctrl();
 
-        assert_one_pole_coeffs_rust_c(rust_coeffs, c_coeffs);
+        assert_one_pole_coeffs(rust_coeffs, c_coeffs);
     }
 
     #[test]
@@ -784,7 +764,7 @@ pub(crate) mod tests {
         let c_one_pole = OnePoleWrapper::<N_CHANNELS>::new();
         let rust_one_pole = OnePole::<N_CHANNELS>::new();
 
-        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole(rust_one_pole, c_one_pole);
     }
 
     #[test]
@@ -810,7 +790,7 @@ pub(crate) mod tests {
         c_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_cutoff(CUTOFF);
 
-        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole(rust_one_pole, c_one_pole);
     }
 
     #[cfg(debug_assertions)]
@@ -836,7 +816,7 @@ pub(crate) mod tests {
         rust_one_pole.set_cutoff_up(CUTOFF);
 
         assert_eq!(rust_one_pole.coeffs.cutoff_up, CUTOFF);
-        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole(rust_one_pole, c_one_pole);
     }
 
     #[test]
@@ -852,7 +832,7 @@ pub(crate) mod tests {
         rust_one_pole.set_cutoff_down(CUTOFF);
 
         assert_eq!(rust_one_pole.coeffs.cutoff_down, CUTOFF);
-        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
     }
 
     #[test]
@@ -868,7 +848,7 @@ pub(crate) mod tests {
         c_one_pole.set_tau(TAU);
         rust_one_pole.set_tau(TAU);
 
-        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole(rust_one_pole, c_one_pole);
     }
 
     #[test]
@@ -884,7 +864,7 @@ pub(crate) mod tests {
         c_one_pole.set_tau_up(TAU);
         rust_one_pole.set_tau_up(TAU);
 
-        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole(rust_one_pole, c_one_pole);
     }
 
     #[test]
@@ -900,7 +880,7 @@ pub(crate) mod tests {
         c_one_pole.set_tau_down(TAU);
         rust_one_pole.set_tau_down(TAU);
 
-        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole(rust_one_pole, c_one_pole);
     }
 
     #[test]
@@ -915,7 +895,7 @@ pub(crate) mod tests {
         c_one_pole.set_tau(TAU);
         rust_one_pole.set_tau(TAU);
 
-        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole(rust_one_pole, c_one_pole);
     }
 
     #[cfg(debug_assertions)]
@@ -1015,7 +995,7 @@ pub(crate) mod tests {
         c_one_pole.reset(&x0, None);
         rust_one_pole.reset(&x0, None);
 
-        assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole(rust_one_pole, c_one_pole);
     }
 
     #[test]
@@ -1069,7 +1049,7 @@ pub(crate) mod tests {
             c_y[channel] = c_one_pole.process1(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1(x0[channel], channel);
 
-            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1104,7 +1084,7 @@ pub(crate) mod tests {
             c_y[channel] = c_one_pole.process1_sticky_abs(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_sticky_abs(x0[channel], channel);
 
-            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1139,7 +1119,7 @@ pub(crate) mod tests {
             c_y[channel] = c_one_pole.process1_sticky_rel(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_sticky_rel(x0[channel], channel);
 
-            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1175,7 +1155,7 @@ pub(crate) mod tests {
             c_y[channel] = c_one_pole.process1_asym(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_asym(x0[channel], channel);
 
-            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1213,7 +1193,7 @@ pub(crate) mod tests {
             c_y[channel] = c_one_pole.process1_asym_sticky_abs(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_asym_sticky_abs(x0[channel], channel);
 
-            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1251,7 +1231,7 @@ pub(crate) mod tests {
             c_y[channel] = c_one_pole.process1_asym_sticky_rel(x0[channel], channel);
             rust_y[channel] = rust_one_pole.process1_asym_sticky_rel(x0[channel], channel);
 
-            assert_one_pole_coeffs_rust_c(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1383,16 +1363,21 @@ pub(crate) mod tests {
     #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "value must be finite, got inf")]
-    fn set_sample_rate_invalid() {
+    fn set_sample_rate_must_be_finite() {
         let mut one_pole_coeffs = OnePoleCoeffs::default();
 
         one_pole_coeffs.set_sample_rate(f32::INFINITY);
     }
 
-    pub(crate) fn assert_one_pole_coeffs_rust_c(
-        rust_coeffs: OnePoleCoeffs,
-        c_coeffs: bw_one_pole_coeffs,
-    ) {
+    #[test]
+    #[should_panic(expected = "value must be non negative, got -1")]
+    fn set_sample_rate_must_be_positive() {
+        let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
+
+        rust_one_pole.set_sample_rate(-1.);
+    }
+
+    pub(crate) fn assert_one_pole_coeffs(rust_coeffs: OnePoleCoeffs, c_coeffs: bw_one_pole_coeffs) {
         let pre_message = "one_pole.coeff.";
         let post_message = "does not match";
         assert_eq!(
@@ -1444,5 +1429,29 @@ pub(crate) mod tests {
             pre_message,
             post_message
         );
+    }
+
+    pub(crate) fn assert_one_pole_states(
+        rust_states: &[OnePoleState],
+        c_states: &[bw_one_pole_state],
+    ) {
+        let pre_message = "one_pole.states[";
+        let post_message = "does not match";
+
+        (1..N_CHANNELS).for_each(|channel| {
+            assert_eq!(
+                rust_states[channel].y_z1, c_states[channel].y_z1,
+                "{pre_message}{channel}].y_z1 {post_message}"
+            )
+        });
+    }
+
+    pub(crate) fn assert_one_pole<const N_CHANNELS: usize>(
+        rust_one_pole: OnePole<N_CHANNELS>,
+        c_one_pole: OnePoleWrapper<N_CHANNELS>,
+    ) {
+        assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_states(&rust_one_pole.states, &c_one_pole.states);
+        assert_one_pole_states(&rust_one_pole._states_p, &c_one_pole.states_p);
     }
 }
