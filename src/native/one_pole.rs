@@ -56,9 +56,8 @@ use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug
 ///
 #[derive(Debug)]
 pub struct OnePole<const N_CHANNELS: usize> {
-    coeffs: OnePoleCoeffs,
+    coeffs: OnePoleCoeffs<N_CHANNELS>,
     states: [OnePoleState; N_CHANNELS],
-    _states_p: [OnePoleState; N_CHANNELS], // BW_RESTRICT to check what is for
 }
 /// Distance metrics for sticky behavior.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -74,9 +73,8 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     #[inline(always)]
     pub fn new() -> Self {
         OnePole {
-            coeffs: Default::default(),
+            coeffs: OnePoleCoeffs::new(),
             states: [OnePoleState { y_z1: 0.0 }; N_CHANNELS],
-            _states_p: [OnePoleState { y_z1: 0.0 }; N_CHANNELS],
         }
     }
     /// Sets the filter's sample rate, required for accurate time constant conversion.
@@ -84,12 +82,28 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-    /// Resets the filter state for all channels using the initial input `x0`.
+    /// Resets the filter state for all channels to the initial input `x0`, or to 0 if `x0` is not provided.
     /// If `y0` is provided, the resulting initial outputs are stored in it.
     #[inline(always)]
-    pub fn reset(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
+    pub fn reset(&mut self, x0: Option<f32>, y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
-        self.reset_state_multi(x0, y0);
+        match y0 {
+            Some(out) => {
+                (0..N_CHANNELS).for_each(|channel| {
+                    out[channel] = self.states[channel].reset(x0.unwrap_or(0.));
+                });
+            }
+            None => {
+                (0..N_CHANNELS).for_each(|channel| {
+                    self.states[channel].reset(x0.unwrap_or(0.));
+                });
+            }
+        }
+    }
+    #[inline(always)]
+    pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
+        self.coeffs.reset_coeffs();
+        self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
     /// Processes a block of input samples using a one-pole filter per channel.
     ///
@@ -120,7 +134,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         n_samples: usize,
     ) {
-        self.process_multi(x, y, n_samples);
+        self.coeffs.process_multi(&mut self.states, x, y, n_samples);
     }
     /// Sets both the upgoing (attack) and downgoing (decay) cutoff frequency to the given value (Hz) in `OnePole<N_CHANNELS>`.
     ///
@@ -235,271 +249,6 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     pub fn get_y_z1(&self, channel: usize) -> f32 {
         self.states[channel].y_z1
     }
-
-    // private methods
-    #[inline(always)]
-    fn reset_state_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
-        // No need to check states are in different addresses cause it is
-        // enforced by design
-        if let Some(out) = y0 {
-            (0..N_CHANNELS).for_each(|channel| {
-                out[channel] = self.states[channel].reset(x0[channel]);
-            });
-        } else {
-            (0..N_CHANNELS).for_each(|channel| {
-                self.states[channel].reset(x0[channel]);
-            });
-        }
-    }
-
-    #[inline(always)]
-    fn process1(&mut self, x: f32, channel: usize) -> f32 {
-        let y = x + self.coeffs.m_a1u * (self.get_y_z1(channel) - x);
-        self.states[channel].y_z1 = y;
-        y
-    }
-
-    #[inline(always)]
-    fn process1_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
-        let mut y = x + self.coeffs.m_a1u * (self.get_y_z1(channel) - x);
-        let d = y - x;
-        if d * d <= self.coeffs.st2 {
-            y = x
-        }
-        self.states[channel].y_z1 = y;
-
-        y
-    }
-
-    #[inline(always)]
-    fn process1_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
-        let mut y = x + self.coeffs.m_a1u * (self.get_y_z1(channel) - x);
-        let d = y - x;
-        if d * d <= self.coeffs.st2 * x * x {
-            y = x
-        }
-        self.states[channel].y_z1 = y;
-
-        y
-    }
-
-    #[inline(always)]
-    fn process1_asym(&mut self, x: f32, channel: usize) -> f32 {
-        let y_z1 = self.get_y_z1(channel);
-        let ma1 = if x >= y_z1 {
-            self.coeffs.m_a1u
-        } else {
-            self.coeffs.m_a1d
-        };
-
-        let y = x + ma1 * (y_z1 - x);
-        self.states[channel].y_z1 = y;
-
-        y
-    }
-
-    #[inline(always)]
-    fn process1_asym_sticky_abs(&mut self, x: f32, channel: usize) -> f32 {
-        let y_z1 = self.get_y_z1(channel);
-        let ma1 = if x >= y_z1 {
-            self.coeffs.m_a1u
-        } else {
-            self.coeffs.m_a1d
-        };
-
-        let mut y = x + ma1 * (y_z1 - x);
-        let d = y - x;
-        if d * d <= self.coeffs.st2 {
-            y = x;
-        }
-        self.states[channel].y_z1 = y;
-
-        y
-    }
-
-    #[inline(always)]
-    fn process1_asym_sticky_rel(&mut self, x: f32, channel: usize) -> f32 {
-        let y_z1 = self.get_y_z1(channel);
-        let ma1 = if x >= y_z1 {
-            self.coeffs.m_a1u
-        } else {
-            self.coeffs.m_a1d
-        };
-
-        let mut y = x + ma1 * (y_z1 - x);
-        let d = y - x;
-        if d * d <= self.coeffs.st2 * x * x {
-            y = x;
-        }
-        self.states[channel].y_z1 = y;
-
-        y
-    }
-
-    #[inline(always)]
-    fn process_multi(
-        &mut self,
-        x: &[&[f32]; N_CHANNELS],
-        y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
-        n_samples: usize,
-    ) {
-        // As for reset_multi no need to check states are in
-        // different addresses cause it is enforced by design
-        // Still need to investigate if the other assertions
-        // are sanity check only needed in c
-
-        self.coeffs.update_coeffs_ctrl();
-        if let Some(y_values) = y {
-            if self.is_asym() {
-                if self.is_sticky() {
-                    match self.coeffs.sticky_mode {
-                        OnePoleStickyMode::Abs => {
-                            (0..N_CHANNELS).for_each(|channel| {
-                                if let Some(y_value) = y_values[channel].as_deref_mut() {
-                                    (0..n_samples).for_each(|sample| {
-                                        y_value[sample] = self
-                                            .process1_asym_sticky_abs(x[channel][sample], channel);
-                                    });
-                                } else {
-                                    (0..n_samples).for_each(|sample| {
-                                        self.process1_asym_sticky_abs(x[channel][sample], channel);
-                                    });
-                                }
-                            });
-                        }
-                        OnePoleStickyMode::Rel => {
-                            (0..N_CHANNELS).for_each(|channel| {
-                                if let Some(y_value) = y_values[channel].as_deref_mut() {
-                                    (0..n_samples).for_each(|sample| {
-                                        y_value[sample] = self
-                                            .process1_asym_sticky_rel(x[channel][sample], channel);
-                                    });
-                                } else {
-                                    (0..n_samples).for_each(|sample| {
-                                        self.process1_asym_sticky_rel(x[channel][sample], channel);
-                                    });
-                                }
-                            });
-                        }
-                    }
-                } else {
-                    (0..N_CHANNELS).for_each(|channel| {
-                        if let Some(y_value) = y_values[channel].as_deref_mut() {
-                            (0..n_samples).for_each(|sample| {
-                                y_value[sample] = self.process1_asym(x[channel][sample], channel);
-                            });
-                        } else {
-                            (0..n_samples).for_each(|sample| {
-                                self.process1_asym(x[channel][sample], channel);
-                            });
-                        }
-                    });
-                }
-            } else if self.is_sticky() {
-                match self.coeffs.sticky_mode {
-                    OnePoleStickyMode::Abs => {
-                        (0..N_CHANNELS).for_each(|channel| {
-                            if let Some(y_value) = y_values[channel].as_deref_mut() {
-                                (0..n_samples).for_each(|sample| {
-                                    y_value[sample] =
-                                        self.process1_sticky_abs(x[channel][sample], channel);
-                                });
-                            } else {
-                                (0..n_samples).for_each(|sample| {
-                                    self.process1_sticky_abs(x[channel][sample], channel);
-                                });
-                            }
-                        });
-                    }
-                    OnePoleStickyMode::Rel => {
-                        (0..N_CHANNELS).for_each(|channel| {
-                            if let Some(y_value) = y_values[channel].as_deref_mut() {
-                                (0..n_samples).for_each(|sample| {
-                                    y_value[sample] =
-                                        self.process1_sticky_rel(x[channel][sample], channel);
-                                });
-                            } else {
-                                (0..n_samples).for_each(|sample| {
-                                    self.process1_sticky_rel(x[channel][sample], channel);
-                                });
-                            }
-                        });
-                    }
-                }
-            } else {
-                (0..N_CHANNELS).for_each(|channel| {
-                    if let Some(y_value) = y_values[channel].as_deref_mut() {
-                        (0..n_samples).for_each(|sample| {
-                            y_value[sample] = self.process1(x[channel][sample], channel);
-                        });
-                    } else {
-                        (0..n_samples).for_each(|sample| {
-                            self.process1(x[channel][sample], channel);
-                        });
-                    }
-                });
-            }
-        } else if self.is_asym() {
-            if self.is_sticky() {
-                match self.coeffs.sticky_mode {
-                    OnePoleStickyMode::Abs => {
-                        (0..N_CHANNELS).for_each(|channel| {
-                            (0..n_samples).for_each(|sample| {
-                                self.process1_asym_sticky_abs(x[channel][sample], channel);
-                            });
-                        });
-                    }
-                    OnePoleStickyMode::Rel => {
-                        (0..N_CHANNELS).for_each(|channel| {
-                            (0..n_samples).for_each(|sample| {
-                                self.process1_asym_sticky_rel(x[channel][sample], channel);
-                            });
-                        });
-                    }
-                }
-            } else {
-                (0..N_CHANNELS).for_each(|channel| {
-                    (0..n_samples).for_each(|sample| {
-                        self.process1_asym(x[channel][sample], channel);
-                    });
-                });
-            }
-        } else if self.is_sticky() {
-            match self.coeffs.sticky_mode {
-                OnePoleStickyMode::Abs => {
-                    (0..N_CHANNELS).for_each(|channel| {
-                        (0..n_samples).for_each(|sample| {
-                            self.process1_sticky_abs(x[channel][sample], channel);
-                        });
-                    });
-                }
-                OnePoleStickyMode::Rel => {
-                    (0..N_CHANNELS).for_each(|channel| {
-                        (0..n_samples).for_each(|sample| {
-                            self.process1_sticky_rel(x[channel][sample], channel);
-                        });
-                    });
-                }
-            }
-        } else {
-            (0..N_CHANNELS).for_each(|channel| {
-                (0..n_samples).for_each(|sample| {
-                    self.process1(x[channel][sample], channel);
-                });
-            });
-        }
-    }
-    // Not implementing the process() defined with BW_CXX_NO_ARRAY
-
-    // Helper functions for clarity sake
-    #[inline(always)]
-    fn is_asym(&self) -> bool {
-        self.coeffs.m_a1d != self.coeffs.m_a1u
-    }
-    #[inline(always)]
-    fn is_sticky(&self) -> bool {
-        self.coeffs.st2 != 0.
-    }
 }
 
 impl<const N_CHANNELS: usize> Default for OnePole<N_CHANNELS> {
@@ -509,7 +258,7 @@ impl<const N_CHANNELS: usize> Default for OnePole<N_CHANNELS> {
 }
 
 #[derive(Clone, Debug, Copy)]
-pub struct OnePoleCoeffs {
+pub struct OnePoleCoeffs<const N_CHANNELS: usize> {
     fs_2pi: f32,
     m_a1u: f32,
     m_a1d: f32,
@@ -535,18 +284,49 @@ bitflags! {
 
 #[derive(Debug, Clone, Copy)]
 pub struct OnePoleState {
-    pub(crate) y_z1: f32,
+    y_z1: f32,
 }
 
 impl OnePoleState {
     #[inline(always)]
-    fn reset(&mut self, x0: f32) -> f32 {
+    pub fn new() -> Self {
+        Self { y_z1: 0.0 }
+    }
+
+    #[inline(always)]
+    pub fn reset(&mut self, x0: f32) -> f32 {
         self.y_z1 = x0;
         x0
     }
+
+    #[inline(always)]
+    pub fn get_y_z1(&self) -> f32 {
+        self.y_z1
+    }
 }
 
-impl OnePoleCoeffs {
+impl Default for OnePoleState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
+    #[inline(always)]
+    pub fn new() -> Self {
+        Self {
+            fs_2pi: Default::default(),
+            m_a1u: Default::default(),
+            m_a1d: Default::default(),
+            st2: Default::default(),
+            cutoff_up: f32::INFINITY,
+            cutoff_down: f32::INFINITY,
+            sticky_thresh: 0.0,
+            sticky_mode: OnePoleStickyMode::Abs,
+            param_changed: ParamChanged::all(),
+        }
+    }
+
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
@@ -558,35 +338,35 @@ impl OnePoleCoeffs {
     }
 
     #[inline(always)]
-    pub fn do_update_coeffs_ctrl(&mut self) {
-        if !self.param_changed.is_empty() {
-            if self.param_changed.contains(ParamChanged::CUTOFF_UP) {
-                // tau < 1 ns is instantaneous for any practical purpose
-                self.m_a1u = if self.cutoff_up > 1.591_549_4e8 {
-                    0.0
-                } else {
-                    self.fs_2pi * rcpf(self.fs_2pi + self.cutoff_up)
-                }
-            }
-            if self.param_changed.contains(ParamChanged::CUTOFF_DOWN) {
-                // as before
-                self.m_a1d = if self.cutoff_down > 1.591_549_4e8 {
-                    0.0
-                } else {
-                    self.fs_2pi * rcpf(self.fs_2pi + self.cutoff_down)
-                }
-            }
-            if self.param_changed.contains(ParamChanged::STICKY_TRESH) {
-                self.st2 = self.sticky_thresh * self.sticky_thresh;
-            }
-            self.param_changed = ParamChanged::empty()
-        }
-    }
-
-    #[inline(always)]
     pub fn reset_coeffs(&mut self) {
         self.param_changed = ParamChanged::all();
         self.do_update_coeffs_ctrl();
+    }
+
+    #[inline(always)]
+    pub fn reset_state(&mut self, state: &mut OnePoleState, x0: f32) -> f32 {
+        debug_assert!(x0.is_finite());
+        state.reset(x0)
+    }
+
+    #[inline(always)]
+    pub fn reset_state_multi(
+        &mut self,
+        states: &mut [OnePoleState],
+        x0: &[f32; N_CHANNELS],
+        y0: Option<&mut [f32; N_CHANNELS]>,
+    ) {
+        // No need to check states are in different addresses cause it is
+        // enforced by design
+        if let Some(out) = y0 {
+            (0..N_CHANNELS).for_each(|channel| {
+                out[channel] = states[channel].reset(x0[channel]);
+            });
+        } else {
+            (0..N_CHANNELS).for_each(|channel| {
+                states[channel].reset(x0[channel]);
+            });
+        }
     }
 
     #[inline(always)]
@@ -594,11 +374,363 @@ impl OnePoleCoeffs {
         self.do_update_coeffs_ctrl();
     }
 
-    // This is only asserting
+    // Only asserting to check when checking assertions
     // #[inline(always)]
     // fn update_coeffs_audio(&self) {
     //     todo!()
     // }
+
+    #[inline(always)]
+    pub fn process1(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        let y = x + self.m_a1u * (state.get_y_z1() - x);
+        state.y_z1 = y;
+        y
+    }
+
+    #[inline(always)]
+    pub fn process1_sticky_abs(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        let mut y = x + self.m_a1u * (state.get_y_z1() - x);
+        let d = y - x;
+        if d * d <= self.st2 {
+            y = x
+        }
+        state.y_z1 = y;
+
+        y
+    }
+
+    #[inline(always)]
+    pub fn process1_sticky_rel(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        let mut y = x + self.m_a1u * (state.get_y_z1() - x);
+        let d = y - x;
+        if d * d <= self.st2 * x * x {
+            y = x
+        }
+        state.y_z1 = y;
+
+        y
+    }
+
+    #[inline(always)]
+    pub fn process1_asym(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        let y_z1 = state.get_y_z1();
+        let ma1 = if x >= y_z1 { self.m_a1u } else { self.m_a1d };
+
+        let y = x + ma1 * (y_z1 - x);
+        state.y_z1 = y;
+
+        y
+    }
+
+    #[inline(always)]
+    pub fn process1_asym_sticky_abs(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        let y_z1 = state.get_y_z1();
+        let ma1 = if x >= y_z1 { self.m_a1u } else { self.m_a1d };
+
+        let mut y = x + ma1 * (y_z1 - x);
+        let d = y - x;
+        if d * d <= self.st2 {
+            y = x;
+        }
+        state.y_z1 = y;
+
+        y
+    }
+
+    #[inline(always)]
+    pub fn process1_asym_sticky_rel(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        let y_z1 = state.get_y_z1();
+        let ma1 = if x >= y_z1 { self.m_a1u } else { self.m_a1d };
+
+        let mut y = x + ma1 * (y_z1 - x);
+        let d = y - x;
+        if d * d <= self.st2 * x * x {
+            y = x;
+        }
+        state.y_z1 = y;
+
+        y
+    }
+
+    #[inline(always)]
+    pub fn process(
+        &mut self,
+        state: &mut OnePoleState,
+        x: &[f32],
+        y: Option<&mut [f32]>,
+        n_samples: usize,
+    ) {
+        self.update_coeffs_ctrl();
+        match y {
+            Some(y_values) => {
+                if self.is_asym() {
+                    if self.is_sticky() {
+                        match self.get_sticky_mode() {
+                            OnePoleStickyMode::Abs => {
+                                (0..n_samples).for_each(|sample| {
+                                    y_values[sample] =
+                                        self.process1_asym_sticky_abs(state, x[sample]);
+                                });
+                            }
+                            OnePoleStickyMode::Rel => {
+                                (0..n_samples).for_each(|sample| {
+                                    y_values[sample] =
+                                        self.process1_asym_sticky_rel(state, x[sample]);
+                                });
+                            }
+                        }
+                    } else {
+                        (0..n_samples).for_each(|sample| {
+                            y_values[sample] = self.process1_asym(state, x[sample]);
+                        });
+                    }
+                } else {
+                    if self.is_sticky() {
+                        match self.get_sticky_mode() {
+                            OnePoleStickyMode::Abs => {
+                                (0..n_samples).for_each(|sample| {
+                                    y_values[sample] = self.process1_sticky_abs(state, x[sample]);
+                                });
+                            }
+                            OnePoleStickyMode::Rel => {
+                                (0..n_samples).for_each(|sample| {
+                                    y_values[sample] = self.process1_sticky_rel(state, x[sample]);
+                                });
+                            }
+                        }
+                    } else {
+                        (0..n_samples).for_each(|sample| {
+                            y_values[sample] = self.process1(state, x[sample]);
+                        });
+                    }
+                }
+            }
+            None => {
+                if self.is_asym() {
+                    if self.is_sticky() {
+                        match self.get_sticky_mode() {
+                            OnePoleStickyMode::Abs => {
+                                (0..n_samples).for_each(|sample| {
+                                    self.process1_asym_sticky_abs(state, x[sample]);
+                                });
+                            }
+                            OnePoleStickyMode::Rel => {
+                                (0..n_samples).for_each(|sample| {
+                                    self.process1_asym_sticky_rel(state, x[sample]);
+                                });
+                            }
+                        }
+                    } else {
+                        (0..n_samples).for_each(|sample| {
+                            self.process1_asym(state, x[sample]);
+                        });
+                    }
+                } else {
+                    if self.is_sticky() {
+                        match self.get_sticky_mode() {
+                            OnePoleStickyMode::Abs => {
+                                (0..n_samples).for_each(|sample| {
+                                    self.process1_sticky_abs(state, x[sample]);
+                                });
+                            }
+                            OnePoleStickyMode::Rel => {
+                                (0..n_samples).for_each(|sample| {
+                                    self.process1_sticky_rel(state, x[sample]);
+                                });
+                            }
+                        }
+                    } else {
+                        (0..n_samples).for_each(|sample| {
+                            self.process1(state, x[sample]);
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn process_multi(
+        &mut self,
+        states: &mut [OnePoleState; N_CHANNELS],
+        x: &[&[f32]; N_CHANNELS],
+        y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
+        n_samples: usize,
+    ) {
+        // As for reset_multi no need to check states are in
+        // different addresses cause it is enforced by design
+        // Still need to investigate if the other assertions
+        // are sanity check only needed in c
+
+        self.update_coeffs_ctrl();
+        if let Some(y_values) = y {
+            if self.is_asym() {
+                if self.is_sticky() {
+                    match self.sticky_mode {
+                        OnePoleStickyMode::Abs => {
+                            (0..N_CHANNELS).for_each(|channel| {
+                                if let Some(y_value) = y_values[channel].as_deref_mut() {
+                                    (0..n_samples).for_each(|sample| {
+                                        y_value[sample] = self.process1_asym_sticky_abs(
+                                            &mut states[channel],
+                                            x[channel][sample],
+                                        );
+                                    });
+                                } else {
+                                    (0..n_samples).for_each(|sample| {
+                                        self.process1_asym_sticky_abs(
+                                            &mut states[channel],
+                                            x[channel][sample],
+                                        );
+                                    });
+                                }
+                            });
+                        }
+                        OnePoleStickyMode::Rel => {
+                            (0..N_CHANNELS).for_each(|channel| {
+                                if let Some(y_value) = y_values[channel].as_deref_mut() {
+                                    (0..n_samples).for_each(|sample| {
+                                        y_value[sample] = self.process1_asym_sticky_rel(
+                                            &mut states[channel],
+                                            x[channel][sample],
+                                        );
+                                    });
+                                } else {
+                                    (0..n_samples).for_each(|sample| {
+                                        self.process1_asym_sticky_rel(
+                                            &mut states[channel],
+                                            x[channel][sample],
+                                        );
+                                    });
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    (0..N_CHANNELS).for_each(|channel| {
+                        if let Some(y_value) = y_values[channel].as_deref_mut() {
+                            (0..n_samples).for_each(|sample| {
+                                y_value[sample] =
+                                    self.process1_asym(&mut states[channel], x[channel][sample]);
+                            });
+                        } else {
+                            (0..n_samples).for_each(|sample| {
+                                self.process1_asym(&mut states[channel], x[channel][sample]);
+                            });
+                        }
+                    });
+                }
+            } else if self.is_sticky() {
+                match self.sticky_mode {
+                    OnePoleStickyMode::Abs => {
+                        (0..N_CHANNELS).for_each(|channel| {
+                            if let Some(y_value) = y_values[channel].as_deref_mut() {
+                                (0..n_samples).for_each(|sample| {
+                                    y_value[sample] = self.process1_sticky_abs(
+                                        &mut states[channel],
+                                        x[channel][sample],
+                                    );
+                                });
+                            } else {
+                                (0..n_samples).for_each(|sample| {
+                                    self.process1_sticky_abs(
+                                        &mut states[channel],
+                                        x[channel][sample],
+                                    );
+                                });
+                            }
+                        });
+                    }
+                    OnePoleStickyMode::Rel => {
+                        (0..N_CHANNELS).for_each(|channel| {
+                            if let Some(y_value) = y_values[channel].as_deref_mut() {
+                                (0..n_samples).for_each(|sample| {
+                                    y_value[sample] = self.process1_sticky_rel(
+                                        &mut states[channel],
+                                        x[channel][sample],
+                                    );
+                                });
+                            } else {
+                                (0..n_samples).for_each(|sample| {
+                                    self.process1_sticky_rel(
+                                        &mut states[channel],
+                                        x[channel][sample],
+                                    );
+                                });
+                            }
+                        });
+                    }
+                }
+            } else {
+                (0..N_CHANNELS).for_each(|channel| {
+                    if let Some(y_value) = y_values[channel].as_deref_mut() {
+                        (0..n_samples).for_each(|sample| {
+                            y_value[sample] =
+                                self.process1(&mut states[channel], x[channel][sample]);
+                        });
+                    } else {
+                        (0..n_samples).for_each(|sample| {
+                            self.process1(&mut states[channel], x[channel][sample]);
+                        });
+                    }
+                });
+            }
+        } else if self.is_asym() {
+            if self.is_sticky() {
+                match self.sticky_mode {
+                    OnePoleStickyMode::Abs => {
+                        (0..N_CHANNELS).for_each(|channel| {
+                            (0..n_samples).for_each(|sample| {
+                                self.process1_asym_sticky_abs(
+                                    &mut states[channel],
+                                    x[channel][sample],
+                                );
+                            });
+                        });
+                    }
+                    OnePoleStickyMode::Rel => {
+                        (0..N_CHANNELS).for_each(|channel| {
+                            (0..n_samples).for_each(|sample| {
+                                self.process1_asym_sticky_rel(
+                                    &mut states[channel],
+                                    x[channel][sample],
+                                );
+                            });
+                        });
+                    }
+                }
+            } else {
+                (0..N_CHANNELS).for_each(|channel| {
+                    (0..n_samples).for_each(|sample| {
+                        self.process1_asym(&mut states[channel], x[channel][sample]);
+                    });
+                });
+            }
+        } else if self.is_sticky() {
+            match self.sticky_mode {
+                OnePoleStickyMode::Abs => {
+                    (0..N_CHANNELS).for_each(|channel| {
+                        (0..n_samples).for_each(|sample| {
+                            self.process1_sticky_abs(&mut states[channel], x[channel][sample]);
+                        });
+                    });
+                }
+                OnePoleStickyMode::Rel => {
+                    (0..N_CHANNELS).for_each(|channel| {
+                        (0..n_samples).for_each(|sample| {
+                            self.process1_sticky_rel(&mut states[channel], x[channel][sample]);
+                        });
+                    });
+                }
+            }
+        } else {
+            (0..N_CHANNELS).for_each(|channel| {
+                (0..n_samples).for_each(|sample| {
+                    self.process1(&mut states[channel], x[channel][sample]);
+                });
+            });
+        }
+    }
 
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
@@ -682,22 +814,63 @@ impl OnePoleCoeffs {
     pub fn get_sticky_mode(&self) -> OnePoleStickyMode {
         self.sticky_mode
     }
+
+    #[inline(always)]
+    pub fn get_y_z1(&self, state: OnePoleState) -> f32 {
+        state.get_y_z1()
+    }
+
+    #[inline(always)]
+    pub fn coeffs_is_valid(&self) {
+        todo!()
+    }
+
+    #[inline(always)]
+    pub fn state_is_valid(&self, state: OnePoleState) -> bool {
+        state.get_y_z1().is_finite()
+    }
+
+    // Private
+    #[inline(always)]
+    fn do_update_coeffs_ctrl(&mut self) {
+        if !self.param_changed.is_empty() {
+            if self.param_changed.contains(ParamChanged::CUTOFF_UP) {
+                // tau < 1 ns is instantaneous for any practical purpose
+                self.m_a1u = if self.cutoff_up > 1.591_549_4e8 {
+                    0.0
+                } else {
+                    self.fs_2pi * rcpf(self.fs_2pi + self.cutoff_up)
+                }
+            }
+            if self.param_changed.contains(ParamChanged::CUTOFF_DOWN) {
+                // as before
+                self.m_a1d = if self.cutoff_down > 1.591_549_4e8 {
+                    0.0
+                } else {
+                    self.fs_2pi * rcpf(self.fs_2pi + self.cutoff_down)
+                }
+            }
+            if self.param_changed.contains(ParamChanged::STICKY_TRESH) {
+                self.st2 = self.sticky_thresh * self.sticky_thresh;
+            }
+            self.param_changed = ParamChanged::empty()
+        }
+    }
+    // Helper functions for clarity sake
+    #[inline(always)]
+    fn is_asym(&self) -> bool {
+        self.m_a1d != self.m_a1u
+    }
+    #[inline(always)]
+    fn is_sticky(&self) -> bool {
+        self.st2 != 0.
+    }
 }
 
-impl Default for OnePoleCoeffs {
+impl<const N_CHANNELS: usize> Default for OnePoleCoeffs<N_CHANNELS> {
     #[inline(always)]
     fn default() -> Self {
-        Self {
-            fs_2pi: Default::default(),
-            m_a1u: Default::default(),
-            m_a1d: Default::default(),
-            st2: Default::default(),
-            cutoff_up: f32::INFINITY,
-            cutoff_down: f32::INFINITY,
-            sticky_thresh: 0.0,
-            sticky_mode: OnePoleStickyMode::Abs,
-            param_changed: ParamChanged::all(),
-        }
+        Self::new()
     }
 }
 
@@ -721,7 +894,7 @@ pub(crate) mod tests {
         let cutoff = 100.;
         let sticky_thresh = 0.01;
 
-        let mut rust_coeffs = OnePoleCoeffs {
+        let mut rust_coeffs = OnePoleCoeffs::<N_CHANNELS> {
             cutoff_up: cutoff,
             cutoff_down: cutoff,
             sticky_thresh: sticky_thresh,
@@ -739,12 +912,12 @@ pub(crate) mod tests {
         }
         rust_coeffs.update_coeffs_ctrl();
 
-        assert_one_pole_coeffs(rust_coeffs, c_coeffs);
+        assert_one_pole_coeffs(&rust_coeffs, &c_coeffs);
     }
 
     #[test]
     fn update_coeffs_ctrl_nothing_changed() {
-        let mut rust_coeffs = OnePoleCoeffs {
+        let mut rust_coeffs = OnePoleCoeffs::<N_CHANNELS> {
             param_changed: ParamChanged::empty(),
             ..Default::default()
         };
@@ -756,7 +929,7 @@ pub(crate) mod tests {
         }
         rust_coeffs.do_update_coeffs_ctrl();
 
-        assert_one_pole_coeffs(rust_coeffs, c_coeffs);
+        assert_one_pole_coeffs(&rust_coeffs, &c_coeffs);
     }
 
     #[test]
@@ -832,7 +1005,7 @@ pub(crate) mod tests {
         rust_one_pole.set_cutoff_down(CUTOFF);
 
         assert_eq!(rust_one_pole.coeffs.cutoff_down, CUTOFF);
-        assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
     }
 
     #[test]
@@ -993,7 +1166,7 @@ pub(crate) mod tests {
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
 
         c_one_pole.reset(&x0, None);
-        rust_one_pole.reset(&x0, None);
+        rust_one_pole.reset_multi(&x0, None);
 
         assert_one_pole(rust_one_pole, c_one_pole);
     }
@@ -1017,7 +1190,7 @@ pub(crate) mod tests {
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
 
         c_one_pole.reset(&x0_input, Some(&mut c_y0_output));
-        rust_one_pole.reset(&x0_input, Some(&mut rust_y0_output));
+        rust_one_pole.reset_multi(&x0_input, Some(&mut rust_y0_output));
 
         for i in 0..N_CHANNELS {
             assert_eq!(rust_one_pole.states[i].y_z1, x0_input[i]);
@@ -1038,7 +1211,7 @@ pub(crate) mod tests {
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(&x0, None);
+        rust_one_pole.reset_multi(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
@@ -1046,10 +1219,14 @@ pub(crate) mod tests {
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1(x0[channel], channel);
-            rust_y[channel] = rust_one_pole.process1(x0[channel], channel);
+            c_y[channel] = c_one_pole
+                .coeffs
+                .process1(&mut c_one_pole.states[channel], x0[channel]);
+            rust_y[channel] = rust_one_pole
+                .coeffs
+                .process1(&mut rust_one_pole.states[channel], x0[channel]);
 
-            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1072,7 +1249,7 @@ pub(crate) mod tests {
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_mode(OnePoleStickyMode::Abs);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(&x0, None);
+        rust_one_pole.reset_multi(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
@@ -1081,10 +1258,14 @@ pub(crate) mod tests {
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_sticky_abs(x0[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_sticky_abs(x0[channel], channel);
+            c_y[channel] = c_one_pole
+                .coeffs
+                .process1_sticky_abs(&mut c_one_pole.states[channel], x0[channel]);
+            rust_y[channel] = rust_one_pole
+                .coeffs
+                .process1_sticky_abs(&mut rust_one_pole.states[channel], x0[channel]);
 
-            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1107,7 +1288,7 @@ pub(crate) mod tests {
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(&x0, None);
+        rust_one_pole.reset_multi(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
@@ -1116,10 +1297,14 @@ pub(crate) mod tests {
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_sticky_rel(x0[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_sticky_rel(x0[channel], channel);
+            c_y[channel] = c_one_pole
+                .coeffs
+                .process1_sticky_rel(&mut c_one_pole.states[channel], x0[channel]);
+            rust_y[channel] = rust_one_pole
+                .coeffs
+                .process1_sticky_rel(&mut rust_one_pole.states[channel], x0[channel]);
 
-            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1143,7 +1328,7 @@ pub(crate) mod tests {
         rust_one_pole.set_cutoff_up(CUTOFF_UP);
         rust_one_pole.set_cutoff_down(CUTOFF_DOWN);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(&x0, None);
+        rust_one_pole.reset_multi(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff_up(CUTOFF_UP);
@@ -1152,10 +1337,14 @@ pub(crate) mod tests {
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_asym(x0[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_asym(x0[channel], channel);
+            c_y[channel] = c_one_pole
+                .coeffs
+                .process1_asym(&mut c_one_pole.states[channel], x0[channel]);
+            rust_y[channel] = rust_one_pole
+                .coeffs
+                .process1_asym(&mut rust_one_pole.states[channel], x0[channel]);
 
-            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1180,7 +1369,7 @@ pub(crate) mod tests {
         rust_one_pole.set_cutoff_down(CUTOFF_DOWN);
         rust_one_pole.set_sticky_mode(OnePoleStickyMode::Abs);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(&x0, None);
+        rust_one_pole.reset_multi(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff_up(CUTOFF_UP);
@@ -1190,10 +1379,14 @@ pub(crate) mod tests {
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_asym_sticky_abs(x0[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_asym_sticky_abs(x0[channel], channel);
+            c_y[channel] = c_one_pole
+                .coeffs
+                .process1_asym_sticky_abs(&mut c_one_pole.states[channel], x0[channel]);
+            rust_y[channel] = rust_one_pole
+                .coeffs
+                .process1_asym_sticky_abs(&mut rust_one_pole.states[channel], x0[channel]);
 
-            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1218,7 +1411,7 @@ pub(crate) mod tests {
         rust_one_pole.set_cutoff_down(CUTOFF_DOWN);
         rust_one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
-        rust_one_pole.reset(&x0, None);
+        rust_one_pole.reset_multi(&x0, None);
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff_up(CUTOFF_UP);
@@ -1228,10 +1421,14 @@ pub(crate) mod tests {
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_one_pole.process1_asym_sticky_rel(x0[channel], channel);
-            rust_y[channel] = rust_one_pole.process1_asym_sticky_rel(x0[channel], channel);
+            c_y[channel] = c_one_pole
+                .coeffs
+                .process1_asym_sticky_rel(&mut c_one_pole.states[channel], x0[channel]);
+            rust_y[channel] = rust_one_pole
+                .coeffs
+                .process1_asym_sticky_rel(&mut rust_one_pole.states[channel], x0[channel]);
 
-            assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
+            assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
             assert_eq!(
                 rust_one_pole.get_y_z1(channel),
                 c_one_pole.get_y_z1(channel)
@@ -1268,7 +1465,7 @@ pub(crate) mod tests {
         let mut rust_one_pole = OnePole::<N_CHANNELS>::new();
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
-        rust_one_pole.reset(&[0.0; N_CHANNELS], None);
+        rust_one_pole.reset_multi(&[0.0; N_CHANNELS], None);
 
         rust_one_pole.process(&x0, Some(&mut rust_output), N_SAMPLES);
 
@@ -1336,18 +1533,18 @@ pub(crate) mod tests {
     #[should_panic(expected = "value must be non negative, got NaN")]
     fn set_cutoff_to_nan() {
         let result = panic::catch_unwind(|| {
-            let mut one_pole_coeffs = OnePoleCoeffs::default();
+            let mut one_pole_coeffs = OnePoleCoeffs::<N_CHANNELS>::default();
             one_pole_coeffs.set_cutoff_down(f32::NAN);
         });
         assert!(result.is_err());
 
         let result = panic::catch_unwind(|| {
-            let mut one_pole_coeffs = OnePoleCoeffs::default();
+            let mut one_pole_coeffs = OnePoleCoeffs::<N_CHANNELS>::default();
             one_pole_coeffs.set_cutoff_up(f32::NAN);
         });
         assert!(result.is_err());
 
-        let mut one_pole_coeffs = OnePoleCoeffs::default();
+        let mut one_pole_coeffs = OnePoleCoeffs::<N_CHANNELS>::default();
         one_pole_coeffs.set_cutoff(f32::NAN);
     }
 
@@ -1355,7 +1552,7 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "value must be in range [0e0, 1e18], got inf")]
     fn set_sticky_thresh_to_infinite() {
-        let mut one_pole_coeffs = OnePoleCoeffs::default();
+        let mut one_pole_coeffs = OnePoleCoeffs::<N_CHANNELS>::default();
 
         one_pole_coeffs.set_sticky_thresh(f32::INFINITY);
     }
@@ -1364,7 +1561,7 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "value must be finite, got inf")]
     fn set_sample_rate_must_be_finite() {
-        let mut one_pole_coeffs = OnePoleCoeffs::default();
+        let mut one_pole_coeffs = OnePoleCoeffs::<N_CHANNELS>::default();
 
         one_pole_coeffs.set_sample_rate(f32::INFINITY);
     }
@@ -1377,7 +1574,10 @@ pub(crate) mod tests {
         rust_one_pole.set_sample_rate(-1.);
     }
 
-    pub(crate) fn assert_one_pole_coeffs(rust_coeffs: OnePoleCoeffs, c_coeffs: bw_one_pole_coeffs) {
+    pub(crate) fn assert_one_pole_coeffs<const N_CHANNELS: usize>(
+        rust_coeffs: &OnePoleCoeffs<N_CHANNELS>,
+        c_coeffs: &bw_one_pole_coeffs,
+    ) {
         let pre_message = "one_pole.coeff.";
         let post_message = "does not match";
         assert_eq!(
@@ -1450,8 +1650,7 @@ pub(crate) mod tests {
         rust_one_pole: OnePole<N_CHANNELS>,
         c_one_pole: OnePoleWrapper<N_CHANNELS>,
     ) {
-        assert_one_pole_coeffs(rust_one_pole.coeffs, c_one_pole.coeffs);
+        assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
         assert_one_pole_states(&rust_one_pole.states, &c_one_pole.states);
-        assert_one_pole_states(&rust_one_pole._states_p, &c_one_pole.states_p);
     }
 }
