@@ -1,94 +1,75 @@
+use std::rc;
+
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive};
+use crate::native::math::{clipf, rcpf};
 use crate::native::one_pole::{OnePoleCoeffs, OnePoleState};
 
 pub struct Clip<const N_CHANNELS: usize> {
-    coeffs: ClipCoeffs,
-    states: [ClipState; N_CHANNELS],
-    _states_p: [ClipState; N_CHANNELS],
+    pub coeffs: ClipCoeffs<N_CHANNELS>,
+    pub states: [ClipState; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
     #[inline(always)]
     pub fn new() -> Self {
-        todo!()
+        Clip {
+            coeffs: ClipCoeffs::new(),
+            states: [ClipState::default(); N_CHANNELS],
+        }
     }
 
     #[inline(always)]
-    pub fn set_sample_rate(&mut self, sample_rate: f32) {
-        // #[cfg(debug_assertions)]
-        // {
-        //     debug_assert_positive(sample_rate);
-        //     debug_assert_is_finite(sample_rate);
-        // }
-        // self.coeffs.smooth_coeffs.set_sample_rate(sample_rate);
-        todo!()
+    pub fn set_sample_rate(&mut self, value: f32) {
+        self.coeffs.set_sample_rate(value);
     }
 
     #[inline(always)]
-    pub fn reset(&mut self, x_0: &[f32; N_CHANNELS], y_0: Option<&mut [f32; N_CHANNELS]>) {
-        todo!()
+    pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
+        self.coeffs.reset_coeffs();
+        match y0 {
+            Some(y0_values) => {
+                (0..N_CHANNELS).for_each(|channel| {
+                    y0_values[channel] = self.coeffs.reset_state(&mut self.states[channel], x0);
+                });
+            }
+            None => {
+                (0..N_CHANNELS).for_each(|channel| {
+                    self.coeffs.reset_state(&mut self.states[channel], x0);
+                });
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
+        self.coeffs.reset_coeffs();
+        self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
 
     #[inline(always)]
     pub fn process(
         &mut self,
         x: &[&[f32]; N_CHANNELS],
-        y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
-        n_sample: usize,
+        y: &mut [&mut [f32]; N_CHANNELS],
+        n_samples: usize,
     ) {
-        todo!()
+        self.coeffs.process_multi(&mut self.states, x, y, n_samples);
     }
 
     #[inline(always)]
     pub fn set_bias(&mut self, value: f32) {
-        todo!()
+        self.coeffs.set_bias(value);
     }
 
     #[inline(always)]
     pub fn set_gain(&mut self, value: f32) {
-        todo!()
+        self.coeffs.set_gain(value);
     }
 
     #[inline(always)]
     pub fn set_gain_compensation(&mut self, value: bool) {
-        todo!()
+        self.coeffs.set_gain_compensation(value);
     }
-
-    // Private methods
-    #[inline(always)]
-    fn do_update_coeffs(&mut self, force: bool) {
-        todo!()
-    }
-
-    #[inline(always)]
-    fn process1(&mut self, x: f32, channel: usize) -> f32 {
-        todo!()
-    }
-
-    #[inline(always)]
-    fn process1_comp(&mut self, x: f32, channel: usize) -> f32 {
-        todo!()
-    }
-
-    #[inline(always)]
-    fn process_multi(&mut self, x: &[&[f32]; N_CHANNELS], y: &mut [&mut [f32]; N_CHANNELS]) {
-        todo!()
-    }
-
-    /*
-    To understand when is needed see line 578 of bw_clip.h:
-
-    static inline void bw_clip_process(
-        bw_clip_coeffs * BW_RESTRICT coeffs,
-        bw_clip_state * BW_RESTRICT  state,
-        const float *                x,
-        float *                      y,
-        size_t                       n_samples) {...}
-    */
-    // #[inline(always)]
-    // fn process_single(&mut self, x: &[f32], y: &mut [f32]) {
-    //     todo!()
-    // }
 }
 
 impl<const N_CHANNELS: usize> Default for Clip<N_CHANNELS> {
@@ -96,9 +77,9 @@ impl<const N_CHANNELS: usize> Default for Clip<N_CHANNELS> {
         Self::new()
     }
 }
-pub struct ClipCoeffs {
+pub struct ClipCoeffs<const N_CHANNELS: usize> {
     // Sub-components
-    smooth_coeffs: OnePoleCoeffs,
+    smooth_coeffs: OnePoleCoeffs<N_CHANNELS>,
     smooth_bias_state: OnePoleState,
     smooth_gain_state: OnePoleState,
 
@@ -112,6 +93,226 @@ pub struct ClipCoeffs {
     gain_compensation: bool,
 }
 
+impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
+    #[inline(always)]
+    pub fn new() -> Self {
+        let mut coeffs = ClipCoeffs {
+            smooth_coeffs: OnePoleCoeffs::default(),
+            smooth_bias_state: OnePoleState::new(),
+            smooth_gain_state: OnePoleState::new(),
+            bias_dc: 0.0,
+            inv_gain: 0.0,
+            bias: 0.0,
+            gain: 1.0,
+            gain_compensation: false,
+        };
+        coeffs.smooth_coeffs.set_tau(0.005);
+        coeffs.smooth_coeffs.set_sticky_thresh(1e-3);
+
+        coeffs
+    }
+
+    #[inline(always)]
+    pub fn set_sample_rate(&mut self, value: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert_positive(value);
+            debug_assert_is_finite(value);
+        }
+        self.smooth_coeffs.set_sample_rate(value);
+        self.smooth_coeffs.reset_coeffs();
+    }
+
+    #[inline(always)]
+    pub fn reset_coeffs(&mut self) {
+        self.smooth_coeffs
+            .reset_state(&mut self.smooth_bias_state, self.bias);
+        self.smooth_coeffs
+            .reset_state(&mut self.smooth_gain_state, self.gain);
+        self.do_update_coeffs(true);
+    }
+
+    #[inline(always)]
+    pub fn reset_state(&mut self, state: &mut ClipState, x0: f32) -> f32 {
+        debug_assert!(x0.is_finite());
+
+        let x = self.smooth_gain_state.get_y_z1() * x0 + self.smooth_bias_state.get_y_z1();
+        let a = x.abs();
+        let f = if a > 1.0 { a - 0.5 } else { 0.5 * a * a };
+        let yb = clipf(x, -1.0, 1.0);
+        let y = (if self.gain_compensation {
+            self.inv_gain
+        } else {
+            1.0
+        }) * (yb - self.bias_dc);
+        state.x_z1 = x;
+        state.f_z1 = f;
+
+        debug_assert!(y.is_finite());
+
+        y
+    }
+
+    #[inline(always)]
+    pub fn reset_state_multi(
+        &mut self,
+        states: &mut [ClipState; N_CHANNELS],
+        x0: &[f32],
+        y0: Option<&mut [f32; N_CHANNELS]>,
+    ) {
+        if let Some(y0_values) = y0 {
+            (0..N_CHANNELS).for_each(|channel| {
+                y0_values[channel] = self.reset_state(&mut states[channel], x0[channel]);
+            });
+        } else {
+            (0..N_CHANNELS).for_each(|channel| {
+                self.reset_state(&mut states[channel], x0[channel]);
+            });
+        }
+    }
+
+    // Not implemented yet: C version only contained assertions
+    // need to revisit which assertions from the C version make sense to keep in Rust
+    // #[inline(always)]
+    // pub fn update_coeffs_ctrl(&mut self) {
+    //     todo!()
+    // }
+
+    #[inline(always)]
+    pub fn update_coeffs_audio(&mut self) {
+        self.do_update_coeffs(false);
+    }
+
+    #[inline(always)]
+    pub fn process1(&mut self, state: &mut ClipState, mut x: f32) -> f32 {
+        debug_assert!(x.is_finite());
+
+        x = self.smooth_gain_state.get_y_z1() * x + self.smooth_bias_state.get_y_z1();
+        let a = x.abs();
+        let f = if a > 1.0 { a - 0.5 } else { 0.5 * a * a };
+        let d = x - state.x_z1;
+        let yb = if d * d < 1e-6 {
+            clipf(0.5 * (x + state.x_z1), -1.0, 1.0)
+        } else {
+            (f - state.f_z1) * rcpf(d)
+        };
+        let y = yb - self.bias_dc;
+        state.x_z1 = x;
+        state.f_z1 = f;
+
+        debug_assert!(y.is_finite());
+        y
+    }
+
+    #[inline(always)]
+    pub fn process1_comp(&mut self, state: &mut ClipState, x: f32) -> f32 {
+        debug_assert!(x.is_finite());
+
+        let y = self.inv_gain * self.process1(state, x);
+
+        debug_assert!(y.is_finite());
+        y
+    }
+
+    #[inline(always)]
+    pub fn process(&mut self, state: &mut ClipState, x: &[f32], y: &mut [f32], n_samples: usize) {
+        if self.gain_compensation {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                y[sample] = self.process1_comp(state, x[sample]);
+            });
+        } else {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                y[sample] = self.process1(state, x[sample]);
+            });
+        }
+    }
+
+    #[inline(always)]
+    pub fn process_multi(
+        &mut self,
+        states: &mut [ClipState; N_CHANNELS],
+        x: &[&[f32]; N_CHANNELS],
+        y: &mut [&mut [f32]; N_CHANNELS],
+        n_samples: usize,
+    ) {
+        if self.gain_compensation {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                (0..N_CHANNELS).for_each(|channel| {
+                    y[channel][sample] =
+                        self.process1_comp(&mut states[channel], x[channel][sample]);
+                });
+            });
+        } else {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                (0..N_CHANNELS).for_each(|channel| {
+                    y[channel][sample] = self.process1(&mut states[channel], x[channel][sample]);
+                });
+            });
+        }
+    }
+
+    #[inline(always)]
+    pub fn set_bias(&mut self, value: f32) {
+        debug_assert!(value.is_finite());
+        debug_assert!(value >= -1e12 && value <= 1e12);
+
+        self.bias = value;
+    }
+
+    #[inline(always)]
+    pub fn set_gain(&mut self, value: f32) {
+        debug_assert!(value.is_finite());
+        debug_assert!(value >= 1e-12 && value <= 1e12);
+
+        self.gain = value;
+    }
+
+    #[inline(always)]
+    pub fn set_gain_compensation(&mut self, value: bool) {
+        self.gain_compensation = value;
+    }
+
+    #[inline(always)]
+    pub fn coeffs_is_valid(&mut self) -> bool {
+        todo!()
+    }
+
+    // Not implemented yet:
+    // need to revisit which assertions from the C version make sense to keep in Rust
+    #[inline(always)]
+    pub fn state_is_valid(&mut self) -> bool {
+        todo!()
+    }
+
+    // Private
+    fn do_update_coeffs(&mut self, force: bool) {
+        let mut bias_cur = self.smooth_bias_state.get_y_z1();
+        if force || self.bias != bias_cur {
+            bias_cur = self
+                .smooth_coeffs
+                .process1_sticky_abs(&mut self.smooth_bias_state, self.bias);
+            self.bias_dc = clipf(bias_cur, -1.0, 1.0);
+        }
+        let mut gain_cur = self.smooth_gain_state.get_y_z1();
+        if force || self.gain != gain_cur {
+            gain_cur = self
+                .smooth_coeffs
+                .process1_sticky_rel(&mut self.smooth_gain_state, self.gain);
+            self.inv_gain = rcpf(gain_cur);
+        }
+    }
+}
+
+impl<const N_CHANNELS: usize> Default for ClipCoeffs<N_CHANNELS> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ClipState {
     x_z1: f32,
     f_z1: f32,
@@ -133,7 +334,7 @@ mod tests {
     const SAMPLE_RATE: f32 = 44_100.0;
 
     #[test]
-    fn clip_initialization() {
+    fn new_clip() {
         let rust_clip = Clip::<N_CHANNELS>::new();
         let c_clip = ClipWrapper::<N_CHANNELS>::new();
 
@@ -169,21 +370,22 @@ mod tests {
 
     #[test]
     fn do_update_coeffs() {
+        // to refactor on the coeffs only?
         let bias = 1.0;
         let mut rust_clip = Clip::<N_CHANNELS>::new();
         let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
         rust_clip.set_bias(bias);
         c_clip.set_bias(bias);
-        rust_clip.do_update_coeffs(false);
-        c_clip.do_update_coeffs(false);
+        rust_clip.coeffs.do_update_coeffs(false);
+        c_clip.coeffs.do_update_coeffs(false);
 
         assert_clip(&rust_clip, &c_clip);
 
         let gain = 2.0;
         rust_clip.set_gain(gain);
         c_clip.set_gain(gain);
-        rust_clip.do_update_coeffs(false);
-        c_clip.do_update_coeffs(false);
+        rust_clip.coeffs.do_update_coeffs(false);
+        c_clip.coeffs.do_update_coeffs(false);
     }
 
     #[test]
@@ -201,7 +403,7 @@ mod tests {
 
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
-        rust_clip.reset(&x0, None);
+        rust_clip.reset_multi(&x0, None);
 
         assert_clip(&rust_clip, &c_clip);
     }
@@ -222,7 +424,7 @@ mod tests {
 
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
-        rust_clip.reset(&x0, Some(&mut rust_y0));
+        rust_clip.reset_multi(&x0, Some(&mut rust_y0));
 
         assert_clip(&rust_clip, &c_clip);
         (0..N_CHANNELS).for_each(|channel| assert_eq!(rust_y0[channel], c_y0[channel]));
@@ -246,11 +448,15 @@ mod tests {
 
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
-        rust_clip.reset(&x, None);
+        rust_clip.reset_multi(&x, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            c_y[channel] = c_clip.process1(x[channel], channel);
-            rust_y[channel] = rust_clip.process1(x[channel], channel);
+            c_y[channel] = c_clip
+                .coeffs
+                .process1(&mut c_clip.states[channel], x[channel]);
+            rust_y[channel] = rust_clip
+                .coeffs
+                .process1(&mut rust_clip.states[channel], x[channel]);
         });
 
         assert_clip(&rust_clip, &c_clip);
@@ -277,11 +483,15 @@ mod tests {
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
         rust_clip.set_gain_compensation(true);
-        rust_clip.reset(&x, None);
+        rust_clip.reset_multi(&x, None);
 
         (0..N_CHANNELS).for_each(|channel| {
-            rust_y[channel] = rust_clip.process1_comp(x[channel], channel);
-            c_y[channel] = c_clip.process1_comp(x[channel], channel);
+            rust_y[channel] = rust_clip
+                .coeffs
+                .process1_comp(&mut rust_clip.states[channel], x[channel]);
+            c_y[channel] = c_clip
+                .coeffs
+                .process1_comp(&mut c_clip.states[channel], x[channel]);
             assert_clip(&rust_clip, &c_clip);
         });
 
@@ -299,18 +509,17 @@ mod tests {
 
         let mut rust_y_ch0 = [0.2, 0.7];
         let mut rust_y_ch1 = [0.2, 0.7];
-        let mut rust_y: [Option<&mut [f32]>; N_CHANNELS] =
-            [Some(&mut rust_y_ch0), Some(&mut rust_y_ch1)];
+        let mut rust_y: [&mut [f32]; N_CHANNELS] = [&mut rust_y_ch0, &mut rust_y_ch1];
 
         let mut c_y_ch0 = [0.2, 0.7];
         let mut c_y_ch1 = [0.2, 0.7];
-        let mut c_y: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut c_y_ch0), Some(&mut c_y_ch1)];
+        let mut c_y: [&mut [f32]; N_CHANNELS] = [&mut c_y_ch0, &mut c_y_ch1];
 
         let mut rust_clip = Clip::<N_CHANNELS>::new();
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
         rust_clip.set_gain_compensation(true);
-        rust_clip.reset(&[0.0; N_CHANNELS], None);
+        rust_clip.reset_multi(&[0.0; N_CHANNELS], None);
 
         let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
         c_clip.set_bias(bias);
@@ -318,15 +527,12 @@ mod tests {
         c_clip.set_gain_compensation(true);
         c_clip.reset(&[0.0; N_CHANNELS], None);
 
-        rust_clip.process(&x, Some(&mut c_y), n_samples);
-        c_clip.process(&x, Some(&mut rust_y), n_samples);
+        rust_clip.process(&x, &mut rust_y, n_samples);
+        c_clip.process(&x, &mut c_y, n_samples);
 
         (0..N_CHANNELS).for_each(|channel| {
             (0..n_samples).for_each(|sample| {
-                assert_eq!(
-                    rust_y[channel].as_ref().unwrap()[sample],
-                    c_y[channel].as_ref().unwrap()[sample]
-                );
+                assert_eq!(rust_y[channel][sample], c_y[channel][sample]);
             });
         });
         assert_clip(&rust_clip, &c_clip);
@@ -343,18 +549,17 @@ mod tests {
 
         let mut rust_y_ch0 = [0.2, 0.7];
         let mut rust_y_ch1 = [0.2, 0.7];
-        let mut rust_y: [Option<&mut [f32]>; N_CHANNELS] =
-            [Some(&mut rust_y_ch0), Some(&mut rust_y_ch1)];
+        let mut rust_y: [&mut [f32]; N_CHANNELS] = [&mut rust_y_ch0, &mut rust_y_ch1];
 
         let mut c_y_ch0 = [0.2, 0.7];
         let mut c_y_ch1 = [0.2, 0.7];
-        let mut c_y: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut c_y_ch0), Some(&mut c_y_ch1)];
+        let mut c_y: [&mut [f32]; N_CHANNELS] = [&mut c_y_ch0, &mut c_y_ch1];
 
         let mut rust_clip = Clip::<N_CHANNELS>::new();
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
         rust_clip.set_gain_compensation(false); // it is default, but to be clear
-        rust_clip.reset(&[0.0; N_CHANNELS], None);
+        rust_clip.reset_multi(&[0.0; N_CHANNELS], None);
 
         let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
         c_clip.set_bias(bias);
@@ -362,21 +567,21 @@ mod tests {
         c_clip.set_gain_compensation(false); // it is default, but to be clear
         c_clip.reset(&[0.0; N_CHANNELS], None);
 
-        rust_clip.process(&x, Some(&mut c_y), n_samples);
-        c_clip.process(&x, Some(&mut rust_y), n_samples);
+        rust_clip.process(&x, &mut rust_y, n_samples);
+        c_clip.process(&x, &mut c_y, n_samples);
 
         (0..N_CHANNELS).for_each(|channel| {
             (0..n_samples).for_each(|sample| {
-                assert_eq!(
-                    rust_y[channel].as_ref().unwrap()[sample],
-                    c_y[channel].as_ref().unwrap()[sample]
-                );
+                assert_eq!(rust_y[channel][sample], c_y[channel][sample]);
             });
         });
         assert_clip(&rust_clip, &c_clip);
     }
 
-    fn assert_clip_coeffs(rust_coeffs: &ClipCoeffs, c_coeffs: &bw_clip_coeffs) {
+    fn assert_clip_coeffs<const N_CHANNELS: usize>(
+        rust_coeffs: &ClipCoeffs<N_CHANNELS>,
+        c_coeffs: &bw_clip_coeffs,
+    ) {
         let pre_message = "clip.coeff.";
         let post_message = "does not match";
         assert_eq!(
@@ -406,13 +611,13 @@ mod tests {
             pre_message,
             post_message
         );
-        assert_one_pole_coeffs(rust_coeffs.smooth_coeffs, c_coeffs.smooth_coeffs);
+        assert_one_pole_coeffs(&rust_coeffs.smooth_coeffs, &c_coeffs.smooth_coeffs);
         assert_eq!(
-            rust_coeffs.smooth_bias_state.y_z1,
+            rust_coeffs.smooth_bias_state.get_y_z1(),
             c_coeffs.smooth_bias_state.y_z1
         );
         assert_eq!(
-            rust_coeffs.smooth_gain_state.y_z1,
+            rust_coeffs.smooth_gain_state.get_y_z1(),
             c_coeffs.smooth_gain_state.y_z1
         );
     }
@@ -425,14 +630,6 @@ mod tests {
         (0..N_CHANNELS).for_each(|channel| {
             assert_eq!(rust_clip.states[channel].x_z1, c_clip.states[channel].x_z1);
             assert_eq!(rust_clip.states[channel].f_z1, c_clip.states[channel].F_z1);
-            assert_eq!(
-                rust_clip._states_p[channel].x_z1,
-                c_clip.states_p[channel].x_z1
-            );
-            assert_eq!(
-                rust_clip._states_p[channel].f_z1,
-                c_clip.states_p[channel].F_z1
-            );
         });
     }
 }

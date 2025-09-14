@@ -39,7 +39,7 @@ use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug
 ///     one_pole.set_sticky_thresh(STICKY_THRESH);
 ///
 ///     // Initialize the filter state for each channel
-///     one_pole.reset(&[0.0, 0.0], None);
+///     one_pole.reset(None, None);
 ///
 ///     // Process one sample per channel
 ///     one_pole.process(&x, Some(&mut y), N_SAMPLES);
@@ -374,7 +374,8 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         self.do_update_coeffs_ctrl();
     }
 
-    // Only asserting to check when checking assertions
+    // Not implemented yet: C version only contained assertions
+    // need to revisit which assertions from the C version make sense to keep in Rust
     // #[inline(always)]
     // fn update_coeffs_audio(&self) {
     //     todo!()

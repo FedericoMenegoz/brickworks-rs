@@ -1,11 +1,10 @@
 use super::*;
-use crate::c_wrapper::utils::{make_array, prepare_input_output_states_ptrs};
+use crate::c_wrapper::utils::{make_array, prepare_input_and_output_states_ptrs};
 
 #[derive(Debug)]
 pub(crate) struct Clip<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_clip_coeffs,
     pub(crate) states: [bw_clip_state; N_CHANNELS],
-    pub(crate) states_p: [bw_clip_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
@@ -13,7 +12,6 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
         let mut clip = Clip {
             coeffs: bw_clip_coeffs::default(),
             states: make_array::<bw_clip_state, N_CHANNELS>(),
-            states_p: make_array::<bw_clip_state, N_CHANNELS>(),
         };
 
         unsafe {
@@ -52,11 +50,13 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
     pub fn process(
         &mut self,
         x: &[&[f32]; N_CHANNELS],
-        y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
+        y: &mut [&mut [f32]; N_CHANNELS],
         n_samples: usize,
     ) {
-        let (x_ptrs, mut y_ptrs, mut state_ptrs) =
-            prepare_input_output_states_ptrs::<bw_clip_state, N_CHANNELS>(x, y, &mut self.states);
+        let (x_ptrs, mut y_ptrs, mut state_ptrs) = prepare_input_and_output_states_ptrs::<
+            bw_clip_state,
+            N_CHANNELS,
+        >(x, y, &mut self.states);
         unsafe {
             bw_clip_process_multi(
                 &mut self.coeffs,
@@ -86,41 +86,37 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
             bw_clip_set_gain_compensation(&mut self.coeffs, value as i8);
         }
     }
+}
 
+impl bw_clip_coeffs {
     // Wrapping these to test them against the native ones
     #[cfg(test)]
     pub(crate) fn do_update_coeffs(&mut self, force: bool) {
         unsafe {
-            bw_clip_do_update_coeffs(&mut self.coeffs, if force { 1 } else { 0 });
+            bw_clip_do_update_coeffs(self, if force { 1 } else { 0 });
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn process1(&mut self, x: f32, channel: usize) -> f32 {
-        unsafe { bw_clip_process1(&mut self.coeffs, &mut self.states[channel], x) }
+    pub(crate) fn process1(&mut self, state: &mut bw_clip_state, x: f32) -> f32 {
+        unsafe { bw_clip_process1(self, state, x) }
     }
 
     #[cfg(test)]
-    pub(crate) fn process1_comp(&mut self, x: f32, channel: usize) -> f32 {
-        unsafe { bw_clip_process1_comp(&mut self.coeffs, &mut self.states[channel], x) }
+    pub(crate) fn process1_comp(&mut self, state: &mut bw_clip_state, x: f32) -> f32 {
+        unsafe { bw_clip_process1_comp(self, state, x) }
     }
 
     #[cfg(test)]
-    pub(crate) fn process_samples(
+    pub(crate) fn process(
         &mut self,
+        state: &mut bw_clip_state,
         x: &[f32],
         y: &mut [f32],
         n_samples: usize,
-        channel: usize,
     ) {
         unsafe {
-            bw_clip_process(
-                &mut self.coeffs,
-                &mut self.states[channel],
-                x.as_ptr(),
-                y.as_mut_ptr(),
-                n_samples,
-            );
+            bw_clip_process(self, state, x.as_ptr(), y.as_mut_ptr(), n_samples);
         }
     }
 }
@@ -286,7 +282,7 @@ mod tests {
 
         let mut out_0: [f32; N_CHANNELS] = [3.0, 4.0];
         let mut out_1: [f32; N_CHANNELS] = [3.0, 4.0];
-        let mut y: [Option<&mut [f32]>; 2] = [Some(&mut out_0), Some(&mut out_1)];
+        let mut y: [&mut [f32]; 2] = [&mut out_0, &mut out_1];
 
         // C
         let mut states = [bw_clip_state::default(), bw_clip_state::default()];
@@ -298,11 +294,11 @@ mod tests {
 
         let mut out_0_c: [f32; N_CHANNELS] = [3.0, 4.0];
         let mut out_1_c: [f32; N_CHANNELS] = [3.0, 4.0];
-        let mut y_c: [Option<&mut [f32]>; 2] = [Some(&mut out_0_c), Some(&mut out_1_c)];
+        let mut y_c: [&mut [f32]; 2] = [&mut out_0_c, &mut out_1_c];
 
         // Process wrapper
         clip.set_gain_compensation(true);
-        clip.process(&x, Some(&mut y), N_SAMPLES);
+        clip.process(&x, &mut y, N_SAMPLES);
 
         // Process C
         unsafe {
@@ -311,7 +307,7 @@ mod tests {
             (0..N_SAMPLES).for_each(|sample| {
                 bw_clip_update_coeffs_audio(&mut coeffs);
                 (0..N_CHANNELS).for_each(|channel| {
-                    y_c[channel].as_mut().unwrap()[sample] =
+                    y_c[channel][sample] =
                         bw_clip_process1_comp(&coeffs, &mut states[channel], x_c[channel][sample])
                 });
             });
@@ -320,8 +316,7 @@ mod tests {
         (0..N_SAMPLES).for_each(|sample| {
             (0..N_CHANNELS).for_each(|channel| {
                 assert_eq!(
-                    y[channel].as_mut().unwrap()[sample],
-                    y_c[channel].as_mut().unwrap()[sample],
+                    y[channel][sample], y_c[channel][sample],
                     "sample {sample} and channel {channel} does not match"
                 );
             });
