@@ -331,18 +331,21 @@ mod tests {
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 44_100.0;
 
+    type Clip2 = Clip<N_CHANNELS>;
+    type ClipWrapper2 = ClipWrapper<N_CHANNELS>;
+
     #[test]
     fn new_clip() {
-        let rust_clip = Clip::<N_CHANNELS>::new();
-        let c_clip = ClipWrapper::<N_CHANNELS>::new();
+        let rust_clip = Clip2::new();
+        let c_clip = ClipWrapper2::new();
 
         assert_clip(&rust_clip, &c_clip);
     }
 
     #[test]
     fn set_sample_rate_valid() {
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
-        let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
+        let mut rust_clip = Clip2::new();
+        let mut c_clip = ClipWrapper2::new();
 
         rust_clip.set_sample_rate(SAMPLE_RATE);
         c_clip.set_sample_rate(SAMPLE_RATE);
@@ -353,7 +356,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "value must be finite, got inf")]
     fn set_sample_rate_must_be_finite() {
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut rust_clip = Clip2::new();
 
         rust_clip.set_sample_rate(f32::INFINITY);
     }
@@ -361,21 +364,21 @@ mod tests {
     #[test]
     #[should_panic(expected = "value must be in range [-1e12, 1e12], got -1e13")]
     fn set_bias_invalid() {
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut rust_clip = Clip2::new();
         rust_clip.set_bias(-1e13);
     }
 
     #[test]
     #[should_panic(expected = "value must be in range [1e-12, 1e12], got 0e0")]
     fn set_gain_invalid() {
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut rust_clip = Clip2::new();
         rust_clip.set_gain(0.0);
     }
 
     #[test]
     #[should_panic(expected = "value must be non negative, got -1")]
     fn set_sample_rate_must_be_positive() {
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut rust_clip = Clip2::new();
 
         rust_clip.set_sample_rate(-1.);
     }
@@ -384,8 +387,8 @@ mod tests {
     fn do_update_coeffs() {
         // to refactor on the coeffs only?
         let bias = 1.0;
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
-        let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
+        let mut rust_clip = Clip2::new();
+        let mut c_clip = ClipWrapper2::new();
         rust_clip.set_bias(bias);
         c_clip.set_bias(bias);
         rust_clip.coeffs.do_update_coeffs(false);
@@ -402,12 +405,12 @@ mod tests {
 
     #[test]
     fn reset_none() {
-        // let mut rust_clip = Clip::<N_CHANNELS>::new()
+        // let mut rust_clip = Clip2::new()
         let bias = 5.0;
         let gain = 10.0;
         let x0 = [10.0, 11.0];
-        let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut c_clip = ClipWrapper2::new();
+        let mut rust_clip = Clip2::new();
 
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
@@ -427,8 +430,8 @@ mod tests {
         let x0 = [0.1, 0.02];
         let mut rust_y0 = [0.2, 0.7];
         let mut c_y0 = [0.9, 0.7];
-        let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut c_clip = ClipWrapper2::new();
+        let mut rust_clip = Clip2::new();
 
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
@@ -451,8 +454,8 @@ mod tests {
         let mut rust_y = [0.2, 0.7];
         let mut c_y = [0.9, 0.7];
 
-        let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut c_clip = ClipWrapper2::new();
+        let mut rust_clip = Clip2::new();
 
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
@@ -484,8 +487,8 @@ mod tests {
         let mut rust_y = [0.2, 0.7];
         let mut c_y = [0.9, 0.7];
 
-        let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut c_clip = ClipWrapper2::new();
+        let mut rust_clip = Clip2::new();
 
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
@@ -527,13 +530,13 @@ mod tests {
         let mut c_y_ch1 = [0.2, 0.7];
         let mut c_y: [&mut [f32]; N_CHANNELS] = [&mut c_y_ch0, &mut c_y_ch1];
 
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut rust_clip = Clip2::new();
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
         rust_clip.set_gain_compensation(true);
         rust_clip.reset_multi(&[0.0; N_CHANNELS], None);
 
-        let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
+        let mut c_clip = ClipWrapper2::new();
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
         c_clip.set_gain_compensation(true);
@@ -567,13 +570,13 @@ mod tests {
         let mut c_y_ch1 = [0.2, 0.7];
         let mut c_y: [&mut [f32]; N_CHANNELS] = [&mut c_y_ch0, &mut c_y_ch1];
 
-        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        let mut rust_clip = Clip2::new();
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
         rust_clip.set_gain_compensation(false); // it is default, but to be clear
         rust_clip.reset_multi(&[0.0; N_CHANNELS], None);
 
-        let mut c_clip = ClipWrapper::<N_CHANNELS>::new();
+        let mut c_clip = ClipWrapper2::new();
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
         c_clip.set_gain_compensation(false); // it is default, but to be clear

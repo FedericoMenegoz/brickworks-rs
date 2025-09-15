@@ -163,13 +163,16 @@ mod tests {
     const GAIN: f32 = 200_000.0;
     const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
 
+    type ClipT = Clip<N_CHANNELS>;
+
     #[test]
     fn new() {
-        let clip = Clip::<N_CHANNELS>::new();
+        let clip = ClipT::new();
         let cutoff: f32;
+        let tau_default = 0.005;
 
         unsafe {
-            cutoff = INVERSE_2_PI * bw_rcpf(0.005);
+            cutoff = INVERSE_2_PI * bw_rcpf(tau_default);
         }
 
         assert_eq!(clip.coeffs.smooth_coeffs.cutoff_up, cutoff);
@@ -182,7 +185,7 @@ mod tests {
 
     #[test]
     fn set_sample_rate() {
-        let mut clip = Clip::<N_CHANNELS>::new();
+        let mut clip = ClipT::new();
 
         clip.set_sample_rate(SAMPLE_RATE);
         assert_eq!(clip.coeffs.smooth_coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE)
@@ -190,7 +193,7 @@ mod tests {
 
     #[test]
     fn set_bias_default() {
-        let clip = Clip::<N_CHANNELS>::new();
+        let clip = ClipT::new();
         // Default value: 0.f.
         let BIAS = 0.0;
 
@@ -199,7 +202,7 @@ mod tests {
 
     #[test]
     fn set_bias_in_range() {
-        let mut clip = Clip::<N_CHANNELS>::new();
+        let mut clip = ClipT::new();
         let BIAS = 200_000.0;
         clip.set_bias(BIAS);
 
@@ -208,7 +211,7 @@ mod tests {
 
     #[test]
     fn set_gain_default() {
-        let clip = Clip::<N_CHANNELS>::new();
+        let clip = ClipT::new();
         // Default value: 1.f.
         let gain = 1.;
         assert_eq!(clip.coeffs.gain, gain);
@@ -216,7 +219,7 @@ mod tests {
 
     #[test]
     fn set_gain_in_range() {
-        let mut clip = Clip::<N_CHANNELS>::new();
+        let mut clip = ClipT::new();
         clip.set_gain(GAIN);
 
         assert_eq!(clip.coeffs.gain, GAIN);
@@ -224,7 +227,7 @@ mod tests {
 
     #[test]
     fn set_gain_compensation() {
-        let mut clip = Clip::<N_CHANNELS>::new();
+        let mut clip = ClipT::new();
         let GAIN_COMPENSATION = true;
 
         clip.set_gain_compensation(GAIN_COMPENSATION);
@@ -234,7 +237,7 @@ mod tests {
 
     #[test]
     fn reset() {
-        let mut clip = Clip::<N_CHANNELS>::new();
+        let mut clip = ClipT::new();
         let x0: [f32; N_CHANNELS] = [6.0, 2.0];
         let mut out: [f32; N_CHANNELS] = [3.0, 4.0];
 
@@ -275,7 +278,7 @@ mod tests {
     fn process() {
         const N_SAMPLES: usize = 2;
         // Wrapper
-        let mut clip = Clip::<N_CHANNELS>::new();
+        let mut clip = ClipT::new();
 
         let sample_0: [f32; N_CHANNELS] = [6.0, 2.0];
         let sample_1: [f32; N_CHANNELS] = [6.0, 2.0];

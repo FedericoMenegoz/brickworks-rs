@@ -133,21 +133,6 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         n_samples: usize,
     ) {
-        // // In case y is None this will be passed
-        // let null_ptrs: [*mut f32; N_CHANNELS] = [null_mut(); N_CHANNELS];
-        // let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
-        // let y_ptrs: Option<[*mut f32; N_CHANNELS]> = y.map(|y_channel| {
-        //     std::array::from_fn(|i| {
-        //         // state[i].unwrap_or(null_mut::<[f32]>()).as_mut_ptr()
-        //         if let Some(y_samples) = y_channel[i].as_mut() {
-        //             y_samples.as_mut_ptr()
-        //         } else {
-        //             null_ptrs[0]
-        //         }
-        //     })
-        // });
-        // let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
-        //     std::array::from_fn(|i| &mut self.states[i] as *mut _);
         let (x_ptrs, mut y_ptrs, mut state_ptrs) = prepare_input_and_optional_output_states_ptrs::<
             bw_one_pole_state,
             N_CHANNELS,
@@ -370,9 +355,10 @@ mod tests {
     const SAMPLE_RATE: f32 = 48_000.0;
     const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
 
+    type OnePoleT = OnePole<N_CHANNELS>;
     #[test]
     fn new() {
-        let one_pole = OnePole::<N_CHANNELS>::new();
+        let one_pole = OnePoleT::new();
 
         assert_eq!(one_pole.coeffs.cutoff_up, f32::INFINITY);
         assert_eq!(one_pole.coeffs.cutoff_down, f32::INFINITY);
@@ -387,7 +373,7 @@ mod tests {
     #[test]
     fn set_sample_rate() {
         const SAMPLE_RATE: f32 = 48_000.0;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
 
         f.set_sample_rate(SAMPLE_RATE);
 
@@ -397,7 +383,7 @@ mod tests {
     #[test]
     fn set_cutoff() {
         const CUTOFF: f32 = 1000.0;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.coeffs.param_changed = 0;
 
         f.set_cutoff(CUTOFF);
@@ -411,7 +397,7 @@ mod tests {
     #[test]
     fn set_cutoff_up() {
         const CUTOFF: f32 = 1200.0;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.coeffs.param_changed = 0;
 
         f.set_cutoff_up(CUTOFF);
@@ -423,7 +409,7 @@ mod tests {
     #[test]
     fn set_cutoff_down() {
         const CUTOFF: f32 = 1200.0;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.coeffs.param_changed = 0;
 
         f.set_cutoff_down(CUTOFF);
@@ -436,7 +422,7 @@ mod tests {
     fn set_tau() {
         let cutoff = 150.0;
         let tau = INVERSE_2_PI / cutoff;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.coeffs.param_changed = 0;
 
         f.set_tau(tau);
@@ -452,7 +438,7 @@ mod tests {
     fn set_tau_up() {
         let cutoff = 1500.0;
         let tau = INVERSE_2_PI / cutoff;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.coeffs.param_changed = 0;
 
         f.set_tau_up(tau);
@@ -466,7 +452,7 @@ mod tests {
     fn set_tau_down() {
         let cutoff = 10_000.0;
         let tau = INVERSE_2_PI / cutoff;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.coeffs.param_changed = 0;
 
         f.set_tau_down(tau);
@@ -479,7 +465,7 @@ mod tests {
     #[test]
     fn set_tau_small_should_not_change_cutoff() {
         let tau = 0.1e-9;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.coeffs.param_changed = 0;
 
         f.set_tau(tau);
@@ -493,7 +479,7 @@ mod tests {
     #[test]
     fn set_sticky_thresh() {
         let sticky_tresh = 0.01;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
 
         f.set_sticky_thresh(sticky_tresh);
 
@@ -504,7 +490,7 @@ mod tests {
     #[test]
     fn set_sticky_mode_abs() {
         let mode = OnePoleStickyMode::Abs;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
 
         f.set_sticky_mode(mode);
 
@@ -514,7 +500,7 @@ mod tests {
     #[test]
     fn set_sticky_mode_rel() {
         let mode = OnePoleStickyMode::Rel;
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
 
         f.set_sticky_mode(mode);
 
@@ -526,7 +512,7 @@ mod tests {
         let cutoff = 1200.0;
         let sticky_tresh = 0.1;
         let x0_input = [0.5; N_CHANNELS];
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.set_cutoff(cutoff);
         f.set_sticky_thresh(sticky_tresh);
         f.set_sample_rate(SAMPLE_RATE);
@@ -546,7 +532,7 @@ mod tests {
         let sticky_thresh = 0.2;
         let x0_input = [0.5; N_CHANNELS];
         let mut y0_output = [0.0; N_CHANNELS];
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.set_cutoff(cutoff);
         f.set_sticky_thresh(sticky_thresh);
         f.set_sample_rate(SAMPLE_RATE);
@@ -571,7 +557,7 @@ mod tests {
         let mut output_data: [Option<&mut [f32]>; N_CHANNELS] =
             [Some(&mut output_ch1), Some(&mut output_ch2)];
 
-        let mut filter = OnePole::<N_CHANNELS>::new();
+        let mut filter = OnePoleT::new();
         filter.set_cutoff(1000.0);
         filter.set_sample_rate(44100.0);
         filter.reset(&x0_input, None);
@@ -598,7 +584,7 @@ mod tests {
         const CUTOFF: f32 = 1000.0;
         const N_SAMPLES: usize = 4;
 
-        let mut f = OnePole::<N_CHANNELS>::new();
+        let mut f = OnePoleT::new();
         f.set_sample_rate(SAMPLE_RATE);
         f.set_cutoff(CUTOFF);
         f.set_sticky_mode(OnePoleStickyMode::Rel);
