@@ -2,7 +2,7 @@ use super::*;
 use crate::c_wrapper::utils::{make_array, prepare_input_and_output_states_ptrs};
 
 #[derive(Debug)]
-pub(crate) struct Clip<const N_CHANNELS: usize> {
+pub struct Clip<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_clip_coeffs,
     pub(crate) states: [bw_clip_state; N_CHANNELS],
 }
@@ -29,7 +29,7 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
         }
     }
 
-    pub fn reset(&mut self, x0: &[f32; N_CHANNELS], mut y0: Option<&mut [f32; N_CHANNELS]>) {
+    pub fn reset(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         unsafe {
             bw_clip_reset_coeffs(&mut self.coeffs);
             if let Some(out) = y0 {
@@ -108,6 +108,7 @@ impl bw_clip_coeffs {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn process(
         &mut self,
         state: &mut bw_clip_state,
@@ -164,8 +165,8 @@ mod tests {
 
     #[test]
     fn new() {
-        let mut clip = Clip::<N_CHANNELS>::new();
-        let mut cutoff: f32;
+        let clip = Clip::<N_CHANNELS>::new();
+        let cutoff: f32;
 
         unsafe {
             cutoff = INVERSE_2_PI * bw_rcpf(0.005);
@@ -207,7 +208,7 @@ mod tests {
 
     #[test]
     fn set_gain_default() {
-        let mut clip = Clip::<N_CHANNELS>::new();
+        let clip = Clip::<N_CHANNELS>::new();
         // Default value: 1.f.
         let gain = 1.;
         assert_eq!(clip.coeffs.gain, gain);
@@ -241,9 +242,9 @@ mod tests {
         clip.set_gain_compensation(true);
         clip.reset(&x0, Some(&mut out));
 
-        let mut inv_gain;
-        let mut bias_dc;
-        let mut y;
+        let inv_gain;
+        let bias_dc;
+        let y;
         unsafe {
             inv_gain = bw_rcpf(bw_one_pole_process1_sticky_abs(
                 &clip.coeffs.smooth_coeffs,
@@ -290,7 +291,7 @@ mod tests {
 
         let sample_0_c: [f32; N_CHANNELS] = [6.0, 2.0];
         let sample_1_c: [f32; N_CHANNELS] = [6.0, 2.0];
-        let x_c: [&[f32]; 2] = [&sample_0, &sample_1];
+        let x_c: [&[f32]; 2] = [&sample_0_c, &sample_1_c];
 
         let mut out_0_c: [f32; N_CHANNELS] = [3.0, 4.0];
         let mut out_1_c: [f32; N_CHANNELS] = [3.0, 4.0];

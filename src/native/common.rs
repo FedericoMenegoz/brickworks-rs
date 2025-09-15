@@ -1,25 +1,25 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, ops::RangeInclusive};
 
 pub(crate) const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
 pub(crate) const NANO: f32 = 1e-9;
 
 #[inline(always)]
-fn has_inf(x: &[f32]) -> bool {
+pub fn has_inf(x: &[f32]) -> bool {
     x.iter().any(|val| val.is_infinite())
 }
 
 #[inline(always)]
-fn has_nan(x: &[f32]) -> bool {
+pub fn has_nan(x: &[f32]) -> bool {
     x.iter().any(|val| val.is_nan())
 }
 
 #[inline(always)]
-fn has_only_finite(x: &[f32]) -> bool {
+pub fn has_only_finite(x: &[f32]) -> bool {
     x.iter().all(|val| val.is_finite())
 }
 
 #[inline(always)]
-fn hash_sdbm(s: &str) -> u32 {
+pub fn hash_sdbm(s: &str) -> u32 {
     let mut hash: u32 = 0;
 
     for ch in s.encode_utf16() {
@@ -32,20 +32,19 @@ fn hash_sdbm(s: &str) -> u32 {
     hash
 }
 
-#[cfg(debug_assertions)]
 pub(crate) fn debug_assert_positive(value: f32) {
     debug_assert!(value >= 0.0, "value must be non negative, got {}", value);
 }
 
-#[cfg(debug_assertions)]
-pub(crate) fn debug_assert_range(min: f32, max: f32, value: f32) {
+pub(crate) fn debug_assert_range(range: RangeInclusive<f32>, value: f32) {
     debug_assert!(
-        value >= min && value <= max,
-        "value must be in range [{min:e}, {max:e}], got {value:e}"
+        range.contains(&value),
+        "value must be in range [{:e}, {:e}], got {value:e}",
+        range.start(),
+        range.end()
     );
 }
 
-#[cfg(debug_assertions)]
 pub(crate) fn debug_assert_is_finite(value: f32) {
     debug_assert!(value.is_finite(), "value must be finite, got {}", value);
 }
@@ -57,7 +56,7 @@ mod test {
 
     // IEEE Floating-Point Representation
     const INFTY: f32 = f32::from_bits(0xFF800000);
-    const NAN: f32 = f32::from_bits(0x7FC00000);
+    const _NAN: f32 = f32::from_bits(0x7FC00000);
 
     // BW_HAS_INF
     #[test]

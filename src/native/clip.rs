@@ -1,5 +1,5 @@
-use std::rc;
-
+use crate::native::common::debug_assert_range;
+#[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive};
 use crate::native::math::{clipf, rcpf};
 use crate::native::one_pole::{OnePoleCoeffs, OnePoleState};
@@ -257,8 +257,10 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
 
     #[inline(always)]
     pub fn set_bias(&mut self, value: f32) {
+        println!("Scemo");
         debug_assert!(value.is_finite());
-        debug_assert!(value >= -1e12 && value <= 1e12);
+        debug_assert_range(-1e12..=1e12, value);
+        println!("Scemoooo");
 
         self.bias = value;
     }
@@ -266,7 +268,7 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn set_gain(&mut self, value: f32) {
         debug_assert!(value.is_finite());
-        debug_assert!(value >= 1e-12 && value <= 1e12);
+        debug_assert_range(1e-12..=1e12, value);
 
         self.gain = value;
     }
@@ -320,16 +322,12 @@ pub struct ClipState {
 
 #[cfg(test)]
 mod tests {
-    use std::f32;
-
     use super::Clip;
     use crate::{
-        c_wrapper::{bw_clip_coeffs, bw_clip_do_update_coeffs, clip::Clip as ClipWrapper},
-        native::{
-            clip::ClipCoeffs,
-            one_pole::{OnePoleCoeffs, tests::assert_one_pole_coeffs},
-        },
+        c_wrapper::{bw_clip_coeffs, clip::Clip as ClipWrapper},
+        native::{clip::ClipCoeffs, one_pole::tests::assert_one_pole_coeffs},
     };
+    use std::f32;
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 44_100.0;
 
@@ -358,6 +356,20 @@ mod tests {
         let mut rust_clip = Clip::<N_CHANNELS>::new();
 
         rust_clip.set_sample_rate(f32::INFINITY);
+    }
+
+    #[test]
+    #[should_panic(expected = "value must be in range [-1e12, 1e12], got -1e13")]
+    fn set_bias_invalid() {
+        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        rust_clip.set_bias(-1e13);
+    }
+
+    #[test]
+    #[should_panic(expected = "value must be in range [1e-12, 1e12], got 0e0")]
+    fn set_gain_invalid() {
+        let mut rust_clip = Clip::<N_CHANNELS>::new();
+        rust_clip.set_gain(0.0);
     }
 
     #[test]

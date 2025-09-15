@@ -485,25 +485,23 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                             y_values[sample] = self.process1_asym(state, x[sample]);
                         });
                     }
-                } else {
-                    if self.is_sticky() {
-                        match self.get_sticky_mode() {
-                            OnePoleStickyMode::Abs => {
-                                (0..n_samples).for_each(|sample| {
-                                    y_values[sample] = self.process1_sticky_abs(state, x[sample]);
-                                });
-                            }
-                            OnePoleStickyMode::Rel => {
-                                (0..n_samples).for_each(|sample| {
-                                    y_values[sample] = self.process1_sticky_rel(state, x[sample]);
-                                });
-                            }
+                } else if self.is_sticky() {
+                    match self.get_sticky_mode() {
+                        OnePoleStickyMode::Abs => {
+                            (0..n_samples).for_each(|sample| {
+                                y_values[sample] = self.process1_sticky_abs(state, x[sample]);
+                            });
                         }
-                    } else {
-                        (0..n_samples).for_each(|sample| {
-                            y_values[sample] = self.process1(state, x[sample]);
-                        });
+                        OnePoleStickyMode::Rel => {
+                            (0..n_samples).for_each(|sample| {
+                                y_values[sample] = self.process1_sticky_rel(state, x[sample]);
+                            });
+                        }
                     }
+                } else {
+                    (0..n_samples).for_each(|sample| {
+                        y_values[sample] = self.process1(state, x[sample]);
+                    });
                 }
             }
             None => {
@@ -526,25 +524,23 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                             self.process1_asym(state, x[sample]);
                         });
                     }
-                } else {
-                    if self.is_sticky() {
-                        match self.get_sticky_mode() {
-                            OnePoleStickyMode::Abs => {
-                                (0..n_samples).for_each(|sample| {
-                                    self.process1_sticky_abs(state, x[sample]);
-                                });
-                            }
-                            OnePoleStickyMode::Rel => {
-                                (0..n_samples).for_each(|sample| {
-                                    self.process1_sticky_rel(state, x[sample]);
-                                });
-                            }
+                } else if self.is_sticky() {
+                    match self.get_sticky_mode() {
+                        OnePoleStickyMode::Abs => {
+                            (0..n_samples).for_each(|sample| {
+                                self.process1_sticky_abs(state, x[sample]);
+                            });
                         }
-                    } else {
-                        (0..n_samples).for_each(|sample| {
-                            self.process1(state, x[sample]);
-                        });
+                        OnePoleStickyMode::Rel => {
+                            (0..n_samples).for_each(|sample| {
+                                self.process1_sticky_rel(state, x[sample]);
+                            });
+                        }
                     }
+                } else {
+                    (0..n_samples).for_each(|sample| {
+                        self.process1(state, x[sample]);
+                    });
                 }
             }
         }
@@ -794,7 +790,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn set_sticky_thresh(&mut self, value: f32) {
         #[cfg(debug_assertions)]
-        debug_assert_range(0., 1.0e18, value);
+        debug_assert_range(0.0..=1.0e18, value);
         if self.sticky_thresh != value {
             self.sticky_thresh = value;
             self.param_changed |= ParamChanged::STICKY_TRESH;

@@ -6,5 +6,6 @@
 #include "../../brickworks/include/bw_common.h"
 #include "../../brickworks/include/bw_one_pole.h"
 #include "../../brickworks/include/bw_clip.h"
+#include "../../brickworks/include/bw_svf.h"
 
 #endif // WRAPPER_BRICKWORS_H

@@ -10,9 +10,10 @@
 //!
 //!
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-#[allow(dead_code, unused_variables, unused_mut)]
 pub mod clip;
 pub mod one_pole;
+#[allow(dead_code, unused_variables, unused_mut)]
+pub mod svf;
 
 // Helper functions
 pub(crate) mod utils;

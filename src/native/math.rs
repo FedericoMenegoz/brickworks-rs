@@ -8,9 +8,9 @@ pub fn rcpf(x: f32) -> f32 {
     {
         debug_assert_is_finite(x);
         if x > 0. {
-            debug_assert_range(8.077_936e-28, 1.237_940_1e27, x);
+            debug_assert_range(8.077_936e-28..=1.237_940_1e27, x);
         } else {
-            debug_assert_range(-1.237_940_1e27, -8.077_936e-28, x);
+            debug_assert_range(-1.237_940_1e27..=-8.077_936e-28, x);
         }
     }
 
@@ -66,7 +66,7 @@ pub fn clipf(x: f32, m_small: f32, m_big: f32) -> f32 {
     let y = minf(maxf(x, m_small), m_big);
 
     debug_assert!(!y.is_nan());
-    return y;
+    y
 }
 #[cfg(test)]
 mod tests {
