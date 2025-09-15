@@ -1,4 +1,10 @@
-use crate::c_wrapper::{bw_svf_coeffs, bw_svf_state};
+use std::ptr::null_mut;
+
+use crate::c_wrapper::{
+    bw_svf_coeffs, bw_svf_init, bw_svf_reset_coeffs, bw_svf_reset_state, bw_svf_reset_state_multi,
+    bw_svf_set_Q, bw_svf_set_cutoff, bw_svf_set_prewarp_at_cutoff, bw_svf_set_prewarp_freq,
+    bw_svf_set_sample_rate, bw_svf_state, utils::make_array,
+};
 
 pub struct SVF<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_svf_coeffs,
@@ -7,21 +13,59 @@ pub struct SVF<const N_CHANNELS: usize> {
 
 impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
     pub fn new() -> Self {
-        todo!();
+        let mut coeffs = bw_svf_coeffs::default();
+        unsafe {
+            bw_svf_init(&mut coeffs);
+        }
+        Self {
+            coeffs,
+            states: make_array::<bw_svf_state, N_CHANNELS>(),
+        }
     }
 
     pub fn set_sample_rate(&mut self, value: f32) {
-        todo!()
+        unsafe {
+            bw_svf_set_sample_rate(&mut self.coeffs, value);
+        }
     }
 
     pub fn reset(
         &mut self,
         x0: f32,
-        y_lp0: Option<&mut [f32; N_CHANNELS]>,
-        y_bp0: Option<&mut [f32; N_CHANNELS]>,
-        y_hp0: Option<&mut [f32; N_CHANNELS]>,
+        mut y_lp0: Option<&mut [f32; N_CHANNELS]>,
+        mut y_bp0: Option<&mut [f32; N_CHANNELS]>,
+        mut y_hp0: Option<&mut [f32; N_CHANNELS]>,
     ) {
-        todo!()
+        unsafe { bw_svf_reset_coeffs(&mut self.coeffs) }
+        for channel in 0..N_CHANNELS {
+            let mut v_lp = 0.0;
+            let mut v_bp = 0.0;
+            let mut v_hp = 0.0;
+
+            let y_lp = match &mut y_lp0 {
+                Some(array) => &mut array[channel],
+                None => &mut v_lp,
+            };
+            let y_bp = match &mut y_bp0 {
+                Some(array) => &mut array[channel],
+                None => &mut v_bp,
+            };
+            let y_hp = match &mut y_hp0 {
+                Some(array) => &mut array[channel],
+                None => &mut v_hp,
+            };
+
+            unsafe {
+                bw_svf_reset_state(
+                    &mut self.coeffs,
+                    &mut self.states[channel],
+                    x0,
+                    y_lp,
+                    y_bp,
+                    y_hp,
+                )
+            };
+        }
     }
 
     pub fn reset_multi(
@@ -31,7 +75,35 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
         y_bp0: Option<&mut [f32; N_CHANNELS]>,
         y_hp0: Option<&mut [f32; N_CHANNELS]>,
     ) {
-        todo!()
+        unsafe {
+            bw_svf_reset_coeffs(&mut self.coeffs);
+
+            let state_ptrs: [*mut bw_svf_state; N_CHANNELS] =
+                std::array::from_fn(|i| &mut self.states[i] as *mut _);
+
+            let y_lp_p = match y_lp0 {
+                Some(array) => array.as_mut_ptr(),
+                None => null_mut(),
+            };
+            let y_bp_p = match y_bp0 {
+                Some(array) => array.as_mut_ptr(),
+                None => null_mut(),
+            };
+            let y_hp_p = match y_hp0 {
+                Some(array) => array.as_mut_ptr(),
+                None => null_mut(),
+            };
+
+            bw_svf_reset_state_multi(
+                &mut self.coeffs,
+                state_ptrs.as_ptr(),
+                x0.as_ptr(),
+                y_lp_p,
+                y_bp_p,
+                y_hp_p,
+                N_CHANNELS,
+            );
+        }
     }
 
     pub fn process(
@@ -45,31 +117,66 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
     }
 
     pub fn set_cutoff(&mut self, value: f32) {
-        todo!()
+        unsafe {
+            bw_svf_set_cutoff(&mut self.coeffs, value);
+        }
     }
 
     pub fn set_q(&mut self, value: f32) {
-        todo!()
+        unsafe {
+            bw_svf_set_Q(&mut self.coeffs, value);
+        }
     }
 
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
-        todo!()
+        unsafe {
+            bw_svf_set_prewarp_at_cutoff(&mut self.coeffs, if value { 1 } else { 0 });
+        }
     }
 
     pub fn set_prewarp_freq(&mut self, value: f32) {
-        todo!()
+        unsafe {
+            bw_svf_set_prewarp_freq(&mut self.coeffs, value);
+        }
     }
 }
 
 impl Default for bw_svf_state {
     fn default() -> Self {
-        todo!()
+        Self {
+            hp_z1: Default::default(),
+            lp_z1: Default::default(),
+            bp_z1: Default::default(),
+            cutoff_z1: Default::default(),
+        }
     }
 }
 
 impl Default for bw_svf_coeffs {
     fn default() -> Self {
-        todo!()
+        Self {
+            smooth_coeffs: Default::default(),
+            smooth_cutoff_state: Default::default(),
+            smooth_Q_state: Default::default(),
+            smooth_prewarp_freq_state: Default::default(),
+            t_k: Default::default(),
+            prewarp_freq_max: Default::default(),
+            kf: Default::default(),
+            kbl: Default::default(),
+            k: Default::default(),
+            hp_hb: Default::default(),
+            hp_x: Default::default(),
+            cutoff: Default::default(),
+            Q: Default::default(),
+            prewarp_k: Default::default(),
+            prewarp_freq: Default::default(),
+        }
+    }
+}
+
+impl<const N_CHANNELS: usize> Default for SVF<N_CHANNELS> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -84,14 +191,13 @@ mod tests {
 
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
-    const GAIN: f32 = 200_000.0;
     const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
 
     type SVFTest = SVF<N_CHANNELS>;
 
     #[test]
     fn new() {
-        let mut svf = SVFTest::new();
+        let svf = SVFTest::new();
         let tau_default = 0.005;
         let sticky_tresh_default = 1e-3;
         let cutoff;
@@ -120,6 +226,7 @@ mod tests {
     fn reset() {
         let mut svf = SVFTest::new();
         let x0 = 0.1;
+        svf.set_sample_rate(SAMPLE_RATE);
         svf.reset(x0, None, None, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -148,6 +255,7 @@ mod tests {
         let mut svf = SVFTest::new();
         let x0: [f32; N_CHANNELS] = [0.1, 0.2];
 
+        svf.set_sample_rate(SAMPLE_RATE);
         svf.reset_multi(&x0, None, None, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -280,7 +388,7 @@ mod tests {
         let mut svf = SVFTest::new();
         let q = 20.3;
 
-        svf.set_cutoff(q);
+        svf.set_q(q);
 
         assert_eq!(svf.coeffs.Q, q);
     }
