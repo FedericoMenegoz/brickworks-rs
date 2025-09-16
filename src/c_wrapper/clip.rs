@@ -106,20 +106,6 @@ impl bw_clip_coeffs {
     pub(crate) fn process1_comp(&mut self, state: &mut bw_clip_state, x: f32) -> f32 {
         unsafe { bw_clip_process1_comp(self, state, x) }
     }
-
-    #[cfg(test)]
-    #[allow(dead_code)]
-    pub(crate) fn process(
-        &mut self,
-        state: &mut bw_clip_state,
-        x: &[f32],
-        y: &mut [f32],
-        n_samples: usize,
-    ) {
-        unsafe {
-            bw_clip_process(self, state, x.as_ptr(), y.as_mut_ptr(), n_samples);
-        }
-    }
 }
 
 impl Default for bw_clip_state {

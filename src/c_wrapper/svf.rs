@@ -1,12 +1,8 @@
 use std::ptr::null_mut;
+use super::*;
+use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
 
-use crate::c_wrapper::{
-    bw_svf_coeffs, bw_svf_init, bw_svf_process_multi, bw_svf_reset_coeffs, bw_svf_reset_state,
-    bw_svf_reset_state_multi, bw_svf_set_Q, bw_svf_set_cutoff, bw_svf_set_prewarp_at_cutoff,
-    bw_svf_set_prewarp_freq, bw_svf_set_sample_rate, bw_svf_state,
-    utils::{from_opt_to_raw, make_array},
-};
-
+#[derive(Debug)]
 pub struct SVF<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_svf_coeffs,
     pub(crate) states: [bw_svf_state; N_CHANNELS],
@@ -163,15 +159,35 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
     }
 }
 
-impl Default for bw_svf_state {
+impl<const N_CHANNELS: usize> Default for SVF<N_CHANNELS> {
     fn default() -> Self {
-        Self {
-            hp_z1: Default::default(),
-            lp_z1: Default::default(),
-            bp_z1: Default::default(),
-            cutoff_z1: Default::default(),
+        Self::new()
+    }
+}
+
+impl bw_svf_coeffs {
+    // Wrapping these to test them against the native ones
+    #[cfg(test)]
+    pub(crate) fn reset_coeffs(&mut self) {
+        unsafe {
+            bw_svf_reset_coeffs(self);
         }
     }
+    
+    #[cfg(test)]
+    pub(crate) fn do_update_coeffs(&mut self, force: bool) {
+        unsafe {
+            bw_svf_do_update_coeffs(self, if force {1} else {0});
+        }
+    }
+    
+    #[cfg(test)]
+    pub(crate) fn process1(&mut self, state: &mut bw_svf_state, x: f32, y_lp: &mut f32, y_bp: &mut f32, y_hp: &mut f32) {
+        unsafe {
+            bw_svf_process1(self, state, x, y_lp, y_bp, y_hp);
+        }
+    }
+
 }
 
 impl Default for bw_svf_coeffs {
@@ -196,9 +212,14 @@ impl Default for bw_svf_coeffs {
     }
 }
 
-impl<const N_CHANNELS: usize> Default for SVF<N_CHANNELS> {
+impl Default for bw_svf_state {
     fn default() -> Self {
-        Self::new()
+        Self {
+            hp_z1: Default::default(),
+            lp_z1: Default::default(),
+            bp_z1: Default::default(),
+            cutoff_z1: Default::default(),
+        }
     }
 }
 

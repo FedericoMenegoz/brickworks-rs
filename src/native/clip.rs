@@ -398,7 +398,7 @@ mod tests {
         c_clip.coeffs.do_update_coeffs(false);
 
         assert_clip(&rust_clip, &c_clip);
-        
+
         let gain = 2.0;
         rust_clip.set_gain(gain);
         c_clip.set_gain(gain);
@@ -409,7 +409,6 @@ mod tests {
 
     #[test]
     fn reset_none() {
-        // let mut rust_clip = Clip2::new()
         let bias = 5.0;
         let gain = 10.0;
         let x0 = [10.0, 11.0];
