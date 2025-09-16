@@ -1,5 +1,5 @@
 use super::*;
-use crate::c_wrapper::utils::{make_array, prepare_input_and_optional_output_states_ptrs};
+use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
 
 /// One-pole filter: Rust binding to the C library by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
 ///
@@ -133,10 +133,9 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         n_samples: usize,
     ) {
-        let (x_ptrs, mut y_ptrs, mut state_ptrs) = prepare_input_and_optional_output_states_ptrs::<
-            bw_one_pole_state,
-            N_CHANNELS,
-        >(x, y, &mut self.states);
+        let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
+        let mut y_ptrs = from_opt_to_raw::<N_CHANNELS>(y);
+        let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|i| &mut self.states[i] as *mut bw_one_pole_state);
         unsafe {
             bw_one_pole_process_multi(
                 &mut self.coeffs,
