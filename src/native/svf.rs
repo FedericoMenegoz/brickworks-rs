@@ -1,5 +1,5 @@
 use std::f32::consts::PI;
-use crate::native::one_pole::{OnePoleCoeffs, OnePoleState};
+use crate::native::{math::{minf, rcpf, tanf}, one_pole::{OnePoleCoeffs, OnePoleState}};
 
 #[cfg(debug_assertions)]
 use crate::native::common::debug_assert_positive;
@@ -124,14 +124,17 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
         }
         self.smooth_coeffs.set_sample_rate(sample_rate);
         self.smooth_coeffs.reset_coeffs();
-        
+
         self.t_k = PI / sample_rate;
         self.prewarp_freq_max = 0.499 * sample_rate;
     }
 
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
-        todo!()
+        self.smooth_coeffs.reset_state(&mut self.smooth_cutoff_state, self.cutoff);
+        self.smooth_coeffs.reset_state(&mut self.smooth_q_state, self.q);
+        self.smooth_coeffs.reset_state(&mut self.smooth_prewarp_freq_state, self.prewarp_freq + self.prewarp_k * (self.cutoff - self.prewarp_freq));
+        self.do_update_coeffs(true);
     }
 
     #[inline(always)]
@@ -237,8 +240,39 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
 
     // Private
     #[inline(always)]
-    fn do_update_coeffs() {
-        todo!()
+    fn do_update_coeffs(&mut self, force: bool) {
+        let prewarp_freq = self.prewarp_freq + self.prewarp_k * (self.cutoff - self.prewarp_freq);
+        let mut cutoff_cur = self.smooth_cutoff_state.get_y_z1();
+        let mut prewarp_freq_cur = self.smooth_prewarp_freq_state.get_y_z1();
+        let mut q_cur = self.smooth_q_state.get_y_z1();
+        let cutoff_changed = force || self.cutoff != cutoff_cur;
+        let prewarp_freq_changed = force || prewarp_freq != prewarp_freq_cur;
+        let q_changed = force || self.q != q_cur;
+        
+	    if cutoff_changed || prewarp_freq_changed || q_changed {
+
+            if cutoff_changed || prewarp_freq_changed {
+                
+                if cutoff_changed {
+                    cutoff_cur = self.smooth_coeffs.process1_sticky_rel(&mut self.smooth_cutoff_state, self.cutoff);
+                }
+
+                if prewarp_freq_changed {
+                    prewarp_freq_cur = self.smooth_coeffs.process1_sticky_rel(&mut self.smooth_prewarp_freq_state, prewarp_freq);
+                    let f = minf(prewarp_freq_cur, self.prewarp_freq_max);
+                    self.kf = tanf(self.t_k * f) * rcpf(f);
+                }
+
+                self.kbl = self.kf * cutoff_cur;
+            }
+
+            if q_changed {
+                q_cur = self.smooth_coeffs.process1_sticky_abs(&mut self.smooth_q_state, self.q);
+                self.k = rcpf(q_cur);
+            }
+            self.hp_hb = self.k + self.kbl;
+            self.hp_x = rcpf(1.0 + self.kbl * self.hp_hb);
+        }
     }
 }
 
