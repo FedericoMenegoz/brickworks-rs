@@ -398,12 +398,13 @@ mod tests {
         c_clip.coeffs.do_update_coeffs(false);
 
         assert_clip(&rust_clip, &c_clip);
-
+        
         let gain = 2.0;
         rust_clip.set_gain(gain);
         c_clip.set_gain(gain);
         rust_clip.coeffs.do_update_coeffs(false);
         c_clip.coeffs.do_update_coeffs(false);
+        assert_clip(&rust_clip, &c_clip);
     }
 
     #[test]
