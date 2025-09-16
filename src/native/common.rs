@@ -1,6 +1,3 @@
-pub(crate) const INVERSE_2_PI: f32 = 1.0 / (2.0 * std::f32::consts::PI);
-pub(crate) const NANO: f32 = 1e-9;
-
 #[cfg(debug_assertions)]
 #[inline(always)]
 pub fn has_inf(x: &[f32]) -> bool {

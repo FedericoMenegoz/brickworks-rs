@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 
 use super::math::rcpf;
-use crate::native::common::{INVERSE_2_PI, NANO};
+use crate::native::math::{INVERSE_2_PI, NANO};
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 
