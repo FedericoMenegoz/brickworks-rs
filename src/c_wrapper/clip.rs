@@ -53,9 +53,10 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
         y: &mut [&mut [f32]; N_CHANNELS],
         n_samples: usize,
     ) {
-        let x_ptrs: [* const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
+        let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
         let mut y_ptrs: [*mut f32; N_CHANNELS] = std::array::from_fn(|i| y[i].as_mut_ptr());
-        let mut state_ptrs: [*mut bw_clip_state; N_CHANNELS] = std::array::from_fn(|i| &mut self.states[i] as *mut bw_clip_state);
+        let mut state_ptrs: [*mut bw_clip_state; N_CHANNELS] =
+            std::array::from_fn(|i| &mut self.states[i] as *mut bw_clip_state);
         unsafe {
             bw_clip_process_multi(
                 &mut self.coeffs,

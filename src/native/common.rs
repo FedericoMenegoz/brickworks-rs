@@ -1,23 +1,25 @@
-use std::{f32::consts::PI, ops::RangeInclusive};
-
-pub(crate) const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
+pub(crate) const INVERSE_2_PI: f32 = 1.0 / (2.0 * std::f32::consts::PI);
 pub(crate) const NANO: f32 = 1e-9;
 
+#[cfg(debug_assertions)]
 #[inline(always)]
 pub fn has_inf(x: &[f32]) -> bool {
     x.iter().any(|val| val.is_infinite())
 }
 
+#[cfg(debug_assertions)]
 #[inline(always)]
 pub fn has_nan(x: &[f32]) -> bool {
     x.iter().any(|val| val.is_nan())
 }
 
+#[cfg(debug_assertions)]
 #[inline(always)]
 pub fn has_only_finite(x: &[f32]) -> bool {
     x.iter().all(|val| val.is_finite())
 }
 
+#[cfg(debug_assertions)]
 #[inline(always)]
 pub fn hash_sdbm(s: &str) -> u32 {
     let mut hash: u32 = 0;
@@ -32,11 +34,13 @@ pub fn hash_sdbm(s: &str) -> u32 {
     hash
 }
 
+#[cfg(debug_assertions)]
 pub(crate) fn debug_assert_positive(value: f32) {
     debug_assert!(value >= 0.0, "value must be non negative, got {}", value);
 }
 
-pub(crate) fn debug_assert_range(range: RangeInclusive<f32>, value: f32) {
+#[cfg(debug_assertions)]
+pub(crate) fn debug_assert_range(range: std::ops::RangeInclusive<f32>, value: f32) {
     debug_assert!(
         range.contains(&value),
         "value must be in range [{:e}, {:e}], got {value:e}",
@@ -45,6 +49,7 @@ pub(crate) fn debug_assert_range(range: RangeInclusive<f32>, value: f32) {
     );
 }
 
+#[cfg(debug_assertions)]
 pub(crate) fn debug_assert_is_finite(value: f32) {
     debug_assert!(value.is_finite(), "value must be finite, got {}", value);
 }

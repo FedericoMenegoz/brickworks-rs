@@ -135,7 +135,8 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     ) {
         let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
         let mut y_ptrs = from_opt_to_raw::<N_CHANNELS>(y);
-        let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] = std::array::from_fn(|i| &mut self.states[i] as *mut bw_one_pole_state);
+        let mut state_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
+            std::array::from_fn(|i| &mut self.states[i] as *mut bw_one_pole_state);
         unsafe {
             bw_one_pole_process_multi(
                 &mut self.coeffs,

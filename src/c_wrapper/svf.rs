@@ -1,9 +1,10 @@
 use std::ptr::null_mut;
 
 use crate::c_wrapper::{
-    bw_svf_coeffs, bw_svf_init, bw_svf_reset_coeffs, bw_svf_reset_state, bw_svf_reset_state_multi,
-    bw_svf_set_Q, bw_svf_set_cutoff, bw_svf_set_prewarp_at_cutoff, bw_svf_set_prewarp_freq,
-    bw_svf_set_sample_rate, bw_svf_state, utils::make_array,
+    bw_svf_coeffs, bw_svf_init, bw_svf_process_multi, bw_svf_reset_coeffs, bw_svf_reset_state,
+    bw_svf_reset_state_multi, bw_svf_set_Q, bw_svf_set_cutoff, bw_svf_set_prewarp_at_cutoff,
+    bw_svf_set_prewarp_freq, bw_svf_set_sample_rate, bw_svf_state,
+    utils::{from_opt_to_raw, make_array},
 };
 
 pub struct SVF<const N_CHANNELS: usize> {
@@ -77,23 +78,24 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
     ) {
         unsafe {
             bw_svf_reset_coeffs(&mut self.coeffs);
+        }
 
-            let state_ptrs: [*mut bw_svf_state; N_CHANNELS] =
-                std::array::from_fn(|i| &mut self.states[i] as *mut _);
+        let state_ptrs: [*mut bw_svf_state; N_CHANNELS] =
+            std::array::from_fn(|i| &mut self.states[i] as *mut _);
 
-            let y_lp_p = match y_lp0 {
-                Some(array) => array.as_mut_ptr(),
-                None => null_mut(),
-            };
-            let y_bp_p = match y_bp0 {
-                Some(array) => array.as_mut_ptr(),
-                None => null_mut(),
-            };
-            let y_hp_p = match y_hp0 {
-                Some(array) => array.as_mut_ptr(),
-                None => null_mut(),
-            };
-
+        let y_lp_p = match y_lp0 {
+            Some(array) => array.as_mut_ptr(),
+            None => null_mut(),
+        };
+        let y_bp_p = match y_bp0 {
+            Some(array) => array.as_mut_ptr(),
+            None => null_mut(),
+        };
+        let y_hp_p = match y_hp0 {
+            Some(array) => array.as_mut_ptr(),
+            None => null_mut(),
+        };
+        unsafe {
             bw_svf_reset_state_multi(
                 &mut self.coeffs,
                 state_ptrs.as_ptr(),
@@ -112,8 +114,28 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
         y_lp: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         y_bp: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         y_hp: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
+        n_samples: usize,
     ) {
-        todo!()
+        let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
+        let mut y_lp_ptrs: [*mut f32; N_CHANNELS] = from_opt_to_raw(y_lp);
+        let mut y_bp_ptrs: [*mut f32; N_CHANNELS] = from_opt_to_raw(y_bp);
+        let mut y_hp_ptrs: [*mut f32; N_CHANNELS] = from_opt_to_raw(y_hp);
+
+        let mut states_ptrs: [*mut bw_svf_state; N_CHANNELS] =
+            std::array::from_fn(|i| &mut self.states[i] as *mut bw_svf_state);
+
+        unsafe {
+            bw_svf_process_multi(
+                &mut self.coeffs,
+                states_ptrs.as_mut_ptr(),
+                x_ptrs.as_ptr(),
+                y_lp_ptrs.as_mut_ptr(),
+                y_bp_ptrs.as_mut_ptr(),
+                y_hp_ptrs.as_mut_ptr(),
+                N_CHANNELS,
+                n_samples,
+            );
+        }
     }
 
     pub fn set_cutoff(&mut self, value: f32) {
@@ -184,8 +206,8 @@ impl<const N_CHANNELS: usize> Default for SVF<N_CHANNELS> {
 mod tests {
     use crate::c_wrapper::{
         bw_rcpf, bw_svf_coeffs, bw_svf_init, bw_svf_process1, bw_svf_set_cutoff,
-        bw_svf_set_prewarp_at_cutoff, bw_svf_set_prewarp_freq, bw_svf_state,
-        bw_svf_update_coeffs_audio, svf::SVF,
+        bw_svf_set_prewarp_at_cutoff, bw_svf_set_prewarp_freq, bw_svf_set_sample_rate,
+        bw_svf_state, bw_svf_update_coeffs_audio, svf::SVF,
     };
     use std::f32::consts::PI;
 
@@ -322,10 +344,17 @@ mod tests {
         let prewarp_freq = 800.0;
         let n_samples = 2;
         // Wrapper
+        svf.set_sample_rate(SAMPLE_RATE);
         svf.set_cutoff(cutoff);
         svf.set_prewarp_at_cutoff(true);
         svf.set_prewarp_freq(prewarp_freq);
-        svf.process(&x, Some(&mut y_lp), Some(&mut y_bp), Some(&mut y_hp));
+        svf.process(
+            &x,
+            Some(&mut y_lp),
+            Some(&mut y_bp),
+            Some(&mut y_hp),
+            n_samples,
+        );
 
         // Process C
         let mut c_coeffs = bw_svf_coeffs::default();
@@ -333,6 +362,7 @@ mod tests {
 
         unsafe {
             bw_svf_init(&mut c_coeffs);
+            bw_svf_set_sample_rate(&mut c_coeffs, SAMPLE_RATE);
             bw_svf_set_cutoff(&mut c_coeffs, cutoff);
             bw_svf_set_prewarp_freq(&mut c_coeffs, prewarp_freq);
             bw_svf_set_prewarp_at_cutoff(&mut c_coeffs, 1);
@@ -347,7 +377,7 @@ mod tests {
                         &mut c_y_lp[channel][sample],
                         &mut c_y_bp[channel][sample],
                         &mut c_y_hp[channel][sample],
-                    )
+                    );
                 });
             });
         }

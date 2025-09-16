@@ -1,6 +1,5 @@
-use crate::native::common::debug_assert_range;
 #[cfg(debug_assertions)]
-use crate::native::common::{debug_assert_is_finite, debug_assert_positive};
+use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 use crate::native::math::{clipf, rcpf};
 use crate::native::one_pole::{OnePoleCoeffs, OnePoleState};
 
@@ -257,18 +256,22 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
 
     #[inline(always)]
     pub fn set_bias(&mut self, value: f32) {
-        println!("Scemo");
-        debug_assert!(value.is_finite());
-        debug_assert_range(-1e12..=1e12, value);
-        println!("Scemoooo");
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(value.is_finite());
+            debug_assert_range(-1e12..=1e12, value);
+        }
 
         self.bias = value;
     }
 
     #[inline(always)]
     pub fn set_gain(&mut self, value: f32) {
-        debug_assert!(value.is_finite());
-        debug_assert_range(1e-12..=1e12, value);
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(value.is_finite());
+            debug_assert_range(1e-12..=1e12, value);
+        }
 
         self.gain = value;
     }
