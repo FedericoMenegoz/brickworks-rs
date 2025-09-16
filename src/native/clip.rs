@@ -4,8 +4,8 @@ use crate::native::math::{clipf, rcpf};
 use crate::native::one_pole::{OnePoleCoeffs, OnePoleState};
 
 pub struct Clip<const N_CHANNELS: usize> {
-    pub coeffs: ClipCoeffs<N_CHANNELS>,
-    pub states: [ClipState; N_CHANNELS],
+    coeffs: ClipCoeffs<N_CHANNELS>,
+    states: [ClipState; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
