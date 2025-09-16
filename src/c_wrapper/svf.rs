@@ -1,6 +1,6 @@
-use std::ptr::null_mut;
 use super::*;
 use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
+use std::ptr::null_mut;
 
 #[derive(Debug)]
 pub struct SVF<const N_CHANNELS: usize> {
@@ -173,21 +173,27 @@ impl bw_svf_coeffs {
             bw_svf_reset_coeffs(self);
         }
     }
-    
+
     #[cfg(test)]
     pub(crate) fn do_update_coeffs(&mut self, force: bool) {
         unsafe {
-            bw_svf_do_update_coeffs(self, if force {1} else {0});
+            bw_svf_do_update_coeffs(self, if force { 1 } else { 0 });
         }
     }
-    
+
     #[cfg(test)]
-    pub(crate) fn process1(&mut self, state: &mut bw_svf_state, x: f32, y_lp: &mut f32, y_bp: &mut f32, y_hp: &mut f32) {
+    pub(crate) fn process1(
+        &mut self,
+        state: &mut bw_svf_state,
+        x: f32,
+        y_lp: &mut f32,
+        y_bp: &mut f32,
+        y_hp: &mut f32,
+    ) {
         unsafe {
             bw_svf_process1(self, state, x, y_lp, y_bp, y_hp);
         }
     }
-
 }
 
 impl Default for bw_svf_coeffs {

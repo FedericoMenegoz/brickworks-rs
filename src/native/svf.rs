@@ -1,4 +1,8 @@
+use std::f32::consts::PI;
 use crate::native::one_pole::{OnePoleCoeffs, OnePoleState};
+
+#[cfg(debug_assertions)]
+use crate::native::common::debug_assert_positive;
 
 #[derive(Debug)]
 pub struct SVF<const N_CHANNELS: usize> {
@@ -8,11 +12,11 @@ pub struct SVF<const N_CHANNELS: usize> {
 
 impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
     pub fn new() -> Self {
-        todo!()
+        Self { coeffs: SVFCoeffs::new(), states: [SVFState::new(); N_CHANNELS] }
     }
 
-    pub fn set_sample_rate(&mut self, value: f32) {
-        todo!()
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.coeffs.set_sample_rate(sample_rate);
     }
 
     pub fn reset(
@@ -88,12 +92,41 @@ pub struct SVFCoeffs<const N_CHANNELS: usize> {
 impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn new() -> Self {
-        todo!()
+        let mut coeffs = Self {
+            smooth_coeffs: OnePoleCoeffs::new(),
+            smooth_cutoff_state: OnePoleState::new(),
+            smooth_q_state: OnePoleState::new(),
+            smooth_prewarp_freq_state: OnePoleState::new(),
+            t_k: 0.0,
+            prewarp_freq_max: 0.0,
+            kf: 0.0,
+            kbl: 0.0,
+            k: 0.0,
+            hp_hb: 0.0,
+            hp_x: 0.0,
+            cutoff: 1e3,
+            q: 0.5,
+            prewarp_k: 1.0,
+            prewarp_freq: 1e3,
+        };
+        coeffs.smooth_coeffs.set_tau(0.005);
+        coeffs.smooth_coeffs.set_sticky_thresh(1e-3);
+
+        coeffs
     }
 
     #[inline(always)]
-    pub fn set_sample_rate(&mut self, value: f32) {
-        todo!()
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(sample_rate.is_finite());
+            debug_assert_positive(sample_rate);
+        }
+        self.smooth_coeffs.set_sample_rate(sample_rate);
+        self.smooth_coeffs.reset_coeffs();
+        
+        self.t_k = PI / sample_rate;
+        self.prewarp_freq_max = 0.499 * sample_rate;
     }
 
     #[inline(always)]
@@ -209,13 +242,19 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SVFState {
     // State
     hp_z1: f32,
     lp_z1: f32,
     bp_z1: f32,
     cutoff_z1: f32,
+}
+
+impl SVFState {
+    pub fn new() -> Self {
+        Self { hp_z1: 0.0, lp_z1: 0.0, bp_z1: 0.0, cutoff_z1: 0.0}
+    }
 }
 
 #[cfg(test)]
@@ -247,13 +286,13 @@ mod tests {
     fn set_sample_rate_valid() {
         let mut rust_svf = SVF2::new();
         let mut c_svf = SVFWrapper2::new();
-        
+
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
 
         assert_svf(&rust_svf, &c_svf);
     }
-    
+
     #[test]
     #[should_panic(expected = "value must be non negative, got -48000")]
     fn set_sample_rate_must_be_positive() {
@@ -268,13 +307,12 @@ mod tests {
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
-        
+
         c_svf.coeffs.reset_coeffs();
         rust_svf.coeffs.reset_coeffs();
 
         assert_svf(&rust_svf, &c_svf);
     }
-
 
     #[test]
     fn reset_none() {
@@ -289,7 +327,7 @@ mod tests {
 
         assert_svf(&rust_svf, &c_svf);
     }
-    
+
     #[test]
     fn reset_some() {
         let mut rust_svf = SVF2::new();
@@ -301,16 +339,21 @@ mod tests {
         let mut y_lp0 = [1.0, 1.1];
         let mut y_bp0 = [2.0, 2.1];
         let mut y_hp0 = [3.0, 3.1];
-        
+
         let mut c_y_lp0 = [1.0, 1.1];
         let mut c_y_bp0 = [2.0, 2.1];
         let mut c_y_hp0 = [3.0, 3.1];
 
         rust_svf.reset(x0, Some(&mut y_lp0), Some(&mut y_bp0), Some(&mut y_hp0));
-        c_svf.reset(x0, Some(&mut c_y_lp0), Some(&mut c_y_bp0), Some(&mut c_y_hp0));
+        c_svf.reset(
+            x0,
+            Some(&mut c_y_lp0),
+            Some(&mut c_y_bp0),
+            Some(&mut c_y_hp0),
+        );
 
         assert_svf(&rust_svf, &c_svf);
-        (0..N_CHANNELS).for_each(|channel|{
+        (0..N_CHANNELS).for_each(|channel| {
             assert_eq!(y_lp0[channel], c_y_lp0[channel]);
             assert_eq!(y_bp0[channel], c_y_bp0[channel]);
             assert_eq!(y_hp0[channel], c_y_hp0[channel]);
@@ -329,7 +372,7 @@ mod tests {
         let mut y_lp = [1.0, 1.1];
         let mut y_bp = [2.0, 2.1];
         let mut y_hp = [3.0, 3.1];
-        
+
         let mut c_y_lp = [1.0, 1.1];
         let mut c_y_bp = [2.0, 2.1];
         let mut c_y_hp = [3.0, 3.1];
@@ -338,20 +381,32 @@ mod tests {
         rust_svf.set_cutoff(cutoff);
         rust_svf.set_prewarp_at_cutoff(true);
         rust_svf.set_prewarp_freq(prewarpfreq);
-        
+
         c_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_cutoff(cutoff);
         c_svf.set_prewarp_at_cutoff(true);
         c_svf.set_prewarp_freq(prewarpfreq);
 
         (0..N_CHANNELS).for_each(|channel| {
-            rust_svf.coeffs.process1(&mut rust_svf.states[channel], x, &mut y_lp[channel], &mut y_bp[channel], &mut y_hp[channel]);
-            c_svf.coeffs.process1(&mut c_svf.states[channel], x, &mut c_y_lp[channel], &mut c_y_bp[channel], &mut c_y_hp[channel]);
+            rust_svf.coeffs.process1(
+                &mut rust_svf.states[channel],
+                x,
+                &mut y_lp[channel],
+                &mut y_bp[channel],
+                &mut y_hp[channel],
+            );
+            c_svf.coeffs.process1(
+                &mut c_svf.states[channel],
+                x,
+                &mut c_y_lp[channel],
+                &mut c_y_bp[channel],
+                &mut c_y_hp[channel],
+            );
         });
 
         assert_svf(&rust_svf, &c_svf);
 
-        (0..N_CHANNELS).for_each(|channel|{
+        (0..N_CHANNELS).for_each(|channel| {
             assert_eq!(y_lp[channel], c_y_lp[channel]);
             assert_eq!(y_bp[channel], c_y_bp[channel]);
             assert_eq!(y_hp[channel], c_y_hp[channel]);
@@ -382,36 +437,60 @@ mod tests {
         let mut y_hp_ch0 = [0.0, 0.0];
         let mut y_hp_ch1 = [0.0, 0.0];
         let mut y_hp: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut y_hp_ch0), Some(&mut y_hp_ch1)];
-        
+
         let mut c_y_lp_ch0 = [0.0, 0.0];
         let mut c_y_lp_ch1 = [0.0, 0.0];
-        let mut c_y_lp: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut c_y_lp_ch0), Some(&mut c_y_lp_ch1)];
+        let mut c_y_lp: [Option<&mut [f32]>; N_CHANNELS] =
+            [Some(&mut c_y_lp_ch0), Some(&mut c_y_lp_ch1)];
         let mut c_y_bp_ch0 = [0.0, 0.0];
         let mut c_y_bp_ch1 = [0.0, 0.0];
-        let mut c_y_bp: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut c_y_bp_ch0), Some(&mut c_y_bp_ch1)];
+        let mut c_y_bp: [Option<&mut [f32]>; N_CHANNELS] =
+            [Some(&mut c_y_bp_ch0), Some(&mut c_y_bp_ch1)];
         let mut c_y_hp_ch0 = [0.0, 0.0];
         let mut c_y_hp_ch1 = [0.0, 0.0];
-        let mut c_y_hp: [Option<&mut [f32]>; N_CHANNELS] = [Some(&mut c_y_hp_ch0), Some(&mut c_y_hp_ch1)];
+        let mut c_y_hp: [Option<&mut [f32]>; N_CHANNELS] =
+            [Some(&mut c_y_hp_ch0), Some(&mut c_y_hp_ch1)];
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
         rust_svf.set_cutoff(cutoff);
         rust_svf.set_prewarp_at_cutoff(true);
         rust_svf.set_prewarp_freq(prewarpfreq);
-        
+
         c_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_cutoff(cutoff);
         c_svf.set_prewarp_at_cutoff(true);
         c_svf.set_prewarp_freq(prewarpfreq);
 
-        rust_svf.process(&x, Some(&mut y_lp), Some(&mut y_bp), Some(&mut y_hp), n_samples);
-        c_svf.process(&x, Some(&mut c_y_lp), Some(&mut c_y_bp), Some(&mut c_y_hp), n_samples);
+        rust_svf.process(
+            &x,
+            Some(&mut y_lp),
+            Some(&mut y_bp),
+            Some(&mut y_hp),
+            n_samples,
+        );
+        c_svf.process(
+            &x,
+            Some(&mut c_y_lp),
+            Some(&mut c_y_bp),
+            Some(&mut c_y_hp),
+            n_samples,
+        );
 
         assert_svf(&rust_svf, &c_svf);
-        (0..N_CHANNELS).for_each(|channel|{
+        (0..N_CHANNELS).for_each(|channel| {
             (0..n_samples).for_each(|sample| {
-                assert_eq!(y_lp[channel].as_ref().unwrap()[sample], c_y_lp[channel].as_ref().unwrap()[sample]);
-                assert_eq!(y_bp[channel].as_ref().unwrap()[sample], c_y_bp[channel].as_ref().unwrap()[sample]);
-                assert_eq!(y_hp[channel].as_ref().unwrap()[sample], c_y_hp[channel].as_ref().unwrap()[sample]);
+                assert_eq!(
+                    y_lp[channel].as_ref().unwrap()[sample],
+                    c_y_lp[channel].as_ref().unwrap()[sample]
+                );
+                assert_eq!(
+                    y_bp[channel].as_ref().unwrap()[sample],
+                    c_y_bp[channel].as_ref().unwrap()[sample]
+                );
+                assert_eq!(
+                    y_hp[channel].as_ref().unwrap()[sample],
+                    c_y_hp[channel].as_ref().unwrap()[sample]
+                );
             })
         });
     }
@@ -440,21 +519,21 @@ mod tests {
         rust_svf.set_sample_rate(SAMPLE_RATE);
         rust_svf.set_cutoff(cutoff);
     }
-    
+
     #[test]
     fn set_q() {
         let mut rust_svf = SVF2::new();
         let mut c_svf = SVFWrapper2::new();
         let q = 0.707;
-        
+
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
         rust_svf.set_q(q);
         c_svf.set_q(q);
-        
+
         assert_svf(&rust_svf, &c_svf);
     }
-    
+
     #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "value must be in range [1e-6f, 1e6], got 1e-7")]
@@ -470,7 +549,7 @@ mod tests {
     fn set_prewarp_at_cutoff() {
         let mut rust_svf = SVF2::new();
         let mut c_svf = SVFWrapper2::new();
-        
+
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
 
