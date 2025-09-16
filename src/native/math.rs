@@ -80,16 +80,18 @@ pub fn clipf(x: f32, m_small: f32, m_big: f32) -> f32 {
 /// `x` must be finite and in [-pi/2 + 1e-3f, pi/2 - 1e-3f] + k * pi, where k
 /// is any integer number.
 ///
-/// Absolute error < 0.06 or relative error < 0.8%, whatever is worse. 
+/// Absolute error < 0.06 or relative error < 0.8%, whatever is worse.
 #[inline(always)]
 pub fn tanf(mut x: f32) -> f32 {
     debug_assert!(x.is_finite());
     debug_assert!(
-        (x - PI * (INVERSE_2_PI * x).floor() <= PI_OVER_2 - 1e-3) ||
-        (x - PI * (INVERSE_2_PI * x).floor() >= PI_OVER_2 + 1e-3), "value must be in range [-pi/2 + 1e-3f, pi/2 - 1e-3f] + k * pi got {}", x 
+        (x - PI * (INVERSE_2_PI * x).floor() <= PI_OVER_2 - 1e-3)
+            || (x - PI * (INVERSE_2_PI * x).floor() >= PI_OVER_2 + 1e-3),
+        "value must be in range [-pi/2 + 1e-3f, pi/2 - 1e-3f] + k * pi got {}",
+        x
     );
     x = INVERSE_2_PI * x;
-    let y:f32 = sin2pif(x) * rcpf(cos2pif(x));
+    let y: f32 = sin2pif(x) * rcpf(cos2pif(x));
     debug_assert!(y.is_finite());
     y
 }
@@ -105,8 +107,9 @@ pub fn sin2pif(mut x: f32) -> f32 {
     x = x - x.floor();
     let xp1 = x + x - 1.0;
     let xp2 = xp1.abs();
-    let xp = PI_OVER_2 -PI_OVER_2 * (xp2 + xp2 - 1.0).abs();
-    let y = -1.0_f32.copysign(xp1) * (xp + xp * xp * (-0.05738534102710938 - 0.1107398163618408 * xp));
+    let xp = PI_OVER_2 - PI_OVER_2 * (xp2 + xp2 - 1.0).abs();
+    let y =
+        -1.0_f32.copysign(xp1) * (xp + xp * xp * (-0.05738534102710938 - 0.1107398163618408 * xp));
     debug_assert!(y.is_finite());
     y
 }
@@ -115,7 +118,7 @@ pub fn sin2pif(mut x: f32) -> f32 {
 /// in radians.
 ///
 /// `x` must be finite.
-/// 
+///
 /// Absolute error < 0.011 or relative error < 1.7%, whatever is worse.
 #[inline(always)]
 pub fn cos2pif(x: f32) -> f32 {
@@ -176,27 +179,29 @@ mod tests {
     #[test]
     fn tanf_valid() {
         unsafe {
-            assert_eq!(tanf(-PI/4.0), bw_tanf(-PI/4.0));
-        }
-    }
-    
-    #[test]
-    fn sin2pif_valid() {
-        unsafe {
-            assert_eq!(sin2pif(-PI/4.0), bw_sin2pif(-PI/4.0));
-        }
-    }
-    
-    #[test]
-    fn cos2pif_valid() {
-        unsafe {
-            assert_eq!(cos2pif(-PI/4.0), bw_cos2pif(-PI/4.0));
+            assert_eq!(tanf(-PI / 4.0), bw_tanf(-PI / 4.0));
         }
     }
 
-    #[should_panic(expected = "value must be in range [-pi/2 + 1e-3f, pi/2 - 1e-3f] + k * pi got -1.5707964")]
+    #[test]
+    fn sin2pif_valid() {
+        unsafe {
+            assert_eq!(sin2pif(-PI / 4.0), bw_sin2pif(-PI / 4.0));
+        }
+    }
+
+    #[test]
+    fn cos2pif_valid() {
+        unsafe {
+            assert_eq!(cos2pif(-PI / 4.0), bw_cos2pif(-PI / 4.0));
+        }
+    }
+
+    #[should_panic(
+        expected = "value must be in range [-pi/2 + 1e-3f, pi/2 - 1e-3f] + k * pi got -1.5707964"
+    )]
     #[test]
     fn tanf_invalid() {
-        tanf(-PI/2.0);
+        tanf(-PI / 2.0);
     }
 }

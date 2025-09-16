@@ -1,9 +1,9 @@
 use bitflags::bitflags;
 
 use super::math::rcpf;
-use crate::native::math::{INVERSE_2_PI, NANO};
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
+use crate::native::math::{INVERSE_2_PI, NANO};
 
 /// One-pole filter: Rust native port of the original implementation by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
 ///
