@@ -50,9 +50,8 @@ use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
 /// This module provides Rust bindings to the original C implementation.
 /// For a fully native Rust implementation with the same interface, see [crate::native::one_pole].
 pub struct OnePole<const N_CHANNELS: usize> {
-    pub coeffs: bw_one_pole_coeffs,
-    pub states: [bw_one_pole_state; N_CHANNELS],
-    pub states_p: [bw_one_pole_state; N_CHANNELS], // BW_RESTRICT to check what is for
+    pub(crate) coeffs: bw_one_pole_coeffs,
+    pub(crate) states: [bw_one_pole_state; N_CHANNELS],
 }
 
 /// Distance metrics for sticky behavior.
@@ -68,14 +67,12 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// Creates a new `OnePole` filter with default parameters and zeroed state.
     pub fn new() -> Self {
         let states = make_array::<bw_one_pole_state, N_CHANNELS>();
-        let states_p = make_array::<bw_one_pole_state, N_CHANNELS>();
 
         let mut one_pole = OnePole {
             coeffs: bw_one_pole_coeffs {
                 ..Default::default()
             },
             states,
-            states_p,
         };
         unsafe {
             bw_one_pole_init(&mut one_pole.coeffs);

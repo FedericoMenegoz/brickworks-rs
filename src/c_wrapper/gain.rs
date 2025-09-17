@@ -1,6 +1,6 @@
 use super::*;
 pub struct Gain<const N_CHANNELS: usize> {
-    coeffs: bw_gain_coeffs,
+    pub(crate) coeffs: bw_gain_coeffs,
 }
 
 impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
@@ -76,7 +76,7 @@ impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
     }
 
     #[inline(always)]
-    pub fn set_sticky_mode(&mut self, value: bw_one_pole_sticky_mode) {
+    pub fn set_sticky_mode(&mut self, value: bw_gain_sticky_mode) {
         unsafe {
             bw_gain_set_sticky_mode(&mut self.coeffs, value);
         }

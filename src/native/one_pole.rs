@@ -61,10 +61,10 @@ pub struct OnePole<const N_CHANNELS: usize> {
 }
 /// Distance metrics for sticky behavior.
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum OnePoleStickyMode {
-    /// `OnePoleStickyMode::Abs`: absolute difference ( `|out - in|` );
+pub enum StickyMode {
+    /// `StickyMode::Abs`: absolute difference ( `|out - in|` );
     Abs,
-    /// `OnePoleStickyMode::Rel`: relative difference with respect to input (`|out - in| / |in|`).
+    /// `StickyMode::Rel`: relative difference with respect to input (`|out - in| / |in|`).
     Rel,
 }
 
@@ -231,7 +231,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// - `value`: sticky mode, default is [OnePoleStickyMode::Abs]
     ///
     #[inline(always)]
-    pub fn set_sticky_mode(&mut self, value: OnePoleStickyMode) {
+    pub fn set_sticky_mode(&mut self, value: StickyMode) {
         self.coeffs.set_sticky_mode(value);
     }
     /// Returns the current target-reach threshold in `OnePole<N_CHANNELS>`.
@@ -241,7 +241,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     }
     /// Returns the current distance metric for sticky behavior in `OnePole<N_CHANNELS>`.
     #[inline(always)]
-    pub fn get_sticky_mode(&self) -> OnePoleStickyMode {
+    pub fn get_sticky_mode(&self) -> StickyMode {
         self.coeffs.get_sticky_mode()
     }
     /// Returns the last output sample as stored in `OnePole<N_CHANNELS>`.
@@ -266,7 +266,7 @@ pub struct OnePoleCoeffs<const N_CHANNELS: usize> {
     cutoff_up: f32,
     cutoff_down: f32,
     sticky_thresh: f32,
-    sticky_mode: OnePoleStickyMode,
+    sticky_mode: StickyMode,
     param_changed: ParamChanged,
 }
 
@@ -322,7 +322,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             cutoff_up: f32::INFINITY,
             cutoff_down: f32::INFINITY,
             sticky_thresh: 0.0,
-            sticky_mode: OnePoleStickyMode::Abs,
+            sticky_mode: StickyMode::Abs,
             param_changed: ParamChanged::all(),
         }
     }
@@ -467,13 +467,13 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                 if self.is_asym() {
                     if self.is_sticky() {
                         match self.get_sticky_mode() {
-                            OnePoleStickyMode::Abs => {
+                            StickyMode::Abs => {
                                 (0..n_samples).for_each(|sample| {
                                     y_values[sample] =
                                         self.process1_asym_sticky_abs(state, x[sample]);
                                 });
                             }
-                            OnePoleStickyMode::Rel => {
+                            StickyMode::Rel => {
                                 (0..n_samples).for_each(|sample| {
                                     y_values[sample] =
                                         self.process1_asym_sticky_rel(state, x[sample]);
@@ -487,12 +487,12 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                     }
                 } else if self.is_sticky() {
                     match self.get_sticky_mode() {
-                        OnePoleStickyMode::Abs => {
+                        StickyMode::Abs => {
                             (0..n_samples).for_each(|sample| {
                                 y_values[sample] = self.process1_sticky_abs(state, x[sample]);
                             });
                         }
-                        OnePoleStickyMode::Rel => {
+                        StickyMode::Rel => {
                             (0..n_samples).for_each(|sample| {
                                 y_values[sample] = self.process1_sticky_rel(state, x[sample]);
                             });
@@ -508,12 +508,12 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                 if self.is_asym() {
                     if self.is_sticky() {
                         match self.get_sticky_mode() {
-                            OnePoleStickyMode::Abs => {
+                            StickyMode::Abs => {
                                 (0..n_samples).for_each(|sample| {
                                     self.process1_asym_sticky_abs(state, x[sample]);
                                 });
                             }
-                            OnePoleStickyMode::Rel => {
+                            StickyMode::Rel => {
                                 (0..n_samples).for_each(|sample| {
                                     self.process1_asym_sticky_rel(state, x[sample]);
                                 });
@@ -526,12 +526,12 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                     }
                 } else if self.is_sticky() {
                     match self.get_sticky_mode() {
-                        OnePoleStickyMode::Abs => {
+                        StickyMode::Abs => {
                             (0..n_samples).for_each(|sample| {
                                 self.process1_sticky_abs(state, x[sample]);
                             });
                         }
-                        OnePoleStickyMode::Rel => {
+                        StickyMode::Rel => {
                             (0..n_samples).for_each(|sample| {
                                 self.process1_sticky_rel(state, x[sample]);
                             });
@@ -564,7 +564,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             if self.is_asym() {
                 if self.is_sticky() {
                     match self.sticky_mode {
-                        OnePoleStickyMode::Abs => {
+                        StickyMode::Abs => {
                             (0..N_CHANNELS).for_each(|channel| {
                                 if let Some(y_value) = y_values[channel].as_deref_mut() {
                                     (0..n_samples).for_each(|sample| {
@@ -583,7 +583,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                                 }
                             });
                         }
-                        OnePoleStickyMode::Rel => {
+                        StickyMode::Rel => {
                             (0..N_CHANNELS).for_each(|channel| {
                                 if let Some(y_value) = y_values[channel].as_deref_mut() {
                                     (0..n_samples).for_each(|sample| {
@@ -619,7 +619,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                 }
             } else if self.is_sticky() {
                 match self.sticky_mode {
-                    OnePoleStickyMode::Abs => {
+                    StickyMode::Abs => {
                         (0..N_CHANNELS).for_each(|channel| {
                             if let Some(y_value) = y_values[channel].as_deref_mut() {
                                 (0..n_samples).for_each(|sample| {
@@ -638,7 +638,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                             }
                         });
                     }
-                    OnePoleStickyMode::Rel => {
+                    StickyMode::Rel => {
                         (0..N_CHANNELS).for_each(|channel| {
                             if let Some(y_value) = y_values[channel].as_deref_mut() {
                                 (0..n_samples).for_each(|sample| {
@@ -675,7 +675,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         } else if self.is_asym() {
             if self.is_sticky() {
                 match self.sticky_mode {
-                    OnePoleStickyMode::Abs => {
+                    StickyMode::Abs => {
                         (0..N_CHANNELS).for_each(|channel| {
                             (0..n_samples).for_each(|sample| {
                                 self.process1_asym_sticky_abs(
@@ -685,7 +685,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                             });
                         });
                     }
-                    OnePoleStickyMode::Rel => {
+                    StickyMode::Rel => {
                         (0..N_CHANNELS).for_each(|channel| {
                             (0..n_samples).for_each(|sample| {
                                 self.process1_asym_sticky_rel(
@@ -705,14 +705,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             }
         } else if self.is_sticky() {
             match self.sticky_mode {
-                OnePoleStickyMode::Abs => {
+                StickyMode::Abs => {
                     (0..N_CHANNELS).for_each(|channel| {
                         (0..n_samples).for_each(|sample| {
                             self.process1_sticky_abs(&mut states[channel], x[channel][sample]);
                         });
                     });
                 }
-                OnePoleStickyMode::Rel => {
+                StickyMode::Rel => {
                     (0..N_CHANNELS).for_each(|channel| {
                         (0..n_samples).for_each(|sample| {
                             self.process1_sticky_rel(&mut states[channel], x[channel][sample]);
@@ -798,7 +798,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     }
 
     #[inline(always)]
-    pub fn set_sticky_mode(&mut self, value: OnePoleStickyMode) {
+    pub fn set_sticky_mode(&mut self, value: StickyMode) {
         self.sticky_mode = value;
     }
 
@@ -808,7 +808,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     }
 
     #[inline(always)]
-    pub fn get_sticky_mode(&self) -> OnePoleStickyMode {
+    pub fn get_sticky_mode(&self) -> StickyMode {
         self.sticky_mode
     }
 
@@ -886,16 +886,16 @@ pub(crate) mod tests {
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
 
-    type OnePole2 = OnePole<N_CHANNELS>;
-    type OnePoleCoeffs2 = OnePoleCoeffs<N_CHANNELS>;
-    type OnePoleWrapper2 = OnePoleWrapper<N_CHANNELS>;
+    type OnePoleT = OnePole<N_CHANNELS>;
+    type OnePoleCoeffsT = OnePoleCoeffs<N_CHANNELS>;
+    type OnePoleWrapperT = OnePoleWrapper<N_CHANNELS>;
 
     #[test]
     fn update_coeffs_ctrl_all_changed() {
         let cutoff = 100.;
         let sticky_thresh = 0.01;
 
-        let mut rust_coeffs = OnePoleCoeffs2 {
+        let mut rust_coeffs = OnePoleCoeffsT {
             cutoff_up: cutoff,
             cutoff_down: cutoff,
             sticky_thresh: sticky_thresh,
@@ -918,7 +918,7 @@ pub(crate) mod tests {
 
     #[test]
     fn update_coeffs_ctrl_nothing_changed() {
-        let mut rust_coeffs = OnePoleCoeffs2 {
+        let mut rust_coeffs = OnePoleCoeffsT {
             param_changed: ParamChanged::empty(),
             ..Default::default()
         };
@@ -935,16 +935,16 @@ pub(crate) mod tests {
 
     #[test]
     fn one_pole_initialization() {
-        let c_one_pole = OnePoleWrapper2::new();
-        let rust_one_pole = OnePole2::new();
+        let c_one_pole = OnePoleWrapperT::new();
+        let rust_one_pole = OnePoleT::new();
 
-        assert_one_pole(rust_one_pole, c_one_pole);
+        assert_one_pole(&rust_one_pole, &c_one_pole);
     }
 
     #[test]
     fn set_sample_rate() {
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
@@ -955,8 +955,8 @@ pub(crate) mod tests {
     #[test]
     fn set_cutoff() {
         const CUTOFF: f32 = 1000.0;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = ParamChanged::empty();
@@ -964,7 +964,7 @@ pub(crate) mod tests {
         c_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_cutoff(CUTOFF);
 
-        assert_one_pole(rust_one_pole, c_one_pole);
+        assert_one_pole(&rust_one_pole, &c_one_pole);
     }
 
     #[cfg(debug_assertions)]
@@ -972,7 +972,7 @@ pub(crate) mod tests {
     #[should_panic(expected = "value must be non negative, got -1")]
     fn set_cutoff_negative() {
         const CUTOFF: f32 = -1.0;
-        let mut rust_one_pole = OnePole2::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         rust_one_pole.set_cutoff(CUTOFF);
     }
@@ -980,8 +980,8 @@ pub(crate) mod tests {
     #[test]
     fn set_cutoff_up() {
         const CUTOFF: f32 = 1200.0;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = ParamChanged::empty();
@@ -990,14 +990,14 @@ pub(crate) mod tests {
         rust_one_pole.set_cutoff_up(CUTOFF);
 
         assert_eq!(rust_one_pole.coeffs.cutoff_up, CUTOFF);
-        assert_one_pole(rust_one_pole, c_one_pole);
+        assert_one_pole(&rust_one_pole, &c_one_pole);
     }
 
     #[test]
     fn set_cutoff_down() {
         const CUTOFF: f32 = 1200.0;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = ParamChanged::empty();
@@ -1013,8 +1013,8 @@ pub(crate) mod tests {
     fn set_tau() {
         const CUTOFF: f32 = 150.0;
         const TAU: f32 = INVERSE_2_PI / CUTOFF;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = ParamChanged::empty();
@@ -1022,15 +1022,15 @@ pub(crate) mod tests {
         c_one_pole.set_tau(TAU);
         rust_one_pole.set_tau(TAU);
 
-        assert_one_pole(rust_one_pole, c_one_pole);
+        assert_one_pole(&rust_one_pole, &c_one_pole);
     }
 
     #[test]
     fn set_tau_up() {
         const CUTOFF: f32 = 1500.0;
         const TAU: f32 = INVERSE_2_PI / CUTOFF;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = ParamChanged::empty();
@@ -1038,15 +1038,15 @@ pub(crate) mod tests {
         c_one_pole.set_tau_up(TAU);
         rust_one_pole.set_tau_up(TAU);
 
-        assert_one_pole(rust_one_pole, c_one_pole);
+        assert_one_pole(&rust_one_pole, &c_one_pole);
     }
 
     #[test]
     fn set_tau_down() {
         const CUTOFF: f32 = 10_000.0;
         const TAU: f32 = INVERSE_2_PI / CUTOFF;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = ParamChanged::empty();
@@ -1054,14 +1054,14 @@ pub(crate) mod tests {
         c_one_pole.set_tau_down(TAU);
         rust_one_pole.set_tau_down(TAU);
 
-        assert_one_pole(rust_one_pole, c_one_pole);
+        assert_one_pole(&rust_one_pole, &c_one_pole);
     }
 
     #[test]
     fn set_tau_small_should_not_change_cutoff() {
         const TAU: f32 = 0.1e-9;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.coeffs.param_changed = 0;
         rust_one_pole.coeffs.param_changed = ParamChanged::empty();
@@ -1069,14 +1069,14 @@ pub(crate) mod tests {
         c_one_pole.set_tau(TAU);
         rust_one_pole.set_tau(TAU);
 
-        assert_one_pole(rust_one_pole, c_one_pole);
+        assert_one_pole(&rust_one_pole, &c_one_pole);
     }
 
     #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "value must be non negative, got -1")]
     fn set_tau_negative() {
-        let mut rust_one_pole = OnePole2::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         rust_one_pole.set_tau(-1.);
     }
@@ -1084,8 +1084,8 @@ pub(crate) mod tests {
     #[test]
     fn set_sticky_thresh() {
         let sticky_tresh = 0.01;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.set_sticky_thresh(sticky_tresh);
         rust_one_pole.set_sticky_thresh(sticky_tresh);
@@ -1102,7 +1102,7 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "value must be in range [0e0, 1e18], got -1e0")]
     fn set_sticky_tresh_negative() {
-        let mut rust_one_pole = OnePole2::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         rust_one_pole.set_sticky_thresh(-1.);
     }
@@ -1111,7 +1111,7 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "value must be in range [0e0, 1e18], got 1.1e18")]
     fn set_sticky_tresh_too_high() {
-        let mut rust_one_pole = OnePole2::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         rust_one_pole.set_sticky_thresh(1.1e18);
     }
@@ -1119,9 +1119,9 @@ pub(crate) mod tests {
     #[test]
     fn set_sticky_mode_abs() {
         let c_mode = OnePoleStikyModeWrapper::Abs;
-        let rust_mode = OnePoleStickyMode::Abs;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let rust_mode = StickyMode::Abs;
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.set_sticky_mode(c_mode);
         rust_one_pole.set_sticky_mode(rust_mode);
@@ -1136,9 +1136,9 @@ pub(crate) mod tests {
     #[test]
     fn set_sticky_mode_rel() {
         let c_mode = OnePoleStikyModeWrapper::Rel;
-        let rust_mode = OnePoleStickyMode::Rel;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let rust_mode = StickyMode::Rel;
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.set_sticky_mode(c_mode);
         rust_one_pole.set_sticky_mode(rust_mode);
@@ -1154,8 +1154,8 @@ pub(crate) mod tests {
     fn reset_none() {
         const CUTOFF: f32 = 1200.0;
         let sticky_tresh = 0.1;
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
         let x0 = [0.5; N_CHANNELS];
 
         c_one_pole.set_cutoff(CUTOFF);
@@ -1169,7 +1169,7 @@ pub(crate) mod tests {
         c_one_pole.reset(&x0, None);
         rust_one_pole.reset_multi(&x0, None);
 
-        assert_one_pole(rust_one_pole, c_one_pole);
+        assert_one_pole(&rust_one_pole, &c_one_pole);
     }
 
     #[test]
@@ -1179,8 +1179,8 @@ pub(crate) mod tests {
         let x0_input = [0.5; N_CHANNELS];
         let mut c_y0_output = [0.0; N_CHANNELS];
         let mut rust_y0_output = [0.0; N_CHANNELS];
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(sticky_thresh);
@@ -1201,8 +1201,8 @@ pub(crate) mod tests {
     }
     #[test]
     fn process1() {
-        let mut rust_one_pole = OnePole2::new();
-        let mut c_one_pole = OnePoleWrapper2::new();
+        let mut rust_one_pole = OnePoleT::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
         const CUTOFF: f32 = 100.;
         const STICKY_TRESH: f32 = 0.;
         let x0 = [45.0, 33.0];
@@ -1238,8 +1238,8 @@ pub(crate) mod tests {
 
     #[test]
     fn process1_sticky_abs() {
-        let mut rust_one_pole = OnePole2::new();
-        let mut c_one_pole = OnePoleWrapper2::new();
+        let mut rust_one_pole = OnePoleT::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
         const CUTOFF: f32 = 100_000.;
         const STICKY_TRESH: f32 = 0.9;
         let x0 = [1.0, 33.0];
@@ -1248,7 +1248,7 @@ pub(crate) mod tests {
 
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff(CUTOFF);
-        rust_one_pole.set_sticky_mode(OnePoleStickyMode::Abs);
+        rust_one_pole.set_sticky_mode(StickyMode::Abs);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
         rust_one_pole.reset_multi(&x0, None);
 
@@ -1277,8 +1277,8 @@ pub(crate) mod tests {
 
     #[test]
     fn process1_sticky_rel() {
-        let mut rust_one_pole = OnePole2::new();
-        let mut c_one_pole = OnePoleWrapper2::new();
+        let mut rust_one_pole = OnePoleT::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
         const CUTOFF: f32 = 100_000.;
         const STICKY_TRESH: f32 = 0.9;
         let x0 = [1.0, 33.0];
@@ -1287,7 +1287,7 @@ pub(crate) mod tests {
 
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff(CUTOFF);
-        rust_one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
+        rust_one_pole.set_sticky_mode(StickyMode::Rel);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
         rust_one_pole.reset_multi(&x0, None);
 
@@ -1316,8 +1316,8 @@ pub(crate) mod tests {
 
     #[test]
     fn process1_asym() {
-        let mut rust_one_pole = OnePole2::new();
-        let mut c_one_pole = OnePoleWrapper2::new();
+        let mut rust_one_pole = OnePoleT::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
         const CUTOFF_UP: f32 = 100.;
         const CUTOFF_DOWN: f32 = 300.;
         const STICKY_TRESH: f32 = 0.;
@@ -1356,8 +1356,8 @@ pub(crate) mod tests {
 
     #[test]
     fn process1_sticky_asym_sticy_abs() {
-        let mut rust_one_pole = OnePole2::new();
-        let mut c_one_pole = OnePoleWrapper2::new();
+        let mut rust_one_pole = OnePoleT::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
         const CUTOFF_UP: f32 = 100.;
         const CUTOFF_DOWN: f32 = 300.;
         const STICKY_TRESH: f32 = 0.9;
@@ -1368,7 +1368,7 @@ pub(crate) mod tests {
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff_up(CUTOFF_UP);
         rust_one_pole.set_cutoff_down(CUTOFF_DOWN);
-        rust_one_pole.set_sticky_mode(OnePoleStickyMode::Abs);
+        rust_one_pole.set_sticky_mode(StickyMode::Abs);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
         rust_one_pole.reset_multi(&x0, None);
 
@@ -1398,8 +1398,8 @@ pub(crate) mod tests {
 
     #[test]
     fn process1_asym_sticky_rel() {
-        let mut rust_one_pole = OnePole2::new();
-        let mut c_one_pole = OnePoleWrapper2::new();
+        let mut rust_one_pole = OnePoleT::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
         const CUTOFF_UP: f32 = 100.;
         const CUTOFF_DOWN: f32 = 300.;
         const STICKY_TRESH: f32 = 0.9;
@@ -1410,7 +1410,7 @@ pub(crate) mod tests {
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff_up(CUTOFF_UP);
         rust_one_pole.set_cutoff_down(CUTOFF_DOWN);
-        rust_one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
+        rust_one_pole.set_sticky_mode(StickyMode::Rel);
         rust_one_pole.set_sticky_thresh(STICKY_TRESH);
         rust_one_pole.reset_multi(&x0, None);
 
@@ -1456,14 +1456,14 @@ pub(crate) mod tests {
         let mut rust_output: [Option<&mut [f32]>; N_CHANNELS] =
             [Some(&mut rust_buf0), Some(&mut rust_buf1)];
 
-        let mut c_one_pole = OnePoleWrapper2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.reset(&[0.0; N_CHANNELS], None);
 
         c_one_pole.process(&x0, Some(&mut c_output), N_SAMPLES);
 
-        let mut rust_one_pole = OnePole2::new();
+        let mut rust_one_pole = OnePoleT::new();
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.reset_multi(&[0.0; N_CHANNELS], None);
@@ -1492,8 +1492,8 @@ pub(crate) mod tests {
         const CUTOFF: f32 = 1000.0;
         const N_SAMPLES: usize = 4;
 
-        let mut c_one_pole = OnePoleWrapper2::new();
-        let mut rust_one_pole = OnePole2::new();
+        let mut c_one_pole = OnePoleWrapperT::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
@@ -1501,7 +1501,7 @@ pub(crate) mod tests {
 
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff(CUTOFF);
-        rust_one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
+        rust_one_pole.set_sticky_mode(StickyMode::Rel);
 
         let input: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
 
@@ -1534,18 +1534,18 @@ pub(crate) mod tests {
     #[should_panic(expected = "value must be non negative, got NaN")]
     fn set_cutoff_to_nan() {
         let result = panic::catch_unwind(|| {
-            let mut one_pole_coeffs = OnePoleCoeffs2::default();
+            let mut one_pole_coeffs = OnePoleCoeffsT::default();
             one_pole_coeffs.set_cutoff_down(f32::NAN);
         });
         assert!(result.is_err());
 
         let result = panic::catch_unwind(|| {
-            let mut one_pole_coeffs = OnePoleCoeffs2::default();
+            let mut one_pole_coeffs = OnePoleCoeffsT::default();
             one_pole_coeffs.set_cutoff_up(f32::NAN);
         });
         assert!(result.is_err());
 
-        let mut one_pole_coeffs = OnePoleCoeffs2::default();
+        let mut one_pole_coeffs = OnePoleCoeffsT::default();
         one_pole_coeffs.set_cutoff(f32::NAN);
     }
 
@@ -1553,7 +1553,7 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "value must be in range [0e0, 1e18], got inf")]
     fn set_sticky_thresh_to_infinite() {
-        let mut one_pole_coeffs = OnePoleCoeffs2::default();
+        let mut one_pole_coeffs = OnePoleCoeffsT::default();
 
         one_pole_coeffs.set_sticky_thresh(f32::INFINITY);
     }
@@ -1562,7 +1562,7 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "value must be finite, got inf")]
     fn set_sample_rate_must_be_finite() {
-        let mut one_pole_coeffs = OnePoleCoeffs2::default();
+        let mut one_pole_coeffs = OnePoleCoeffsT::default();
 
         one_pole_coeffs.set_sample_rate(f32::INFINITY);
     }
@@ -1570,7 +1570,7 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "value must be non negative, got -1")]
     fn set_sample_rate_must_be_positive() {
-        let mut rust_one_pole = OnePole2::new();
+        let mut rust_one_pole = OnePoleT::new();
 
         rust_one_pole.set_sample_rate(-1.);
     }
@@ -1648,8 +1648,8 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn assert_one_pole<const N_CHANNELS: usize>(
-        rust_one_pole: OnePole<N_CHANNELS>,
-        c_one_pole: OnePoleWrapper<N_CHANNELS>,
+        rust_one_pole: &OnePole<N_CHANNELS>,
+        c_one_pole: &OnePoleWrapper<N_CHANNELS>,
     ) {
         assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
         assert_one_pole_states(&rust_one_pole.states, &c_one_pole.states);

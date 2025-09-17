@@ -1,12 +1,11 @@
 use crate::native::{
-    common::debug_assert_range,
     math::{minf, rcpf, tanf},
     one_pole::{OnePoleCoeffs, OnePoleState},
 };
 use std::f32::consts::PI;
 
 #[cfg(debug_assertions)]
-use crate::native::common::debug_assert_positive;
+use crate::native::common::{debug_assert_positive, debug_assert_range};
 
 #[derive(Debug)]
 pub struct SVF<const N_CHANNELS: usize> {
@@ -838,21 +837,21 @@ mod tests {
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
 
-    type SVF2 = SVF<N_CHANNELS>;
-    type SVFWrapper2 = SVFWrapper<N_CHANNELS>;
+    type SVFT = SVF<N_CHANNELS>;
+    type SVFWrapperT = SVFWrapper<N_CHANNELS>;
 
     #[test]
     fn new() {
-        let rust_svf = SVF2::new();
-        let c_svf = SVFWrapper2::new();
+        let rust_svf = SVFT::new();
+        let c_svf = SVFWrapperT::new();
 
         assert_svf(&rust_svf, &c_svf);
     }
 
     #[test]
     fn set_sample_rate_valid() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
@@ -863,14 +862,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "value must be non negative, got -48000")]
     fn set_sample_rate_must_be_positive() {
-        let mut rust_svf = SVF2::new();
+        let mut rust_svf = SVFT::new();
         rust_svf.set_sample_rate(-SAMPLE_RATE);
     }
 
     #[test]
     fn reset_coeffs() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
@@ -883,8 +882,8 @@ mod tests {
 
     #[test]
     fn reset_none() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
 
@@ -897,8 +896,8 @@ mod tests {
 
     #[test]
     fn reset_some() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
 
@@ -929,8 +928,8 @@ mod tests {
 
     #[test]
     fn process1() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
         let cutoff = 739.99;
         let q = 1.0;
         let prewarpfreq = 740.0;
@@ -984,8 +983,8 @@ mod tests {
 
     #[test]
     fn process() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
         let cutoff = 185.0;
@@ -1068,8 +1067,8 @@ mod tests {
 
     #[test]
     fn set_cutoff_valid() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
         let cutoff = 1479.98;
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
@@ -1084,7 +1083,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "value must be in range [1e-6, 1e12], got 1e-7")]
     fn set_cutoff_invalid() {
-        let mut rust_svf = SVF2::new();
+        let mut rust_svf = SVFT::new();
         let cutoff = 1e-7;
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
@@ -1093,8 +1092,8 @@ mod tests {
 
     #[test]
     fn set_q() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
         let q = 0.707;
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
@@ -1109,7 +1108,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "value must be in range [1e-6, 1e6], got 1e-7")]
     fn set_q_invalid() {
-        let mut rust_svf = SVF2::new();
+        let mut rust_svf = SVFT::new();
         let q = 1e-7;
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
@@ -1118,8 +1117,8 @@ mod tests {
 
     #[test]
     fn set_prewarp_at_cutoff() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_sample_rate(SAMPLE_RATE);
@@ -1132,8 +1131,8 @@ mod tests {
 
     #[test]
     fn set_prewarp_freq_valid() {
-        let mut rust_svf = SVF2::new();
-        let mut c_svf = SVFWrapper2::new();
+        let mut rust_svf = SVFT::new();
+        let mut c_svf = SVFWrapperT::new();
         let prewarp_freq = 92.50;
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
@@ -1148,7 +1147,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "value must be in range [1e-6, 1e12], got 1e13")]
     fn set_prewarp_freq_invalid() {
-        let mut rust_svf = SVF2::new();
+        let mut rust_svf = SVFT::new();
         let prewarp_freq = 1e13;
 
         rust_svf.set_sample_rate(SAMPLE_RATE);
