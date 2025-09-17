@@ -90,7 +90,7 @@ pub fn tanf(mut x: f32) -> f32 {
         "value must be in range [-pi/2 + 1e-3f, pi/2 - 1e-3f] + k * pi got {}",
         x
     );
-    x = INVERSE_2_PI * x;
+    x *= INVERSE_2_PI;
     let y: f32 = sin2pif(x) * rcpf(cos2pif(x));
     debug_assert!(y.is_finite());
     y
@@ -108,8 +108,7 @@ pub fn sin2pif(mut x: f32) -> f32 {
     let xp1 = x + x - 1.0;
     let xp2 = xp1.abs();
     let xp = PI_OVER_2 - PI_OVER_2 * (xp2 + xp2 - 1.0).abs();
-    let y =
-        -1.0_f32.copysign(xp1) * (xp + xp * xp * (-0.05738534102710938 - 0.1107398163618408 * xp));
+    let y = -1.0_f32.copysign(xp1) * (xp + xp * xp * (-0.05738534 - 0.11073982 * xp));
     debug_assert!(y.is_finite());
     y
 }

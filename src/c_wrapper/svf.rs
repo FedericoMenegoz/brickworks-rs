@@ -34,6 +34,8 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
         mut y_hp0: Option<&mut [f32; N_CHANNELS]>,
     ) {
         unsafe { bw_svf_reset_coeffs(&mut self.coeffs) }
+        // This is more readable, but it's actually slower than the c version
+        // need to refactor as in native::svf::SVFCoeffs::reset_state_multi
         for channel in 0..N_CHANNELS {
             let mut v_lp = 0.0;
             let mut v_bp = 0.0;

@@ -281,6 +281,8 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
         self.gain_compensation = value;
     }
 
+    // Not implemented yet:
+    // need to revisit which assertions from the C version make sense to keep in Rust
     #[inline(always)]
     pub fn coeffs_is_valid(&mut self) -> bool {
         todo!()
