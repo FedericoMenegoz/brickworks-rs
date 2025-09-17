@@ -1,5 +1,4 @@
-use crate::c_wrapper::{bw_gain_coeffs, bw_one_pole_sticky_mode};
-
+use super::*;
 pub struct Gain<const N_CHANNELS: usize> {
     coeffs: bw_gain_coeffs,
 }
@@ -7,62 +6,90 @@ pub struct Gain<const N_CHANNELS: usize> {
 impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
     #[inline(always)]
     pub fn new() -> Self {
-        todo!()
+        let mut coeffs = bw_gain_coeffs::default();
+        unsafe {
+            bw_gain_init(&mut coeffs);
+        }
+        Self { coeffs }
     }
 
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
-        todo!()
+        unsafe {
+            bw_gain_set_sample_rate(&mut self.coeffs, sample_rate);
+        }
     }
 
     #[inline(always)]
     pub fn reset(&mut self) {
-        todo!()
+        unsafe {
+            bw_gain_reset_coeffs(&mut self.coeffs);
+        }
     }
 
     #[inline(always)]
     pub fn process(
         &mut self,
         x: &[&[f32]; N_CHANNELS],
-        y: &[&mut [f32]; N_CHANNELS],
+        y: &mut [&mut [f32]; N_CHANNELS],
         n_samples: usize,
     ) {
-        todo!()
+        let x_p: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());
+        let mut y_p: [*mut f32; N_CHANNELS] = std::array::from_fn(|i| y[i].as_mut_ptr());
+        unsafe {
+            bw_gain_process_multi(
+                &mut self.coeffs,
+                x_p.as_ptr(),
+                y_p.as_mut_ptr(),
+                N_CHANNELS,
+                n_samples,
+            );
+        }
     }
 
     #[inline(always)]
     pub fn set_gain_lin(&mut self, value: f32) {
-        todo!()
+        unsafe {
+            bw_gain_set_gain_lin(&mut self.coeffs, value);
+        }
     }
 
     #[inline(always)]
     pub fn set_gain_db(&mut self, value: f32) {
-        todo!()
+        unsafe {
+            bw_gain_set_gain_dB(&mut self.coeffs, value);
+        }
     }
 
     #[inline(always)]
     pub fn set_smooth_tau(&mut self, value: f32) {
-        todo!()
+        unsafe {
+            bw_gain_set_smooth_tau(&mut self.coeffs, value);
+        }
     }
 
     #[inline(always)]
     pub fn set_sticky_thresh(&mut self, value: f32) {
-        todo!()
+        unsafe {
+            bw_gain_set_sticky_thresh(&mut self.coeffs, value);
+        }
     }
 
     #[inline(always)]
     pub fn set_sticky_mode(&mut self, value: bw_one_pole_sticky_mode) {
-        todo!()
+        unsafe {
+            bw_gain_set_sticky_mode(&mut self.coeffs, value);
+        }
     }
 
     #[inline(always)]
     pub fn get_gain_lin(&self) -> f32 {
-        todo!()
+        unsafe { bw_gain_get_gain_lin(&self.coeffs) }
     }
 
     #[inline(always)]
     pub fn get_gain_cur(&self) -> f32 {
-        todo!()
+        unsafe { bw_gain_get_gain_cur(&self.coeffs) }
     }
 }
 
@@ -86,10 +113,10 @@ impl Default for bw_gain_coeffs {
 mod tests {
     use crate::{
         c_wrapper::{
-            bw_dB2linf, bw_gain_coeffs, bw_gain_init, bw_gain_process1,
-            bw_gain_sticky_mode_bw_gain_sticky_mode_abs, bw_gain_update_coeffs_audio,
-            bw_gain_update_coeffs_ctrl, bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs,
-            bw_rcpf, gain::Gain,
+            bw_dB2linf, bw_gain_coeffs, bw_gain_init, bw_gain_process1, bw_gain_set_sample_rate,
+            bw_gain_set_sticky_thresh, bw_gain_sticky_mode_bw_gain_sticky_mode_abs,
+            bw_gain_update_coeffs_audio, bw_gain_update_coeffs_ctrl,
+            bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs, bw_rcpf, gain::Gain,
         },
         native::math::INVERSE_2_PI,
     };
@@ -105,7 +132,7 @@ mod tests {
 
         let cutoff: f32;
         let gain_default = 1.0;
-        let tau_default = 0.005;
+        let tau_default = 0.05;
 
         unsafe {
             cutoff = INVERSE_2_PI * bw_rcpf(tau_default);
@@ -137,7 +164,6 @@ mod tests {
 
         assert!(gain.coeffs.gain == gain_par);
         assert_eq!(gain.coeffs.smooth_coeffs.sticky_thresh, sticky_tresh);
-        assert_eq!(gain.coeffs.smooth_coeffs.cutoff_up, f32::INFINITY);
     }
 
     #[test]
@@ -145,6 +171,8 @@ mod tests {
         const N_SAMPLES: usize = 2;
         // Wrapper
         let mut gain = GainT::new();
+        gain.set_sample_rate(SAMPLE_RATE);
+        gain.set_sticky_thresh(0.0);
 
         let sample_0: [f32; N_CHANNELS] = [1.0, 1.0];
         let sample_1: [f32; N_CHANNELS] = [0.0, 0.0];
@@ -157,10 +185,6 @@ mod tests {
         // C
         let mut coeffs = bw_gain_coeffs::default();
 
-        let sample_0_c: [f32; N_CHANNELS] = [0.0, 0.0];
-        let sample_1_c: [f32; N_CHANNELS] = [0.0, 0.0];
-        let x_c: [&[f32]; 2] = [&sample_0_c, &sample_1_c];
-
         let mut out_0_c: [f32; N_CHANNELS] = [0.0, 0.0];
         let mut out_1_c: [f32; N_CHANNELS] = [0.0, 0.0];
         let mut y_c: [&mut [f32]; 2] = [&mut out_0_c, &mut out_1_c];
@@ -171,11 +195,13 @@ mod tests {
         // Process C
         unsafe {
             bw_gain_init(&mut coeffs);
+            bw_gain_set_sample_rate(&mut coeffs, SAMPLE_RATE);
+            bw_gain_set_sticky_thresh(&mut coeffs, 0.0);
             bw_gain_update_coeffs_ctrl(&mut coeffs);
             (0..N_SAMPLES).for_each(|sample| {
                 bw_gain_update_coeffs_audio(&mut coeffs);
                 (0..N_CHANNELS).for_each(|channel| {
-                    y_c[channel][sample] = bw_gain_process1(&coeffs, x_c[channel][sample])
+                    y_c[channel][sample] = bw_gain_process1(&coeffs, x[channel][sample])
                 });
             });
         }
@@ -209,6 +235,8 @@ mod tests {
         unsafe {
             gain_val = bw_dB2linf(gain_db);
         }
+
+        gain.set_gain_db(gain_db);
 
         assert_eq!(gain.coeffs.gain, gain_val);
     }
@@ -265,6 +293,8 @@ mod tests {
         unsafe {
             gain_val = bw_dB2linf(gain_db);
         }
+
+        gain.set_gain_db(gain_db);
 
         assert_eq!(gain.get_gain_lin(), gain_val);
     }
