@@ -177,13 +177,6 @@ impl bw_svf_coeffs {
     }
 
     #[cfg(test)]
-    pub(crate) fn do_update_coeffs(&mut self, force: bool) {
-        unsafe {
-            bw_svf_do_update_coeffs(self, if force { 1 } else { 0 });
-        }
-    }
-
-    #[cfg(test)]
     pub(crate) fn process1(
         &mut self,
         state: &mut bw_svf_state,
