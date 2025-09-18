@@ -1,4 +1,9 @@
-use crate::native::one_pole::{OnePoleCoeffs, OnePoleState, StickyMode};
+use crate::native::{
+    math::db2linf, one_pole::{OnePoleCoeffs, OnePoleState, StickyMode}
+};
+
+#[cfg(debug_assertions)]
+use super::common::{debug_assert_range, debug_assert_positive};
 
 pub struct Gain<const N_CHANNELS: usize> {
     coeffs: GainCoeffs<N_CHANNELS>,
@@ -7,16 +12,19 @@ pub struct Gain<const N_CHANNELS: usize> {
 impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
     #[inline(always)]
     pub fn new() -> Self {
-        todo!();
+        Self { coeffs: GainCoeffs::new() }
     }
+    
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
-        todo!();
+        self.coeffs.set_sample_rate(sample_rate);
     }
+    
     #[inline(always)]
     pub fn reset(&mut self) {
-        todo!();
+        self.coeffs.reset_coeffs();
     }
+    
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -24,35 +32,42 @@ impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
         y: &mut [&mut [f32]; N_CHANNELS],
         n_samples: usize,
     ) {
-        todo!();
+        self.coeffs.process_multi(x, y, n_samples);
     }
+    
     #[inline(always)]
     pub fn set_gain_lin(&mut self, value: f32) {
-        todo!();
+        self.coeffs.set_gain_lin(value);
     }
+    
     #[inline(always)]
     pub fn set_gain_db(&mut self, value: f32) {
-        todo!();
+        self.coeffs.set_gain_db(value);
     }
+    
     #[inline(always)]
     pub fn set_smooth_tau(&mut self, value: f32) {
-        todo!();
+        self.coeffs.set_smooth_tau(value);
     }
+    
     #[inline(always)]
     pub fn set_sticky_thresh(&mut self, value: f32) {
-        todo!();
+        self.coeffs.set_sticky_thresh(value);
     }
+    
     #[inline(always)]
     pub fn set_sticky_mode(&mut self, value: StickyMode) {
-        todo!();
+        self.coeffs.set_sticky_mode(value);
     }
+    
     #[inline(always)]
     pub fn get_gain_lin(&self) -> f32 {
-        todo!();
+        self.coeffs.get_gain_lin()
     }
+    
     #[inline(always)]
     pub fn get_gain_cur(&self) -> f32 {
-        todo!();
+        self.coeffs.get_gain_cur()
     }
 }
 
@@ -74,96 +89,204 @@ pub struct GainCoeffs<const N_CHANNELS: usize> {
 impl<const N_CHANNELS: usize> GainCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn new() -> Self {
-        todo!()
+        let mut smooth_coeffs = OnePoleCoeffs::new();
+        smooth_coeffs.set_tau(0.05);
+        Self {
+            smooth_coeffs,
+            smooth_state: OnePoleState::new(),
+            gain: 1.0,
+        }
     }
 
     #[inline(always)]
-    pub fn bw_gain_set_sample_rate(&mut self, sample_rate: f32) {
-        todo!()
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(sample_rate.is_finite(), "value must be finite, got {}", sample_rate);
+            debug_assert_positive(sample_rate);
+        }
+        self.smooth_coeffs.set_sample_rate(sample_rate);
     }
 
     #[inline(always)]
-    pub fn bw_gain_reset_coeffs(&mut self) {
-        todo!()
+    pub fn reset_coeffs(&mut self) {
+        self.smooth_coeffs.reset_coeffs();
+        self.smooth_coeffs
+            .reset_state(&mut self.smooth_state, self.gain);
     }
 
     #[inline(always)]
-    pub fn bw_gain_update_coeffs_ctrl(&mut self) {
-        todo!()
+    pub fn update_coeffs_ctrl(&mut self) {
+        self.smooth_coeffs.update_coeffs_ctrl();
     }
 
     #[inline(always)]
-    pub fn bw_gain_update_coeffs_audio(&mut self) {
-        todo!()
+    pub fn update_coeffs_audio(&mut self) {
+        // OnePole::update_coeffs_audio() is not implemented yet:
+        // C version only contained assertions need to revisit
+        // which assertions from the C version make sense to keep in Rust
+        // self.smooth_coeffs.update_coeffs_audio();
+
+        self.smooth_coeffs
+            .process1(&mut self.smooth_state, self.gain);
     }
 
     #[inline(always)]
-    pub fn bw_gain_update_coeffs_audio_sticky_abs(&mut self) {
-        todo!()
+    pub fn update_coeffs_audio_sticky_abs(&mut self) {
+        // OnePole::update_coeffs_audio() is not implemented yet:
+        // C version only contained assertions need to revisit
+        // which assertions from the C version make sense to keep in Rust
+        // self.smooth_coeffs.update_coeffs_audio();
+
+        self.smooth_coeffs
+            .process1_sticky_abs(&mut self.smooth_state, self.gain);
     }
 
     #[inline(always)]
-    pub fn bw_gain_update_coeffs_audio_sticky_rel(&mut self) {
-        todo!()
+    pub fn update_coeffs_audio_sticky_rel(&mut self) {
+        // OnePole::update_coeffs_audio() is not implemented yet:
+        // C version only contained assertions need to revisit
+        // which assertions from the C version make sense to keep in Rust
+        // self.smooth_coeffs.update_coeffs_audio();
+
+        self.smooth_coeffs
+            .process1_sticky_rel(&mut self.smooth_state, self.gain);
     }
 
     #[inline(always)]
-    pub fn bw_gain_process1(&mut self, x: f32) -> f32 {
-        todo!()
+    pub fn process1(&mut self, x: f32) -> f32 {
+        debug_assert!(x.is_finite());
+
+        let y = self.smooth_state.get_y_z1() * x;
+
+        debug_assert!(y.is_finite());
+
+        y
     }
 
     #[inline(always)]
-    pub fn bw_gain_process(&mut self, x: &[f32], y: &mut [f32], n_samples: usize) {
-        todo!()
+    pub fn process(&mut self, x: &[f32], y: &mut [f32], n_samples: usize) {
+        self.update_coeffs_ctrl();
+        if self.smooth_coeffs.get_sticky_thresh() == 0.0 {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                y[sample] = self.process1(x[sample]);
+            });
+        } else {
+            match self.smooth_coeffs.get_sticky_mode() {
+                StickyMode::Abs => {
+                    (0..n_samples).for_each(|sample| {
+                        self.update_coeffs_audio_sticky_abs();
+                        y[sample] = self.process1(x[sample]);
+                    });
+                }
+                StickyMode::Rel => {
+                    (0..n_samples).for_each(|sample| {
+                        self.update_coeffs_audio_sticky_rel();
+                        y[sample] = self.process1(x[sample]);
+                    });
+                }
+            }
+        }
     }
 
     #[inline(always)]
-    pub fn bw_gain_process_multi(
+    pub fn process_multi(
         &mut self,
         x: &[&[f32]; N_CHANNELS],
-        y: &mut [&mut f32; N_CHANNELS],
+        y: &mut [&mut [f32]; N_CHANNELS],
         n_samples: usize,
     ) {
-        todo!()
+        self.update_coeffs_ctrl();
+        if self.smooth_coeffs.get_sticky_thresh() == 0.0 {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                (0..N_CHANNELS).for_each(|channel| {
+                    y[channel][sample] = self.process1(x[channel][sample]);
+                });
+            });
+        } else {
+            match self.smooth_coeffs.get_sticky_mode() {
+                StickyMode::Abs => {
+                    (0..n_samples).for_each(|sample| {
+                        self.update_coeffs_audio_sticky_abs();
+                        (0..N_CHANNELS).for_each(|channel| {
+                            y[channel][sample] = self.process1(x[channel][sample]);
+                        });
+                    });
+                }
+                StickyMode::Rel => {
+                    (0..n_samples).for_each(|sample| {
+                        self.update_coeffs_audio_sticky_rel();
+                        (0..N_CHANNELS).for_each(|channel| {
+                            y[channel][sample] = self.process1(x[channel][sample]);
+                        });
+                    });
+                }
+            }
+        }
     }
 
     #[inline(always)]
-    pub fn bw_gain_set_gain_lin(&mut self, value: f32) {
-        todo!()
+    pub fn set_gain_lin(&mut self, value: f32) {
+        debug_assert!(value.is_finite(), "value must be finite, got {}", value);
+
+        self.gain = value;
     }
 
     #[inline(always)]
-    pub fn bw_gain_set_gain_db(&mut self, value: f32) {
-        todo!()
+    pub fn set_gain_db(&mut self, value: f32) {
+        debug_assert!(
+            value <= 770.630,
+            "value must be less or equal to 770.630, got {}",
+            value
+        );
+        debug_assert!(!value.is_nan());
+
+        self.gain = db2linf(value);
     }
 
     #[inline(always)]
-    pub fn bw_gain_set_smooth_tau(&mut self, value: f32) {
-        todo!()
+    pub fn set_smooth_tau(&mut self, value: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(!value.is_nan());
+            debug_assert_positive(value);
+        }
+
+        self.smooth_coeffs.set_tau(value);
     }
 
     #[inline(always)]
-    pub fn bw_gain_set_sticky_thresh(&mut self, value: f32) {
-        todo!()
+    pub fn set_sticky_thresh(&mut self, value: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(!value.is_nan());
+            debug_assert_range(0.0..=1e18, value);
+        }
+
+        self.smooth_coeffs.set_sticky_thresh(value);
     }
 
     #[inline(always)]
-    pub fn bw_gain_set_sticky_mode(&mut self, value: StickyMode) {
-        todo!()
+    pub fn set_sticky_mode(&mut self, value: StickyMode) {
+        self.smooth_coeffs.set_sticky_mode(value);
     }
 
     #[inline(always)]
-    pub fn bw_gain_get_gain_lin(&self) -> f32 {
-        todo!()
+    pub fn get_gain_lin(&self) -> f32 {
+        self.gain
     }
 
     #[inline(always)]
-    pub fn bw_gain_get_gain_cur(&self) -> f32 {
-        todo!()
+    pub fn get_gain_cur(&self) -> f32 {
+        self.smooth_state.get_y_z1()
     }
 
+    // Not implemented yet:
+    // need to revisit which assertions from the C version make sense to keep in Rust
     #[inline(always)]
-    pub fn bw_gain_coeffs_is_valid() -> bool {
+    pub fn coeffs_is_valid() -> bool {
         todo!()
     }
 }
@@ -212,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "value must be a positive number, got inf")]
+    #[should_panic(expected = "value must be finite, got inf")]
     fn set_sample_rate_invalid() {
         let mut rust_gain = GainT::new();
         rust_gain.set_sample_rate(f32::INFINITY);
@@ -247,7 +370,7 @@ mod tests {
         let mut c_gain = GainWrapperT::new();
         let mut rust_gain = GainT::new();
 
-        let rust_y: [&mut [f32]; N_CHANNELS] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
+        let mut rust_y: [&mut [f32]; N_CHANNELS] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
         let mut c_y: [&mut [f32]; N_CHANNELS] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
 
         c_gain.set_smooth_tau(TAU);
@@ -261,7 +384,7 @@ mod tests {
         c_gain.reset();
         c_gain.process(&PULSE_INPUT, &mut c_y, N_SAMPLES);
         rust_gain.reset();
-        rust_gain.process(&PULSE_INPUT, &mut c_y, N_SAMPLES);
+        rust_gain.process(&PULSE_INPUT, &mut rust_y, N_SAMPLES);
 
         assert_gain(&rust_gain, &c_gain);
 
@@ -288,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "value must be ???, got inf")]
+    #[should_panic(expected = "value must be finite, got inf")]
     fn set_gain_lin_invalid() {
         let mut gain = GainT::new();
 
@@ -312,7 +435,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "value must be ???, got 770.7")]
+    #[should_panic(expected = "value must be less or equal to 770.630, got 770.7")]
     fn set_gain_db_invalid() {
         const GAIN_DB: f32 = 770.7;
         let mut gain = GainT::new();
@@ -343,7 +466,7 @@ mod tests {
         let mut gain = GainT::new();
 
         gain.set_sample_rate(SAMPLE_RATE);
-        gain.set_gain_db(TAU);
+        gain.set_smooth_tau(TAU);
     }
 
     #[test]
