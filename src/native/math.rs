@@ -126,14 +126,64 @@ pub fn cos2pif(x: f32) -> f32 {
     debug_assert!(y.is_finite());
     y
 }
+/// Returns an approximation of 10 raised to the power of `x` / 20 (dB to
+/// linear ratio conversion). For `x < -758.5955890732315f` it just returns
+/// `0.f`.
+///
+/// `x` must be less than or equal to `770.630f`.
+///
+/// Relative error < 0.062%.
+#[inline(always)]
+pub fn db2linf(x: f32) -> f32 {
+    debug_assert!(!x.is_nan());
+    debug_assert!(
+        x <= 770.630,
+        "value must be less or equal to 770.630, got {}",
+        x
+    );
 
+    let y = pow2f(0.16609640/*47443682*/ * x);
+
+    debug_assert!(y.is_finite());
+    y
+}
+/// Returns an approximation of 2 raised to the power of `x`. For `x < -126.f`
+/// it just returns `0.f`.
+///
+/// `x` must be less than or equal to `127.999f`.
+///
+/// Relative error < 0.062%.
+///
+#[inline(always)]
+pub fn pow2f(x: f32) -> f32 {
+    debug_assert!(!x.is_nan());
+    debug_assert!(x <= 127.999, "value must be less or equal to 127.999, got {}", x);
+
+    if x < -126.0 {
+        return 0.0;
+    }
+
+    let xi = x as i32;
+    let v_bits = x.to_bits();
+    let l = xi - ((v_bits >> 31) & 1) as i32;
+    let f = x - l as f32;
+
+    let v_i = (l + 127) << 23;
+    let v_f = f32::from_bits(v_i as u32);
+
+    let y =
+        v_f + v_f * f * (0.6931471805599453 + f * (0.2274112777602189 + f * 0.07944154167983575));
+
+    debug_assert!(y.is_finite());
+    y
+}
 #[cfg(test)]
 mod tests {
     use std::f32::consts::PI;
 
     use crate::{
-        c_wrapper::{bw_cos2pif, bw_rcpf, bw_sin2pif, bw_tanf},
-        native::math::{clipf, cos2pif, rcpf, sin2pif, tanf},
+        c_wrapper::{bw_clipf, bw_cos2pif, bw_dB2linf, bw_pow2f, bw_rcpf, bw_sin2pif, bw_tanf},
+        native::math::{clipf, cos2pif, db2linf, pow2f, rcpf, sin2pif, tanf},
     };
 
     #[test]
@@ -164,9 +214,11 @@ mod tests {
 
     #[test]
     fn clipf_valid() {
-        assert_eq!(clipf(0.10, 0.20, 1.00), 0.20);
-        assert_eq!(clipf(1.10, 0.20, 1.00), 1.00);
-        assert_eq!(clipf(0.15, 0.10, 1.00), 0.15);
+        unsafe {
+            assert_eq!(clipf(0.10, 0.20, 1.00), bw_clipf(0.10, 0.20, 1.00));
+            assert_eq!(clipf(1.10, 0.20, 1.00), bw_clipf(1.10, 0.20, 1.00));
+            assert_eq!(clipf(0.15, 0.10, 1.00), bw_clipf(0.15, 0.10, 1.00));
+        }
     }
 
     #[should_panic(expected = "m_small must be less than m_big, got 0.5 and 0.1")]
@@ -202,5 +254,44 @@ mod tests {
     #[test]
     fn tanf_invalid() {
         tanf(-PI / 2.0);
+    }
+
+    #[test]
+    fn db2linf_valid() {
+        unsafe {
+            assert_eq!(db2linf(-1000.0), bw_dB2linf(-1000.0));
+            assert_eq!(db2linf(10.0), bw_dB2linf(10.0));
+            assert_eq!(db2linf(500.0), bw_dB2linf(500.0));
+        }
+    }
+
+    #[should_panic(expected = "value must be less or equal to 770.630, got 770.6301")]
+    #[test]
+    fn db2linf_invalid() {
+        db2linf(770.6301);
+    }
+
+    #[test]
+    fn pow2f_valid() {
+        let mut mine;
+        let mut bw;
+
+        unsafe {
+            for i in 0..10 {
+                let p = i as f32 + 0.1;
+                mine = pow2f(p);
+                bw = bw_pow2f(p);
+                assert_eq!(mine, bw);
+            }
+            assert_eq!(pow2f(45.0), bw_pow2f(45.0));
+            assert_eq!(pow2f(127.99), bw_pow2f(127.99));
+            assert_eq!(pow2f(-1000.0), bw_pow2f(-1000.0));
+        }
+    }
+
+    #[should_panic(expected = "value must be less or equal to 127.999, got 128")]
+    #[test]
+    fn pow2f_invalid() {
+        pow2f(128.0);
     }
 }
