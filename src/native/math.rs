@@ -157,7 +157,11 @@ pub fn db2linf(x: f32) -> f32 {
 #[inline(always)]
 pub fn pow2f(x: f32) -> f32 {
     debug_assert!(!x.is_nan());
-    debug_assert!(x <= 127.999, "value must be less or equal to 127.999, got {}", x);
+    debug_assert!(
+        x <= 127.999,
+        "value must be less or equal to 127.999, got {}",
+        x
+    );
 
     if x < -126.0 {
         return 0.0;

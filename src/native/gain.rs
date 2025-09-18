@@ -1,9 +1,10 @@
 use crate::native::{
-    math::db2linf, one_pole::{OnePoleCoeffs, OnePoleState, StickyMode}
+    math::db2linf,
+    one_pole::{OnePoleCoeffs, OnePoleState, StickyMode},
 };
 
 #[cfg(debug_assertions)]
-use super::common::{debug_assert_range, debug_assert_positive};
+use super::common::{debug_assert_positive, debug_assert_range};
 
 pub struct Gain<const N_CHANNELS: usize> {
     coeffs: GainCoeffs<N_CHANNELS>,
@@ -12,19 +13,21 @@ pub struct Gain<const N_CHANNELS: usize> {
 impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
     #[inline(always)]
     pub fn new() -> Self {
-        Self { coeffs: GainCoeffs::new() }
+        Self {
+            coeffs: GainCoeffs::new(),
+        }
     }
-    
+
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-    
+
     #[inline(always)]
     pub fn reset(&mut self) {
         self.coeffs.reset_coeffs();
     }
-    
+
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -34,37 +37,37 @@ impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
     ) {
         self.coeffs.process_multi(x, y, n_samples);
     }
-    
+
     #[inline(always)]
     pub fn set_gain_lin(&mut self, value: f32) {
         self.coeffs.set_gain_lin(value);
     }
-    
+
     #[inline(always)]
     pub fn set_gain_db(&mut self, value: f32) {
         self.coeffs.set_gain_db(value);
     }
-    
+
     #[inline(always)]
     pub fn set_smooth_tau(&mut self, value: f32) {
         self.coeffs.set_smooth_tau(value);
     }
-    
+
     #[inline(always)]
     pub fn set_sticky_thresh(&mut self, value: f32) {
         self.coeffs.set_sticky_thresh(value);
     }
-    
+
     #[inline(always)]
     pub fn set_sticky_mode(&mut self, value: StickyMode) {
         self.coeffs.set_sticky_mode(value);
     }
-    
+
     #[inline(always)]
     pub fn get_gain_lin(&self) -> f32 {
         self.coeffs.get_gain_lin()
     }
-    
+
     #[inline(always)]
     pub fn get_gain_cur(&self) -> f32 {
         self.coeffs.get_gain_cur()
@@ -102,7 +105,11 @@ impl<const N_CHANNELS: usize> GainCoeffs<N_CHANNELS> {
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
         {
-            debug_assert!(sample_rate.is_finite(), "value must be finite, got {}", sample_rate);
+            debug_assert!(
+                sample_rate.is_finite(),
+                "value must be finite, got {}",
+                sample_rate
+            );
             debug_assert_positive(sample_rate);
         }
         self.smooth_coeffs.set_sample_rate(sample_rate);
