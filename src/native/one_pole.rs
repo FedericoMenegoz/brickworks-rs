@@ -35,7 +35,7 @@ use crate::native::math::{INVERSE_2_PI, NANO};
 ///     // Configure the filter
 ///     one_pole.set_sample_rate(SAMPLE_RATE);
 ///     one_pole.set_cutoff(CUTOFF);
-///     one_pole.set_sticky_mode(OnePoleStickyMode::Rel);
+///     one_pole.set_sticky_mode(StickyMode::Rel);
 ///     one_pole.set_sticky_thresh(STICKY_THRESH);
 ///
 ///     // Initialize the filter state for each channel
