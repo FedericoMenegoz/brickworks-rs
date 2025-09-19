@@ -1,10 +1,9 @@
+use super::*;
 use std::ptr::null_mut;
 
-use super::*;
-
 pub struct Satur<const N_CHANNELS: usize> {
-    coeffs: bw_satur_coeffs,
-    states: [bw_satur_state; N_CHANNELS],
+    pub(crate) coeffs: bw_satur_coeffs,
+    pub(crate) states: [bw_satur_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Satur<N_CHANNELS> {
