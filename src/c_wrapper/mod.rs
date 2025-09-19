@@ -12,7 +12,6 @@
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 pub mod clip;
 pub mod gain;
-#[allow(unused_variables, dead_code)]
 pub mod mm2;
 pub mod one_pole;
 pub mod svf;

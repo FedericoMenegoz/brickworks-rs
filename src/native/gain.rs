@@ -305,12 +305,13 @@ impl<const N_CHANNELS: usize> Default for GainCoeffs<N_CHANNELS> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use core::f32;
 
     use super::*;
     use crate::{
-        c_wrapper::gain::Gain as GainWrapper, native::one_pole::tests::assert_one_pole_coeffs,
+        c_wrapper::{bw_gain_coeffs, gain::Gain as GainWrapper},
+        native::one_pole::tests::assert_one_pole_coeffs,
     };
 
     const N_CHANNELS: usize = 2;
@@ -576,18 +577,22 @@ mod tests {
         assert_gain(&rust_gain, &c_gain);
     }
 
+    pub(crate) fn assert_gain_coeffs<const N_CHANNELS: usize>(
+        rust_coeffs: &GainCoeffs<N_CHANNELS>,
+        c_coeffs: &bw_gain_coeffs,
+    ) {
+        assert_one_pole_coeffs::<N_CHANNELS>(&rust_coeffs.smooth_coeffs, &c_coeffs.smooth_coeffs);
+        assert_eq!(
+            rust_coeffs.smooth_state.get_y_z1(),
+            c_coeffs.smooth_state.y_z1
+        );
+        assert_eq!(rust_coeffs.gain, c_coeffs.gain);
+    }
+
     fn assert_gain<const N_CHANNELS: usize>(
         rust_gain: &Gain<N_CHANNELS>,
         c_gain: &GainWrapper<N_CHANNELS>,
     ) {
-        assert_one_pole_coeffs::<N_CHANNELS>(
-            &rust_gain.coeffs.smooth_coeffs,
-            &c_gain.coeffs.smooth_coeffs,
-        );
-        assert_eq!(
-            rust_gain.coeffs.smooth_state.get_y_z1(),
-            c_gain.coeffs.smooth_state.y_z1
-        );
-        assert_eq!(rust_gain.coeffs.gain, c_gain.coeffs.gain);
+        assert_gain_coeffs(&rust_gain.coeffs, &c_gain.coeffs);
     }
 }

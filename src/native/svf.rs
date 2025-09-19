@@ -824,7 +824,7 @@ impl Default for SVFState {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::SVF;
     use crate::{
         c_wrapper::{bw_svf_coeffs, bw_svf_state, svf::SVF as SVFWrapper},
@@ -1158,7 +1158,7 @@ mod tests {
         rust_svf.set_prewarp_freq(prewarp_freq);
     }
 
-    fn assert_svf_coeffs<const N_CHANNELS: usize>(
+    pub(crate) fn assert_svf_coeffs<const N_CHANNELS: usize>(
         rust_coeffs: &SVFCoeffs<N_CHANNELS>,
         c_coeffs: &bw_svf_coeffs,
     ) {
