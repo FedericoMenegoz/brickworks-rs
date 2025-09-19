@@ -150,8 +150,11 @@ mod tests {
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 44_100.0;
 
-    const PULSE_INPUT: [&[f32]; N_CHANNELS] = [&[1.0, 1.0], &[0.0, 0.0]];
-    const N_SAMPLES: usize = 2;
+    const PULSE_INPUT: [&[f32]; N_CHANNELS] = [
+        &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    ];
+    const N_SAMPLES: usize = 8;
 
     type MM2T = MM2<N_CHANNELS>;
 
@@ -183,27 +186,13 @@ mod tests {
     fn set_sample_rate() {
         let mut mm2 = MM2T::new();
         mm2.set_sample_rate(SAMPLE_RATE);
+        let fs_2pi = INVERSE_2_PI * SAMPLE_RATE;
 
-        assert_eq!(
-            mm2.coeffs.svf_coeffs.smooth_coeffs.fs_2pi,
-            INVERSE_2_PI * SAMPLE_RATE
-        );
-        assert_eq!(
-            mm2.coeffs.gain_x_coeffs.smooth_coeffs.fs_2pi,
-            INVERSE_2_PI * SAMPLE_RATE
-        );
-        assert_eq!(
-            mm2.coeffs.gain_lp_coeffs.smooth_coeffs.fs_2pi,
-            INVERSE_2_PI * SAMPLE_RATE
-        );
-        assert_eq!(
-            mm2.coeffs.gain_bp_coeffs.smooth_coeffs.fs_2pi,
-            INVERSE_2_PI * SAMPLE_RATE
-        );
-        assert_eq!(
-            mm2.coeffs.gain_hp_coeffs.smooth_coeffs.fs_2pi,
-            INVERSE_2_PI * SAMPLE_RATE
-        );
+        assert_eq!(mm2.coeffs.svf_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
+        assert_eq!(mm2.coeffs.gain_x_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
+        assert_eq!(mm2.coeffs.gain_lp_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
+        assert_eq!(mm2.coeffs.gain_bp_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
+        assert_eq!(mm2.coeffs.gain_hp_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
         assert_eq!(
             mm2.coeffs.state,
             bw_mm2_coeffs_state_bw_mm2_coeffs_state_set_sample_rate
