@@ -103,7 +103,11 @@ impl<const N_CHANNELS: usize> Default for Gain<N_CHANNELS> {
 mod tests {
     use crate::{
         c_wrapper::{
-            bw_dB2linf, bw_gain_coeffs, bw_gain_init, bw_gain_process1, bw_gain_reset_coeffs, bw_gain_set_sample_rate, bw_gain_set_sticky_thresh, bw_gain_sticky_mode_bw_gain_sticky_mode_abs, bw_gain_update_coeffs_audio, bw_gain_update_coeffs_ctrl, bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs, bw_rcpf, gain::Gain
+            bw_dB2linf, bw_gain_coeffs, bw_gain_init, bw_gain_process1, bw_gain_reset_coeffs,
+            bw_gain_set_sample_rate, bw_gain_set_sticky_thresh,
+            bw_gain_sticky_mode_bw_gain_sticky_mode_abs, bw_gain_update_coeffs_audio,
+            bw_gain_update_coeffs_ctrl, bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs,
+            bw_rcpf, gain::Gain,
         },
         native::math::INVERSE_2_PI,
     };

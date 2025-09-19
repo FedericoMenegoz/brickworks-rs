@@ -574,9 +574,11 @@ mod tests {
         f.process(&PULSE_INPUT, Some(&mut output_data), N_SAMPLES);
 
         for i in 0..N_CHANNELS {
-            assert_eq!(f.get_y_z1(i), output_data[i].as_ref().unwrap()[N_SAMPLES - 1]);
+            assert_eq!(
+                f.get_y_z1(i),
+                output_data[i].as_ref().unwrap()[N_SAMPLES - 1]
+            );
             println!("{:?}", output_data[i])
         }
-
     }
 }

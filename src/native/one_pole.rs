@@ -1452,18 +1452,17 @@ pub(crate) mod tests {
         let mut c_one_pole = OnePoleWrapperT::new();
         let mut rust_one_pole = OnePoleT::new();
 
-        let x0: [f32;N_CHANNELS] = [0.0, 0.0];
+        let x0: [f32; N_CHANNELS] = [0.0, 0.0];
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Rel);
-        c_one_pole.reset(&x0,None);
+        c_one_pole.reset(&x0, None);
 
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_mode(StickyMode::Rel);
-        c_one_pole.reset(&x0,None);
-
+        c_one_pole.reset(&x0, None);
 
         let input: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
 

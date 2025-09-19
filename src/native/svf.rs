@@ -949,14 +949,14 @@ mod tests {
         rust_svf.set_q(q);
         rust_svf.set_prewarp_freq(prewarpfreq);
         rust_svf.reset(0.0, None, None, None);
-        
+
         c_svf.set_sample_rate(SAMPLE_RATE);
         c_svf.set_cutoff(cutoff);
         c_svf.set_prewarp_at_cutoff(true);
         c_svf.set_q(q);
         c_svf.set_prewarp_freq(prewarpfreq);
         c_svf.reset(0.0, None, None, None);
-        
+
         (0..N_CHANNELS).for_each(|channel| {
             rust_svf.coeffs.process1(
                 &mut rust_svf.states[channel],
@@ -1034,7 +1034,6 @@ mod tests {
         c_svf.set_q(q);
         c_svf.set_prewarp_freq(prewarpfreq);
         c_svf.reset(0.0, None, None, None);
-
 
         rust_svf.process(
             &x,

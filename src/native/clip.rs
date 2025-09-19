@@ -398,7 +398,7 @@ mod tests {
 
         rust_clip.set_sample_rate(SAMPLE_RATE);
         c_clip.set_sample_rate(SAMPLE_RATE);
-        
+
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
         c_clip.reset(&x0, None);
@@ -446,7 +446,7 @@ mod tests {
 
         let mut c_clip = ClipWrapper2::new();
         let mut rust_clip = Clip2::new();
-    
+
         rust_clip.set_sample_rate(SAMPLE_RATE);
         c_clip.set_sample_rate(SAMPLE_RATE);
 
@@ -532,7 +532,7 @@ mod tests {
         rust_clip.set_gain(gain);
         rust_clip.set_gain_compensation(true);
         rust_clip.reset_multi(&[0.0; N_CHANNELS], None);
-        
+
         let mut c_clip = ClipWrapper2::new();
         c_clip.set_sample_rate(SAMPLE_RATE);
         c_clip.set_bias(bias);
@@ -569,12 +569,12 @@ mod tests {
         let mut c_y: [&mut [f32]; N_CHANNELS] = [&mut c_y_ch0, &mut c_y_ch1];
 
         let mut rust_clip = Clip2::new();
-        rust_clip.set_sample_rate(SAMPLE_RATE);        
+        rust_clip.set_sample_rate(SAMPLE_RATE);
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
         rust_clip.set_gain_compensation(false); // it is default, but to be clear
         rust_clip.reset_multi(&[0.0; N_CHANNELS], None);
-        
+
         let mut c_clip = ClipWrapper2::new();
         c_clip.set_sample_rate(SAMPLE_RATE);
         c_clip.set_bias(bias);

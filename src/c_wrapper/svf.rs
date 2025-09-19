@@ -194,7 +194,10 @@ impl bw_svf_coeffs {
 #[cfg(test)]
 mod tests {
     use crate::c_wrapper::{
-        bw_rcpf, bw_svf_coeffs, bw_svf_init, bw_svf_process1, bw_svf_reset_coeffs, bw_svf_reset_state_multi, bw_svf_set_cutoff, bw_svf_set_prewarp_at_cutoff, bw_svf_set_prewarp_freq, bw_svf_set_sample_rate, bw_svf_state, bw_svf_update_coeffs_audio, svf::SVF
+        bw_rcpf, bw_svf_coeffs, bw_svf_init, bw_svf_process1, bw_svf_reset_coeffs,
+        bw_svf_reset_state_multi, bw_svf_set_cutoff, bw_svf_set_prewarp_at_cutoff,
+        bw_svf_set_prewarp_freq, bw_svf_set_sample_rate, bw_svf_state, bw_svf_update_coeffs_audio,
+        svf::SVF,
     };
     use std::{f32::consts::PI, ptr::null_mut};
 
@@ -228,7 +231,9 @@ mod tests {
         let mut svf = SVFTest::new();
         svf.set_sample_rate(SAMPLE_RATE);
 
-        assert_eq!(svf.coeffs.smooth_coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE)
+        assert_eq!(svf.coeffs.smooth_coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE);
+        assert_eq!(svf.coeffs.t_k, PI / SAMPLE_RATE);
+        assert_eq!(svf.coeffs.prewarp_freq_max, 0.499 * SAMPLE_RATE);
     }
 
     #[test]
@@ -335,7 +340,7 @@ mod tests {
         svf.set_cutoff(cutoff);
         svf.set_prewarp_at_cutoff(true);
         svf.set_prewarp_freq(prewarp_freq);
-        svf.reset_multi(&[0.0,0.0], None, None, None);
+        svf.reset_multi(&[0.0, 0.0], None, None, None);
         svf.process(
             &x,
             Some(&mut y_lp),
@@ -357,7 +362,15 @@ mod tests {
             bw_svf_set_prewarp_freq(&mut c_coeffs, prewarp_freq);
             bw_svf_set_prewarp_at_cutoff(&mut c_coeffs, 1);
             bw_svf_reset_coeffs(&mut c_coeffs);
-            bw_svf_reset_state_multi(&mut c_coeffs, c_states.as_ptr(), [0.0,0.0].as_ptr(), null_mut(), null_mut(), null_mut(), N_CHANNELS);
+            bw_svf_reset_state_multi(
+                &mut c_coeffs,
+                c_states.as_ptr(),
+                [0.0, 0.0].as_ptr(),
+                null_mut(),
+                null_mut(),
+                null_mut(),
+                N_CHANNELS,
+            );
 
             (0..n_samples).for_each(|sample| {
                 bw_svf_update_coeffs_audio(&mut c_coeffs);

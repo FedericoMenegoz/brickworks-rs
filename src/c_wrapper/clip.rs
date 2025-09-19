@@ -133,16 +133,22 @@ mod tests {
         assert_eq!(clip.coeffs.bias, 0.);
         assert_eq!(clip.coeffs.gain, 1.);
         assert_eq!(clip.coeffs.gain_compensation, 0);
-        assert_eq!(clip.coeffs.state, bw_clip_coeffs_state_bw_clip_coeffs_state_init);
+        assert_eq!(
+            clip.coeffs.state,
+            bw_clip_coeffs_state_bw_clip_coeffs_state_init
+        );
     }
-    
+
     #[test]
     fn set_sample_rate() {
         let mut clip = ClipT::new();
-        
+
         clip.set_sample_rate(SAMPLE_RATE);
         assert_eq!(clip.coeffs.smooth_coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE);
-        assert_eq!(clip.coeffs.state, bw_clip_coeffs_state_bw_clip_coeffs_state_set_sample_rate);
+        assert_eq!(
+            clip.coeffs.state,
+            bw_clip_coeffs_state_bw_clip_coeffs_state_set_sample_rate
+        );
     }
 
     #[test]
