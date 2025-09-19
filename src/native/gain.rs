@@ -354,7 +354,6 @@ mod tests {
         let sticky_tresh = 0.1;
         let mut c_gain = GainWrapperT::new();
         let mut rust_gain = GainT::new();
-        let x0 = [0.5; N_CHANNELS];
 
         c_gain.set_smooth_tau(TAU);
         c_gain.set_sticky_thresh(sticky_tresh);

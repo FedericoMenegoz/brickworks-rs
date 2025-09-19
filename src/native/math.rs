@@ -1,4 +1,4 @@
-use core::f32::consts::PI;
+use core::f32::{self, consts::PI};
 
 pub const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
 pub const NANO: f32 = 1e-9;
@@ -142,7 +142,7 @@ pub fn db2linf(x: f32) -> f32 {
         x
     );
 
-    let y = pow2f(0.16609640/*47443682*/ * x);
+    let y = pow2f(0.1660964/*047443682*/ * x);
 
     debug_assert!(y.is_finite());
     y
@@ -176,7 +176,8 @@ pub fn pow2f(x: f32) -> f32 {
     let v_f = f32::from_bits(v_i as u32);
 
     let y =
-        v_f + v_f * f * (0.6931471805599453 + f * (0.2274112777602189 + f * 0.07944154167983575));
+        //excessive precision v_f + v_f * f * (0.6931471805599453 + f * (0.2274112777602189 + f * 0.07944154167983575));
+        v_f + v_f * f * (f32::consts::LN_2 + f * (0.22741129 + f * 0.07944154));
 
     debug_assert!(y.is_finite());
     y

@@ -99,24 +99,11 @@ impl<const N_CHANNELS: usize> Default for Gain<N_CHANNELS> {
     }
 }
 
-impl Default for bw_gain_coeffs {
-    fn default() -> Self {
-        Self {
-            smooth_coeffs: Default::default(),
-            smooth_state: Default::default(),
-            gain: Default::default(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{
         c_wrapper::{
-            bw_dB2linf, bw_gain_coeffs, bw_gain_init, bw_gain_process1, bw_gain_set_sample_rate,
-            bw_gain_set_sticky_thresh, bw_gain_sticky_mode_bw_gain_sticky_mode_abs,
-            bw_gain_update_coeffs_audio, bw_gain_update_coeffs_ctrl,
-            bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs, bw_rcpf, gain::Gain,
+            bw_dB2linf, bw_gain_coeffs, bw_gain_init, bw_gain_process1, bw_gain_reset_coeffs, bw_gain_set_sample_rate, bw_gain_set_sticky_thresh, bw_gain_sticky_mode_bw_gain_sticky_mode_abs, bw_gain_update_coeffs_audio, bw_gain_update_coeffs_ctrl, bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs, bw_rcpf, gain::Gain
         },
         native::math::INVERSE_2_PI,
     };
@@ -190,6 +177,7 @@ mod tests {
         let mut y_c: [&mut [f32]; 2] = [&mut out_0_c, &mut out_1_c];
 
         // Process wrapper
+        gain.reset();
         gain.process(&x, &mut y, N_SAMPLES);
 
         // Process C
@@ -197,6 +185,7 @@ mod tests {
             bw_gain_init(&mut coeffs);
             bw_gain_set_sample_rate(&mut coeffs, SAMPLE_RATE);
             bw_gain_set_sticky_thresh(&mut coeffs, 0.0);
+            bw_gain_reset_coeffs(&mut coeffs);
             bw_gain_update_coeffs_ctrl(&mut coeffs);
             (0..N_SAMPLES).for_each(|sample| {
                 bw_gain_update_coeffs_audio(&mut coeffs);
@@ -315,6 +304,7 @@ mod tests {
         let mut y: [&mut [f32]; 2] = [&mut y_sample1, &mut y_sample2];
 
         gain.set_gain_lin(gain_lin);
+        gain.reset();
         gain.process(&x, &mut y, n_samples);
         assert_eq!(gain.get_gain_cur(), gain.coeffs.smooth_state.y_z1);
     }

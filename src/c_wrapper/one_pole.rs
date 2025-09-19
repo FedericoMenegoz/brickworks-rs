@@ -49,6 +49,7 @@ use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
 /// # Notes
 /// This module provides Rust bindings to the original C implementation.
 /// For a fully native Rust implementation with the same interface, see [crate::native::one_pole].
+#[derive(Debug)]
 pub struct OnePole<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_one_pole_coeffs,
     pub(crate) states: [bw_one_pole_state; N_CHANNELS],
@@ -69,9 +70,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         let states = make_array::<bw_one_pole_state, N_CHANNELS>();
 
         let mut one_pole = OnePole {
-            coeffs: bw_one_pole_coeffs {
-                ..Default::default()
-            },
+            coeffs: bw_one_pole_coeffs::default(),
             states,
         };
         unsafe {
@@ -320,29 +319,6 @@ impl bw_one_pole_coeffs {
     }
 }
 
-// Helper functions DRY
-impl Default for bw_one_pole_coeffs {
-    fn default() -> Self {
-        bw_one_pole_coeffs {
-            fs_2pi: Default::default(),
-            mA1u: Default::default(),
-            mA1d: Default::default(),
-            st2: Default::default(),
-            cutoff_up: Default::default(),
-            cutoff_down: Default::default(),
-            sticky_thresh: Default::default(),
-            sticky_mode: Default::default(),
-            param_changed: Default::default(),
-        }
-    }
-}
-
-impl Default for bw_one_pole_state {
-    fn default() -> Self {
-        Self { y_z1: 0.0 }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -351,6 +327,7 @@ mod tests {
     const BW_RCPF_ERROR: f32 = 0.0013;
     const SAMPLE_RATE: f32 = 48_000.0;
     const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
+    const PULSE_INPUT: [&[f32]; N_CHANNELS] = [&[1.0, 0.0, 0.0, 0.0], &[1.0, 0.0, 0.0, 0.0]];
 
     type OnePoleT = OnePole<N_CHANNELS>;
     #[test]
@@ -582,19 +559,24 @@ mod tests {
         const N_SAMPLES: usize = 4;
 
         let mut f = OnePoleT::new();
+        let x0 = [0.0, 0.0];
+
         f.set_sample_rate(SAMPLE_RATE);
         f.set_cutoff(CUTOFF);
         f.set_sticky_mode(OnePoleStickyMode::Rel);
-        let input_data: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
-        let mut output_ch1 = [0.0, 0.1, 0.2, 0.3];
-        let mut output_ch2 = [1.0, 1.1, 1.2, 1.3];
+
+        let mut output_ch1 = [0.0; N_SAMPLES];
+        let mut output_ch2 = [0.0; N_SAMPLES];
         let mut output_data: [Option<&mut [f32]>; N_CHANNELS] =
             [Some(&mut output_ch1), Some(&mut output_ch2)];
-        // f.process(&input_data, Some(&mut output_data), N_SAMPLES);
-        f.process(&input_data, Some(&mut output_data), N_SAMPLES);
+
+        f.reset(&x0, None);
+        f.process(&PULSE_INPUT, Some(&mut output_data), N_SAMPLES);
 
         for i in 0..N_CHANNELS {
-            assert_eq!(f.get_y_z1(i), output_data[i].as_ref().unwrap()[3])
+            assert_eq!(f.get_y_z1(i), output_data[i].as_ref().unwrap()[N_SAMPLES - 1]);
+            println!("{:?}", output_data[i])
         }
+
     }
 }

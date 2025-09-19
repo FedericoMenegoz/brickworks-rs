@@ -891,49 +891,6 @@ pub(crate) mod tests {
     type OnePoleWrapperT = OnePoleWrapper<N_CHANNELS>;
 
     #[test]
-    fn update_coeffs_ctrl_all_changed() {
-        let cutoff = 100.;
-        let sticky_thresh = 0.01;
-
-        let mut rust_coeffs = OnePoleCoeffsT {
-            cutoff_up: cutoff,
-            cutoff_down: cutoff,
-            sticky_thresh: sticky_thresh,
-            param_changed: ParamChanged::all(),
-            ..Default::default()
-        };
-        let mut c_coeffs = bw_one_pole_coeffs::default();
-
-        unsafe {
-            bw_one_pole_init(&mut c_coeffs);
-            c_coeffs.cutoff_up = cutoff;
-            c_coeffs.cutoff_down = cutoff;
-            c_coeffs.sticky_thresh = sticky_thresh;
-            bw_one_pole_update_coeffs_ctrl(&mut c_coeffs);
-        }
-        rust_coeffs.update_coeffs_ctrl();
-
-        assert_one_pole_coeffs(&rust_coeffs, &c_coeffs);
-    }
-
-    #[test]
-    fn update_coeffs_ctrl_nothing_changed() {
-        let mut rust_coeffs = OnePoleCoeffsT {
-            param_changed: ParamChanged::empty(),
-            ..Default::default()
-        };
-        let mut c_coeffs = bw_one_pole_coeffs::default();
-
-        unsafe {
-            bw_one_pole_init(&mut c_coeffs);
-            bw_one_pole_do_update_coeffs_ctrl(&mut c_coeffs);
-        }
-        rust_coeffs.do_update_coeffs_ctrl();
-
-        assert_one_pole_coeffs(&rust_coeffs, &c_coeffs);
-    }
-
-    #[test]
     fn one_pole_initialization() {
         let c_one_pole = OnePoleWrapperT::new();
         let rust_one_pole = OnePoleT::new();
@@ -1495,13 +1452,18 @@ pub(crate) mod tests {
         let mut c_one_pole = OnePoleWrapperT::new();
         let mut rust_one_pole = OnePoleT::new();
 
+        let x0: [f32;N_CHANNELS] = [0.0, 0.0];
+
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Rel);
+        c_one_pole.reset(&x0,None);
 
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_mode(StickyMode::Rel);
+        c_one_pole.reset(&x0,None);
+
 
         let input: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
 

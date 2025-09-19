@@ -191,47 +191,12 @@ impl bw_svf_coeffs {
     }
 }
 
-impl Default for bw_svf_coeffs {
-    fn default() -> Self {
-        Self {
-            smooth_coeffs: Default::default(),
-            smooth_cutoff_state: Default::default(),
-            smooth_Q_state: Default::default(),
-            smooth_prewarp_freq_state: Default::default(),
-            t_k: Default::default(),
-            prewarp_freq_max: Default::default(),
-            kf: Default::default(),
-            kbl: Default::default(),
-            k: Default::default(),
-            hp_hb: Default::default(),
-            hp_x: Default::default(),
-            cutoff: Default::default(),
-            Q: Default::default(),
-            prewarp_k: Default::default(),
-            prewarp_freq: Default::default(),
-        }
-    }
-}
-
-impl Default for bw_svf_state {
-    fn default() -> Self {
-        Self {
-            hp_z1: Default::default(),
-            lp_z1: Default::default(),
-            bp_z1: Default::default(),
-            cutoff_z1: Default::default(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::c_wrapper::{
-        bw_rcpf, bw_svf_coeffs, bw_svf_init, bw_svf_process1, bw_svf_set_cutoff,
-        bw_svf_set_prewarp_at_cutoff, bw_svf_set_prewarp_freq, bw_svf_set_sample_rate,
-        bw_svf_state, bw_svf_update_coeffs_audio, svf::SVF,
+        bw_rcpf, bw_svf_coeffs, bw_svf_init, bw_svf_process1, bw_svf_reset_coeffs, bw_svf_reset_state_multi, bw_svf_set_cutoff, bw_svf_set_prewarp_at_cutoff, bw_svf_set_prewarp_freq, bw_svf_set_sample_rate, bw_svf_state, bw_svf_update_coeffs_audio, svf::SVF
     };
-    use std::f32::consts::PI;
+    use std::{f32::consts::PI, ptr::null_mut};
 
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
@@ -370,6 +335,7 @@ mod tests {
         svf.set_cutoff(cutoff);
         svf.set_prewarp_at_cutoff(true);
         svf.set_prewarp_freq(prewarp_freq);
+        svf.reset_multi(&[0.0,0.0], None, None, None);
         svf.process(
             &x,
             Some(&mut y_lp),
@@ -380,7 +346,9 @@ mod tests {
 
         // Process C
         let mut c_coeffs = bw_svf_coeffs::default();
-        let mut c_states = [bw_svf_state::default(); N_CHANNELS];
+        let mut c_state_ch0 = bw_svf_state::default();
+        let mut c_state_ch1 = bw_svf_state::default();
+        let c_states: [*mut bw_svf_state; N_CHANNELS] = [&mut c_state_ch0, &mut c_state_ch1];
 
         unsafe {
             bw_svf_init(&mut c_coeffs);
@@ -388,13 +356,15 @@ mod tests {
             bw_svf_set_cutoff(&mut c_coeffs, cutoff);
             bw_svf_set_prewarp_freq(&mut c_coeffs, prewarp_freq);
             bw_svf_set_prewarp_at_cutoff(&mut c_coeffs, 1);
+            bw_svf_reset_coeffs(&mut c_coeffs);
+            bw_svf_reset_state_multi(&mut c_coeffs, c_states.as_ptr(), [0.0,0.0].as_ptr(), null_mut(), null_mut(), null_mut(), N_CHANNELS);
 
             (0..n_samples).for_each(|sample| {
                 bw_svf_update_coeffs_audio(&mut c_coeffs);
                 (0..N_CHANNELS).for_each(|channel| {
                     bw_svf_process1(
                         &c_coeffs,
-                        &mut c_states[channel],
+                        c_states[channel],
                         x[channel][sample],
                         &mut c_y_lp[channel][sample],
                         &mut c_y_bp[channel][sample],

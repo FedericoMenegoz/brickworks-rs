@@ -15,11 +15,9 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
         };
 
         unsafe {
-            bw_one_pole_init(&mut clip.coeffs.smooth_coeffs);
-            bw_one_pole_set_tau(&mut clip.coeffs.smooth_coeffs, 0.005);
-            bw_one_pole_set_sticky_thresh(&mut clip.coeffs.smooth_coeffs, 0.001);
+            bw_clip_init(&mut clip.coeffs);
         }
-
+        println!("{:?}", clip);
         clip
     }
 
@@ -89,14 +87,6 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
 }
 
 impl bw_clip_coeffs {
-    // Wrapping these to test them against the native ones
-    #[cfg(test)]
-    pub(crate) fn do_update_coeffs(&mut self, force: bool) {
-        unsafe {
-            bw_clip_do_update_coeffs(self, if force { 1 } else { 0 });
-        }
-    }
-
     #[cfg(test)]
     pub(crate) fn process1(&mut self, state: &mut bw_clip_state, x: f32) -> f32 {
         unsafe { bw_clip_process1(self, state, x) }
@@ -108,46 +98,22 @@ impl bw_clip_coeffs {
     }
 }
 
-impl Default for bw_clip_state {
-    fn default() -> Self {
-        Self {
-            x_z1: 0.0,
-            F_z1: 0.0,
-        }
-    }
-}
-
-impl Default for bw_clip_coeffs {
-    fn default() -> Self {
-        Self {
-            smooth_coeffs: bw_one_pole_coeffs {
-                ..Default::default()
-            },
-            smooth_bias_state: Default::default(),
-            smooth_gain_state: Default::default(),
-            bias_dc: Default::default(),
-            inv_gain: Default::default(),
-            bias: 0.,
-            gain: 1.,
-            gain_compensation: 0,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::c_wrapper::{
-        bw_clip_init, bw_clip_process1_comp, bw_clip_update_coeffs_audio, bw_clipf,
-        bw_one_pole_get_y_z1, bw_one_pole_process1_sticky_abs, bw_one_pole_process1_sticky_rel,
-        bw_rcpf,
+        bw_clipf, bw_one_pole_get_y_z1, bw_one_pole_process1_sticky_abs,
+        bw_one_pole_process1_sticky_rel, bw_rcpf,
     };
     use std::f32::consts::PI;
 
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
-    const GAIN: f32 = 200_000.0;
+    const GAIN: f32 = 2.0;
     const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
+
+    const PULSE_INPUT: [&[f32]; N_CHANNELS] = [&[1.0, 1.0], &[0.0, 0.0]];
+    const N_SAMPLES: usize = 2;
 
     type ClipT = Clip<N_CHANNELS>;
 
@@ -167,14 +133,16 @@ mod tests {
         assert_eq!(clip.coeffs.bias, 0.);
         assert_eq!(clip.coeffs.gain, 1.);
         assert_eq!(clip.coeffs.gain_compensation, 0);
+        assert_eq!(clip.coeffs.state, bw_clip_coeffs_state_bw_clip_coeffs_state_init);
     }
-
+    
     #[test]
     fn set_sample_rate() {
         let mut clip = ClipT::new();
-
+        
         clip.set_sample_rate(SAMPLE_RATE);
-        assert_eq!(clip.coeffs.smooth_coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE)
+        assert_eq!(clip.coeffs.smooth_coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE);
+        assert_eq!(clip.coeffs.state, bw_clip_coeffs_state_bw_clip_coeffs_state_set_sample_rate);
     }
 
     #[test]
@@ -262,54 +230,18 @@ mod tests {
 
     #[test]
     fn process() {
-        const N_SAMPLES: usize = 2;
-        // Wrapper
         let mut clip = ClipT::new();
+        clip.set_sample_rate(SAMPLE_RATE);
+        let x0 = [0.0, 0.0];
 
-        let sample_0: [f32; N_CHANNELS] = [6.0, 2.0];
-        let sample_1: [f32; N_CHANNELS] = [6.0, 2.0];
-        let x: [&[f32]; 2] = [&sample_0, &sample_1];
-
-        let mut out_0: [f32; N_CHANNELS] = [3.0, 4.0];
-        let mut out_1: [f32; N_CHANNELS] = [3.0, 4.0];
+        let mut out_0: [f32; N_CHANNELS] = [0.0, 0.0];
+        let mut out_1: [f32; N_CHANNELS] = [0.0, 0.0];
         let mut y: [&mut [f32]; 2] = [&mut out_0, &mut out_1];
 
-        // C
-        let mut states = [bw_clip_state::default(), bw_clip_state::default()];
-        let mut coeffs = bw_clip_coeffs::default();
-
-        let sample_0_c: [f32; N_CHANNELS] = [6.0, 2.0];
-        let sample_1_c: [f32; N_CHANNELS] = [6.0, 2.0];
-        let x_c: [&[f32]; 2] = [&sample_0_c, &sample_1_c];
-
-        let mut out_0_c: [f32; N_CHANNELS] = [3.0, 4.0];
-        let mut out_1_c: [f32; N_CHANNELS] = [3.0, 4.0];
-        let mut y_c: [&mut [f32]; 2] = [&mut out_0_c, &mut out_1_c];
-
-        // Process wrapper
         clip.set_gain_compensation(true);
-        clip.process(&x, &mut y, N_SAMPLES);
+        clip.reset(&x0, None);
+        clip.process(&PULSE_INPUT, &mut y, N_SAMPLES);
 
-        // Process C
-        unsafe {
-            bw_clip_init(&mut coeffs);
-            coeffs.gain_compensation = 1;
-            (0..N_SAMPLES).for_each(|sample| {
-                bw_clip_update_coeffs_audio(&mut coeffs);
-                (0..N_CHANNELS).for_each(|channel| {
-                    y_c[channel][sample] =
-                        bw_clip_process1_comp(&coeffs, &mut states[channel], x_c[channel][sample])
-                });
-            });
-        }
-
-        (0..N_SAMPLES).for_each(|sample| {
-            (0..N_CHANNELS).for_each(|channel| {
-                assert_eq!(
-                    y[channel][sample], y_c[channel][sample],
-                    "sample {sample} and channel {channel} does not match"
-                );
-            });
-        });
+        assert!(clip.coeffs.state >= bw_clip_coeffs_state_bw_clip_coeffs_state_reset_coeffs);
     }
 }

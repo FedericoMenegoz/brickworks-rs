@@ -28,18 +28,17 @@ fn main() {
     let lib_path = output_path.join("lib".to_owned() + static_filename + ".a");
 
     // Build the bindings
-    let bindings = Builder::default()
+    let mut builder = Builder::default()
         .header(&wrapper_path)
         .generate_comments(false)
         .parse_callbacks(Box::new(IgnoreMacros::new()))
-        // .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .derive_default(true)
         .wrap_static_fns(true)
-        .wrap_static_fns_path(&static_fns_path)
-        .generate()
-        .expect("Unable to generate bindings");
+        .wrap_static_fns_path(&static_fns_path);
 
-    // Compile the generated wrappers into an object file
-    let clang_output = std::process::Command::new("clang")
+    // Prepare clang command for compilation
+    let mut clang_cmd = std::process::Command::new("clang");
+    clang_cmd
         .arg("-O")
         .arg("-c")
         .arg("-fPIC")
@@ -47,9 +46,20 @@ fn main() {
         .arg(&obj_path)
         .arg(&static_fns_path)
         .arg("-include")
-        .arg(wrapper_path)
-        .output()
-        .unwrap();
+        .arg(wrapper_path);
+
+    // To define DEBUG_DEEP when not in release
+    if cfg!(debug_assertions) {
+        println!("cargo:warning=INFO: DEBUG_DEEP is defined.");
+        // Define BW_DEBUG_DEEP for bindgen
+        builder = builder.clang_arg("-DBW_DEBUG_DEEP");
+        // Define BW_DEBUG_DEEP for clang compilation
+        clang_cmd.arg("-D").arg("BW_DEBUG_DEEP");
+    }
+
+    let bindings = builder.generate().expect("Unable to generate bindings");
+
+    let clang_output = clang_cmd.output().unwrap();
 
     if !clang_output.status.success() {
         panic!(
