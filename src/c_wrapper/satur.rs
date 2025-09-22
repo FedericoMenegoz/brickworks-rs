@@ -103,6 +103,7 @@ impl<const N_CHANNELS: usize> Satur<N_CHANNELS> {
 }
 
 impl bw_satur_coeffs {
+    #[cfg(test)]
     #[inline(always)]
     pub(crate) fn tanhf(x: f32) -> f32 {
         unsafe { bw_satur_tanhf(x) }

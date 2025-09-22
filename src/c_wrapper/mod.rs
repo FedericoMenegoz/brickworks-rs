@@ -12,11 +12,11 @@
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 pub mod clip;
 pub mod gain;
+pub mod lp1;
 pub mod mm2;
 pub mod one_pole;
-#[allow(dead_code, unused_variables)]
 pub mod satur;
 pub mod svf;
-
+// #[allow(dead_code, unused_variables)]
 // Helper functions
 pub(crate) mod utils;

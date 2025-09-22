@@ -10,5 +10,6 @@
 #include "../../brickworks/include/bw_gain.h"
 #include "../../brickworks/include/bw_mm2.h"
 #include "../../brickworks/include/bw_satur.h"
+#include "../../brickworks/include/bw_lp1.h"
 
 #endif // WRAPPER_BRICKWORS_H
