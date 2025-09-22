@@ -19,16 +19,14 @@ pub fn rcpf(x: f32) -> f32 {
             debug_assert_range(-1.237_940_1e27..=-8.077_936e-28, x);
         }
     }
-
-    let magic = 0x7ef0e840u32;
-    let u = x.to_bits();
-    let mut result = f32::from_bits(magic - u);
+    let mut result = f32::from_bits(0x7ef0e840u32.wrapping_sub(x.to_bits()));
 
     result = result + result - x * result * result;
     result = result + result - x * result * result;
 
     #[cfg(debug_assertions)]
     debug_assert_is_finite(result);
+
     result
 }
 /// Returns the minimum of `a` and `b`.
@@ -193,7 +191,7 @@ mod tests {
 
     #[test]
     fn rcpf_should_return_same_result_as_bw_rcpf() {
-        let values = vec![2.0, 345.0, 8.1e-28, 1.2e27];
+        let values = vec![-0.98, 2.0, 345.0, 8.1e-28, 1.2e27];
         unsafe {
             values.iter().for_each(|value| {
                 assert_eq!(rcpf(*value), bw_rcpf(*value));

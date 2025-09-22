@@ -1,4 +1,10 @@
-use crate::native::one_pole::{OnePoleCoeffs, OnePoleState};
+use crate::native::{
+    math::{clipf, rcpf},
+    one_pole::{OnePoleCoeffs, OnePoleState},
+};
+
+#[cfg(debug_assertions)]
+use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 
 pub struct Satur<const N_CHANNELS: usize> {
     pub(crate) coeffs: SaturCoeffs<N_CHANNELS>,
@@ -8,42 +14,63 @@ pub struct Satur<const N_CHANNELS: usize> {
 impl<const N_CHANNELS: usize> Satur<N_CHANNELS> {
     #[inline(always)]
     pub fn new() -> Self {
-        todo!()
+        Satur {
+            coeffs: SaturCoeffs::new(),
+            states: [SaturState::default(); N_CHANNELS],
+        }
     }
 
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
-        todo!()
+        self.coeffs.set_sample_rate(sample_rate);
     }
 
     #[inline(always)]
-    pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32]>) {
-        todo!()
+    pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
+        self.coeffs.reset_coeffs();
+        match y0 {
+            Some(y) => {
+                (0..N_CHANNELS).for_each(|channel| {
+                    y[channel] = self.coeffs.reset_state(&mut self.states[channel], x0);
+                });
+            }
+            None => {
+                (0..N_CHANNELS).for_each(|channel| {
+                    self.coeffs.reset_state(&mut self.states[channel], x0);
+                });
+            }
+        }
     }
 
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
-        todo!()
+        self.coeffs.reset_coeffs();
+        self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
 
     #[inline(always)]
-    pub fn process(&mut self, x: &[&[f32]; N_CHANNELS], y: &mut [&mut [f32]], n_samples: usize) {
-        todo!()
+    pub fn process(
+        &mut self,
+        x: &[&[f32]; N_CHANNELS],
+        y: &mut [&mut [f32]; N_CHANNELS],
+        n_samples: usize,
+    ) {
+        self.coeffs.process_multi(&mut self.states, x, y, n_samples);
     }
 
     #[inline(always)]
     pub fn set_bias(&mut self, value: f32) {
-        todo!()
+        self.coeffs.set_bias(value);
     }
 
     #[inline(always)]
     pub fn set_gain(&mut self, value: f32) {
-        todo!()
+        self.coeffs.set_gain(value);
     }
 
     #[inline(always)]
     pub fn set_gain_compensation(&mut self, value: bool) {
-        todo!()
+        self.coeffs.set_gain_compensation(value);
     }
 }
 
@@ -71,76 +98,256 @@ pub struct SaturCoeffs<const N_CHANNELS: usize> {
 
 impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
     #[inline(always)]
-    fn tanhf() -> f32 {
-        todo!()
-    }
-    #[inline(always)]
     pub fn new() -> Self {
-        todo!()
+        let mut smooth_coeffs = OnePoleCoeffs::<N_CHANNELS>::new();
+        let smooth_bias_state = OnePoleState::new();
+        let smooth_gain_state = OnePoleState::new();
+
+        smooth_coeffs.set_tau(0.005);
+        smooth_coeffs.set_sticky_thresh(1e-3);
+
+        Self {
+            smooth_coeffs,
+            smooth_bias_state,
+            smooth_gain_state,
+            bias_dc: 0.0,
+            inv_gain: 0.0,
+            bias: 0.0,
+            gain: 1.0,
+            gain_compensation: false,
+        }
     }
+
     #[inline(always)]
-    pub fn set_sample_rate() {
-        todo!()
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert_positive(sample_rate);
+            debug_assert_is_finite(sample_rate);
+        }
+
+        self.smooth_coeffs.set_sample_rate(sample_rate);
+        self.smooth_coeffs.reset_coeffs();
     }
+
     #[inline(always)]
-    pub fn do_update_coeffs() {
-        todo!()
+    pub fn reset_coeffs(&mut self) {
+        self.smooth_coeffs
+            .reset_state(&mut self.smooth_bias_state, self.bias);
+        self.smooth_coeffs
+            .reset_state(&mut self.smooth_gain_state, self.gain);
+        self.do_update_coeffs(true);
     }
+
     #[inline(always)]
-    pub fn reset_coeffs() {
-        todo!()
+    pub fn reset_state(&mut self, state: &mut SaturState, x0: f32) -> f32 {
+        #[cfg(debug_assertions)]
+        debug_assert_is_finite(x0);
+
+        let x = self.smooth_gain_state.get_y_z1() * x0 + self.smooth_bias_state.get_y_z1();
+        let ax = x.abs();
+        // let f = if ax >= 2.115287308554551  { ax - 0.6847736211329452 } else {ax * ax * ((0.00304518315009429 * ax - 0.09167437770414569) * ax + 0.5)};
+        let f = if ax >= 2.1152873 {
+            ax - 0.684_773_6
+        } else {
+            ax * ax * ((0.003_045_183_1 * ax - 0.091_674_38) * ax + 0.5)
+        };
+        let yb = Self::tanhf(x);
+        let y = (if self.gain_compensation {
+            self.inv_gain
+        } else {
+            1.0
+        }) * (yb - self.bias_dc);
+        state.x_z1 = x;
+        state.f_z1 = f;
+
+        #[cfg(debug_assertions)]
+        debug_assert_is_finite(y);
+
+        y
     }
+
     #[inline(always)]
-    pub fn reset_state() -> f32 {
-        todo!()
+    pub fn reset_state_multi(
+        &mut self,
+        states: &mut [SaturState],
+        x0: &[f32; N_CHANNELS],
+        y0: Option<&mut [f32; N_CHANNELS]>,
+    ) {
+        match y0 {
+            Some(y) => (0..N_CHANNELS).for_each(|channel| {
+                y[channel] = self.reset_state(&mut states[channel], x0[channel]);
+            }),
+            None => (0..N_CHANNELS).for_each(|channel| {
+                self.reset_state(&mut states[channel], x0[channel]);
+            }),
+        }
     }
+
+    // Not implemented yet: C version only contained assertions
+    // need to revisit which assertions from the C version make sense to keep in Rust
+    // #[inline(always)]
+    // pub fn update_coeffs_ctrl(&mut self, value: f32) {
+    //     todo!()
+    // }
+
     #[inline(always)]
-    pub fn reset_state_multi() {
-        todo!()
+    pub fn update_coeffs_audio(&mut self) {
+        self.do_update_coeffs(false);
     }
+
     #[inline(always)]
-    pub fn update_coeffs_ctrl() {
-        todo!()
+    pub fn process1(&mut self, state: &mut SaturState, mut x: f32) -> f32 {
+        #[cfg(debug_assertions)]
+        debug_assert_is_finite(x);
+        x = self.smooth_gain_state.get_y_z1() * x + self.smooth_bias_state.get_y_z1();
+        let ax = x.abs();
+        // let f = if ax >= 2.115287308554551  { ax - 0.6847736211329452 } else { ax * ax * ((0.00304518315009429 * ax - 0.09167437770414569) * ax + 0.5) };
+        let f = if ax >= 2.115_287_3 {
+            ax - 0.684_773_6
+        } else {
+            ax * ax * ((0.003_045_183_1 * ax - 0.091_674_38) * ax + 0.5)
+        };
+        let d = x - state.x_z1;
+        let yb = if d * d < 1e-6 {
+            Self::tanhf(0.5 * (x + state.x_z1))
+        } else {
+            (f - state.f_z1) * rcpf(d)
+        };
+        let y = yb - self.bias_dc;
+        state.x_z1 = x;
+        state.f_z1 = f;
+
+        #[cfg(debug_assertions)]
+        debug_assert_is_finite(y);
+
+        y
     }
+
     #[inline(always)]
-    pub fn update_coeffs_audio() {
-        todo!()
+    pub fn process1_comp(&mut self, state: &mut SaturState, x: f32) -> f32 {
+        #[cfg(debug_assertions)]
+        debug_assert_is_finite(x);
+
+        let y = self.inv_gain * self.process1(state, x);
+
+        #[cfg(debug_assertions)]
+        debug_assert_is_finite(y);
+
+        y
     }
+
     #[inline(always)]
-    pub fn process1() -> f32 {
-        todo!()
+    pub fn process(&mut self, state: &mut SaturState, x: &[f32], y: &mut [f32], n_samples: usize) {
+        if self.gain_compensation {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                y[sample] = self.process1_comp(state, x[sample])
+            });
+        } else {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                y[sample] = self.process1(state, x[sample])
+            });
+        }
     }
+
     #[inline(always)]
-    pub fn process1_comp() -> f32 {
-        todo!()
+    pub fn process_multi(
+        &mut self,
+        states: &mut [SaturState],
+        x: &[&[f32]; N_CHANNELS],
+        y: &mut [&mut [f32]; N_CHANNELS],
+        n_samples: usize,
+    ) {
+        // Not implemented yet: C version only contained assertions
+        // self.update_coeffs_ctrl()
+
+        if self.gain_compensation {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                (0..N_CHANNELS).for_each(|channel| {
+                    y[channel][sample] =
+                        self.process1_comp(&mut states[channel], x[channel][sample])
+                });
+            });
+        } else {
+            (0..n_samples).for_each(|sample| {
+                self.update_coeffs_audio();
+                (0..N_CHANNELS).for_each(|channel| {
+                    y[channel][sample] = self.process1(&mut states[channel], x[channel][sample])
+                });
+            });
+        }
     }
+
     #[inline(always)]
-    pub fn process() {
-        todo!()
+    pub fn set_bias(&mut self, value: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert_is_finite(value);
+            debug_assert_range(-1e12..=1e12, value);
+        }
+
+        self.bias = value;
     }
+
     #[inline(always)]
-    pub fn process_multi() {
-        todo!()
+    pub fn set_gain(&mut self, value: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert_is_finite(value);
+            debug_assert_range(-1e12..=1e12, value);
+        }
+
+        self.gain = value;
     }
+
     #[inline(always)]
-    pub fn set_bias() {
-        todo!()
+    pub fn set_gain_compensation(&mut self, value: bool) {
+        self.gain_compensation = value;
     }
-    #[inline(always)]
-    pub fn set_gain() {
-        todo!()
-    }
-    #[inline(always)]
-    pub fn set_gain_compensation() {
-        todo!()
-    }
+
+    // Not implemented yet:
+    // need to revisit which assertions from the C version make sense to keep in Rust
     #[inline(always)]
     pub fn coeffs_is_valid() -> bool {
         todo!()
     }
+
+    // Not implemented yet:
+    // need to revisit which assertions from the C version make sense to keep in Rust
     #[inline(always)]
     pub fn state_is_valid() -> bool {
         todo!()
+    }
+
+    // Private
+    #[inline(always)]
+    fn do_update_coeffs(&mut self, force: bool) {
+        let mut bias_cur = self.smooth_bias_state.get_y_z1();
+        if force || self.bias != bias_cur {
+            bias_cur = self
+                .smooth_coeffs
+                .process1_sticky_abs(&mut self.smooth_bias_state, self.bias);
+            self.bias_dc = Self::tanhf(bias_cur)
+        }
+        let mut gain_cur = self.smooth_gain_state.get_y_z1();
+        if force || self.gain != gain_cur {
+            gain_cur = self
+                .smooth_coeffs
+                .process1_sticky_rel(&mut self.smooth_gain_state, self.gain);
+            self.inv_gain = rcpf(gain_cur);
+        }
+    }
+
+    #[inline(always)]
+    fn tanhf(x: f32) -> f32 {
+        // let xm = clipf(x, -2.115287308554551, 2.115287308554551);
+        let xm = clipf(x, -2.115_287_3, 2.115_287_3);
+        let axm = xm.abs();
+        // xm * axm * (0.01218073260037716 * axm - 0.2750231331124371) + xm;c
+        xm * axm * (0.012_180_733 * axm - 0.275_023_13) + xm
     }
 }
 
@@ -150,6 +357,7 @@ impl<const N_CHANNELS: usize> Default for SaturCoeffs<N_CHANNELS> {
     }
 }
 
+#[derive(Default, Clone, Copy)]
 pub struct SaturState {
     x_z1: f32,
     f_z1: f32,
@@ -159,7 +367,7 @@ pub struct SaturState {
 mod tests {
     use super::*;
     use crate::{
-        c_wrapper::{bw_satur_coeffs, satur::Satur as SaturWrapper},
+        c_wrapper::{bw_satur_coeffs as SaturCoeffsWrapper, satur::Satur as SaturWrapper},
         native::one_pole::tests::assert_one_pole_coeffs,
     };
 
@@ -179,53 +387,168 @@ mod tests {
     fn new() {
         let rust_satur = SaturT::new();
         let c_satur = SaturWrapperT::new();
+
+        assert_satur(&rust_satur, &c_satur);
     }
 
     #[test]
     fn set_sample_rate() {
-        let rust_satur = SaturT::new();
-        let c_satur = SaturWrapperT::new();
+        let mut rust_satur = SaturT::new();
+        let mut c_satur = SaturWrapperT::new();
+
+        rust_satur.set_sample_rate(SAMPLE_RATE);
+        c_satur.set_sample_rate(SAMPLE_RATE);
+
+        assert_satur(&rust_satur, &c_satur);
     }
 
     #[test]
-    fn reset() {
-        let rust_satur = SaturT::new();
-        let c_satur = SaturWrapperT::new();
+    fn reset_none() {
+        let mut rust_satur = SaturT::new();
+        let mut c_satur = SaturWrapperT::new();
+
+        rust_satur.set_sample_rate(SAMPLE_RATE);
+        c_satur.set_sample_rate(SAMPLE_RATE);
+        rust_satur.reset(0.0, None);
+        c_satur.reset(0.0, None);
+
+        assert_satur(&rust_satur, &c_satur);
+    }
+
+    #[test]
+    fn reset_some() {
+        let mut rust_satur = SaturT::new();
+        let mut c_satur = SaturWrapperT::new();
+
+        rust_satur.set_sample_rate(SAMPLE_RATE);
+        c_satur.set_sample_rate(SAMPLE_RATE);
+
+        let mut rust_y0 = [0.0, 0.0];
+        let mut c_y0 = [0.0, 0.0];
+
+        rust_satur.reset(1.0, Some(&mut rust_y0));
+        c_satur.reset(1.0, Some(&mut c_y0));
+
+        assert_satur(&rust_satur, &c_satur);
+        (0..N_CHANNELS).for_each(|channel| {
+            assert_eq!(rust_y0[channel], c_y0[channel]);
+        });
     }
 
     #[test]
     fn reset_multi() {
-        let rust_satur = SaturT::new();
-        let c_satur = SaturWrapperT::new();
+        let mut rust_satur = SaturT::new();
+        let mut c_satur = SaturWrapperT::new();
+
+        rust_satur.set_sample_rate(SAMPLE_RATE);
+        c_satur.set_sample_rate(SAMPLE_RATE);
+
+        let x0 = [0.5, 0.5];
+        let mut rust_y0 = [0.0, 0.0];
+        let mut c_y0 = [0.0, 0.0];
+
+        rust_satur.reset_multi(&x0, Some(&mut rust_y0));
+        c_satur.reset_multi(&x0, Some(&mut c_y0));
+
+        assert_satur(&rust_satur, &c_satur);
+        (0..N_CHANNELS).for_each(|channel| {
+            assert_eq!(rust_y0[channel], c_y0[channel]);
+        });
     }
 
     #[test]
     fn process() {
-        let rust_satur = SaturT::new();
-        let c_satur = SaturWrapperT::new();
+        let mut rust_satur = SaturT::new();
+        let mut c_satur = SaturWrapperT::new();
+        let bias = 1.3;
+        let gain = 0.98;
+
+        rust_satur.set_sample_rate(SAMPLE_RATE);
+        c_satur.set_sample_rate(SAMPLE_RATE);
+
+        rust_satur.set_bias(bias);
+        rust_satur.set_gain(gain);
+
+        c_satur.set_bias(bias);
+        c_satur.set_gain(gain);
+
+        rust_satur.reset(0.0, None);
+        c_satur.reset(0.0, None);
+
+        let y_ch: Box<dyn Fn() -> [f32; 8]> = Box::new(|| std::array::from_fn(|_| 0.0));
+
+        let mut rust_y: [&mut [f32]; 2] = [&mut y_ch(), &mut y_ch()];
+        let mut c_y: [&mut [f32]; 2] = [&mut y_ch(), &mut y_ch()];
+
+        rust_satur.process(&PULSE_INPUT, &mut rust_y, N_SAMPLES);
+        c_satur.process(&PULSE_INPUT, &mut c_y, N_SAMPLES);
+
+        assert_satur(&rust_satur, &c_satur);
+        assert_eq!(rust_y, c_y);
+
+        let mut rust_y0 = [0.0, 0.0];
+        let mut c_y0 = [0.0, 0.0];
+
+        rust_satur.reset(0.0, Some(&mut rust_y0));
+        c_satur.reset(0.0, Some(&mut c_y0));
+
+        assert_satur(&rust_satur, &c_satur);
+        assert_eq!(rust_y0, c_y0);
+
+        rust_satur.process(&PULSE_INPUT, &mut rust_y, N_SAMPLES);
+        c_satur.process(&PULSE_INPUT, &mut c_y, N_SAMPLES);
+        assert_satur(&rust_satur, &c_satur);
+        assert_eq!(rust_y, c_y);
     }
 
     #[test]
     fn set_bias() {
-        let rust_satur = SaturT::new();
-        let c_satur = SaturWrapperT::new();
+        let mut rust_satur = SaturT::new();
+        let mut c_satur = SaturWrapperT::new();
+        let bias = 1.3;
+
+        rust_satur.set_sample_rate(SAMPLE_RATE);
+        c_satur.set_sample_rate(SAMPLE_RATE);
+        rust_satur.set_bias(bias);
+        c_satur.set_bias(bias);
+
+        assert_satur(&rust_satur, &c_satur);
     }
 
     #[test]
     fn set_gain() {
-        let rust_satur = SaturT::new();
-        let c_satur = SaturWrapperT::new();
+        let mut rust_satur = SaturT::new();
+        let mut c_satur = SaturWrapperT::new();
+        let gain = 1.1;
+
+        rust_satur.set_sample_rate(SAMPLE_RATE);
+        c_satur.set_sample_rate(SAMPLE_RATE);
+        rust_satur.set_gain(gain);
+        c_satur.set_gain(gain);
+
+        assert_satur(&rust_satur, &c_satur);
     }
 
     #[test]
     fn set_gain_compensation() {
-        let rust_satur = SaturT::new();
-        let c_satur = SaturWrapperT::new();
+        let mut rust_satur = SaturT::new();
+        let mut c_satur = SaturWrapperT::new();
+
+        rust_satur.set_sample_rate(SAMPLE_RATE);
+        c_satur.set_sample_rate(SAMPLE_RATE);
+        rust_satur.set_gain_compensation(true);
+        c_satur.set_gain_compensation(true);
+        assert_satur(&rust_satur, &c_satur);
+
+        rust_satur.set_gain_compensation(false);
+        c_satur.set_gain_compensation(false);
+        assert_satur(&rust_satur, &c_satur);
     }
 
+    #[allow(dead_code)]
     fn assert_satur_coeffs<const N_CHANNELS: usize>(
         rust_coeffs: &SaturCoeffs<N_CHANNELS>,
-        c_coeffs: &bw_satur_coeffs,
+        c_coeffs: &SaturCoeffsWrapper,
     ) {
         // Coefficients
         assert_eq!(rust_coeffs.bias_dc, c_coeffs.bias_dc);
@@ -257,5 +580,16 @@ mod tests {
             &rust_satur.coeffs.smooth_gain_state.get_y_z1(),
             &c_satur.coeffs.smooth_gain_state.y_z1
         );
+    }
+
+    #[test]
+    fn tanhf() {
+        let x = [1.2, 0.4, -0.45, 0.08746328];
+        x.iter().for_each(|x| {
+            assert_eq!(
+                SaturCoeffs::<N_CHANNELS>::tanhf(*x),
+                SaturCoeffsWrapper::tanhf(*x)
+            )
+        });
     }
 }
