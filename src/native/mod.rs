@@ -8,4 +8,5 @@ pub mod one_pole;
 pub mod satur;
 pub mod svf;
 
-// #[allow(dead_code, unused_variables)]
+#[allow(dead_code, unused_variables)]
+pub mod lp1;
