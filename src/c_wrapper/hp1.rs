@@ -3,8 +3,8 @@ use std::ptr::null_mut;
 use super::*;
 
 pub struct HP1<const N_CHANNELS: usize> {
-    coeffs: bw_hp1_coeffs,
-    states: [bw_hp1_state; N_CHANNELS],
+    pub(crate) coeffs: bw_hp1_coeffs,
+    pub(crate) states: [bw_hp1_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> HP1<N_CHANNELS> {

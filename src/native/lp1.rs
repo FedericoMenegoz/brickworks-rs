@@ -81,22 +81,22 @@ impl<const N_CHANNELS: usize> Default for LP1<N_CHANNELS> {
 
 pub struct LP1Coeffs<const N_CHANNELS: usize> {
     // Sub-components
-    smooth_coeffs: OnePoleCoeffs<N_CHANNELS>,
-    smooth_cutoff_state: OnePoleState,
-    smooth_prewarp_freq_state: OnePoleState,
+    pub(crate) smooth_coeffs: OnePoleCoeffs<N_CHANNELS>,
+    pub(crate) smooth_cutoff_state: OnePoleState,
+    pub(crate) smooth_prewarp_freq_state: OnePoleState,
 
     // Coefficients
-    t_k: f32,
+    pub(crate) t_k: f32,
 
-    t: f32,
-    x_x: f32,
-    x_x_z1: f32,
-    y_x: f32,
+    pub(crate) t: f32,
+    pub(crate) x_x: f32,
+    pub(crate) x_x_z1: f32,
+    pub(crate) y_x: f32,
 
     // Parameters
-    cutoff: f32,
-    prewarp_k: f32,
-    prewarp_freq: f32,
+    pub(crate) cutoff: f32,
+    pub(crate) prewarp_k: f32,
+    pub(crate) prewarp_freq: f32,
 }
 
 impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
@@ -327,7 +327,7 @@ impl LP1State {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use core::f32;
 
     use super::*;
@@ -592,7 +592,7 @@ mod tests {
         });
     }
 
-    fn assert_lp1_coeffs<const N_CHANNELS: usize>(
+    pub(crate) fn assert_lp1_coeffs<const N_CHANNELS: usize>(
         rust_coeffs: &LP1Coeffs<N_CHANNELS>,
         c_coeffs: &LP1CoeffsWrapper,
     ) {
