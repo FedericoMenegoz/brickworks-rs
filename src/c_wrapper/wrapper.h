@@ -13,5 +13,6 @@
 #include "../../brickworks/include/bw_lp1.h"
 #include "../../brickworks/include/bw_hp1.h"
 #include "../../brickworks/include/bw_peak.h"
+#include "../../brickworks/include/bw_dist.h"
 
 #endif // WRAPPER_BRICKWORS_H
