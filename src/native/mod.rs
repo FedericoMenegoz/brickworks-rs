@@ -2,11 +2,11 @@
 pub mod clip;
 pub mod common;
 pub mod gain;
+pub mod lp1;
 pub mod math;
 pub mod mm2;
 pub mod one_pole;
 pub mod satur;
 pub mod svf;
 
-#[allow(dead_code, unused_variables)]
-pub mod lp1;
+// #[allow(dead_code, unused_variables)]

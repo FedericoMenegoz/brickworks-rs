@@ -109,6 +109,41 @@ impl<const N_CHANNELS: usize> LP1<N_CHANNELS> {
     }
 }
 
+impl bw_lp1_coeffs {
+    #[cfg(test)]
+    pub(crate) fn new() -> Self {
+        let mut coeffs = Self::default();
+        unsafe {
+            bw_lp1_init(&mut coeffs);
+        }
+        coeffs
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_sample_rate(&mut self, sample_rate: f32) {
+        unsafe {
+            bw_lp1_set_sample_rate(self, sample_rate);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn process1(&mut self, state: &mut bw_lp1_state, x: f32) -> f32 {
+        unsafe { bw_lp1_process1(self, state, x) }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn reset_coeffs(&mut self) {
+        unsafe {
+            bw_lp1_reset_coeffs(self);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn reset_state(&mut self, state: &mut bw_lp1_state, x0: f32) -> f32 {
+        unsafe { bw_lp1_reset_state(self, state, x0) }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
