@@ -162,7 +162,7 @@ mod tests {
     type LP1T = LP1<N_CHANNELS>;
 
     #[test]
-    pub fn new() {
+    fn new() {
         let lp1 = LP1T::new();
 
         let tau_default = 0.005;
@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    pub fn set_sample_rate() {
+    fn set_sample_rate() {
         let mut lp1 = LP1T::new();
         lp1.set_sample_rate(SAMPLE_RATE);
 
@@ -198,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    pub fn reset_none() {
+    fn reset_none() {
         let mut lp1 = LP1T::new();
         lp1.set_sample_rate(SAMPLE_RATE);
 
@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    pub fn reset_some() {
+    fn reset_some() {
         let mut lp1 = LP1T::new();
         lp1.set_sample_rate(SAMPLE_RATE);
 
@@ -233,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    pub fn reset_multi() {
+    fn reset_multi() {
         let mut lp1 = LP1T::new();
         lp1.set_sample_rate(SAMPLE_RATE);
 
@@ -253,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    pub fn process() {
+    fn process() {
         let mut lp1 = LP1T::new();
         lp1.set_sample_rate(SAMPLE_RATE);
 
@@ -268,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    pub fn set_cutoff() {
+    fn set_cutoff() {
         let mut lp1 = LP1T::new();
         lp1.set_sample_rate(SAMPLE_RATE);
 
@@ -280,7 +280,7 @@ mod tests {
     }
 
     #[test]
-    pub fn set_prewarp_at_cutoff() {
+    fn set_prewarp_at_cutoff() {
         let mut lp1 = LP1T::new();
         lp1.set_sample_rate(SAMPLE_RATE);
 
@@ -292,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    pub fn set_prewarp_freq() {
+    fn set_prewarp_freq() {
         let mut lp1 = LP1T::new();
         lp1.set_sample_rate(SAMPLE_RATE);
 
