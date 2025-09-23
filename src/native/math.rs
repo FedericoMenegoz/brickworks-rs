@@ -145,6 +145,44 @@ pub fn db2linf(x: f32) -> f32 {
     debug_assert!(y.is_finite());
     y
 }
+
+/// Returns an approximation of the square root of `x`.
+///
+/// `x` must be finite and non-negative.
+///
+/// Absolute error < 1.09e-19 or relative error < 0.0007%, whatever is worse.
+#[inline(always)]
+pub fn sqrtf(x: f32) -> f32 {
+    debug_assert!(x.is_finite(), "value must be finite, got {}", x);
+    debug_assert!(x >= 0.0, "value must be non negative, got {}", x);
+    // if x < 1.1754943508222875e-38 { return 0.0 };
+    if x < 1.175_494_3e-38 {
+        return 0.0;
+    };
+
+    let mut v_bits = x.to_bits();
+
+    let i = (v_bits >> 26) & 0x38;
+    v_bits += (0x200000e0 << i) & 0xff00_0000;
+
+    let mut v = f32::from_bits(v_bits);
+
+    let r = rcpf(v);
+
+    v_bits = (v.to_bits().wrapping_sub(0x3f82a127) >> 1).wrapping_add(0x3f7d8fc7) & 0x7fff_ffff;
+    v = f32::from_bits(v_bits);
+
+    v = v + v * (0.5 - 0.5 * r * v * v);
+    v = v + v * (0.5 - 0.5 * r * v * v);
+
+    v_bits = v.to_bits();
+    v_bits -= (0x100000f0 << i) & 0xff00_0000;
+    v = f32::from_bits(v_bits);
+
+    debug_assert!(v.is_finite());
+
+    v
+}
 /// Returns an approximation of 2 raised to the power of `x`. For `x < -126.f`
 /// it just returns `0.f`.
 ///
@@ -185,8 +223,10 @@ mod tests {
     use std::f32::consts::PI;
 
     use crate::{
-        c_wrapper::{bw_clipf, bw_cos2pif, bw_dB2linf, bw_pow2f, bw_rcpf, bw_sin2pif, bw_tanf},
-        native::math::{clipf, cos2pif, db2linf, pow2f, rcpf, sin2pif, tanf},
+        c_wrapper::{
+            bw_clipf, bw_cos2pif, bw_dB2linf, bw_pow2f, bw_rcpf, bw_sin2pif, bw_sqrtf, bw_tanf,
+        },
+        native::math::{clipf, cos2pif, db2linf, pow2f, rcpf, sin2pif, sqrtf, tanf},
     };
 
     #[test]
@@ -296,5 +336,16 @@ mod tests {
     #[test]
     fn pow2f_invalid() {
         pow2f(128.0);
+    }
+
+    #[test]
+    fn sqrtf_valid() {
+        let ns = [23.0, 0.00004, 65.1, 123559.0, 1.1e-38];
+
+        unsafe {
+            for val in ns {
+                assert_eq!(sqrtf(val), bw_sqrtf(val));
+            }
+        }
     }
 }

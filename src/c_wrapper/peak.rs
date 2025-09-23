@@ -3,8 +3,8 @@ use std::ptr::null_mut;
 use super::*;
 
 pub struct Peak<const N_CHANNELS: usize> {
-    coeffs: bw_peak_coeffs,
-    states: [bw_peak_state; N_CHANNELS],
+    pub(crate) coeffs: bw_peak_coeffs,
+    pub(crate) states: [bw_peak_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {

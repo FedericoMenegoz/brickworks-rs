@@ -354,18 +354,21 @@ impl<const N_CHANNELS: usize> Default for MM2Coeffs<N_CHANNELS> {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct MM2State {
     // Sub-components
     svf_state: SVFState,
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{
-        c_wrapper::{bw_mm2_coeffs, mm2::MM2 as MM2Wrapper},
-        native::{gain::tests::assert_gain_coeffs, svf::tests::assert_svf_coeffs},
+        c_wrapper::{bw_mm2_coeffs, bw_mm2_state, mm2::MM2 as MM2Wrapper},
+        native::{
+            gain::tests::assert_gain_coeffs,
+            svf::tests::{assert_svf_coeffs, assert_svf_states},
+        },
     };
 
     const N_CHANNELS: usize = 2;
@@ -609,7 +612,7 @@ mod tests {
         assert_mm2(&rust_mm2, &c_mm2);
     }
 
-    fn assert_mm2_coeffs<const N_CHANNELS: usize>(
+    pub(crate) fn assert_mm2_coeffs<const N_CHANNELS: usize>(
         rust_coeffs: &MM2Coeffs<N_CHANNELS>,
         c_coeffs: &bw_mm2_coeffs,
     ) {
@@ -625,5 +628,11 @@ mod tests {
         c_mm2: &MM2Wrapper<N_CHANNELS>,
     ) {
         assert_mm2_coeffs(&rust_mm2.coeffs, &c_mm2.coeffs);
+        (0..N_CHANNELS).for_each(|channel| {
+            assert_mm2_state(&rust_mm2.states[channel], &c_mm2.states[channel]);
+        });
+    }
+    pub(crate) fn assert_mm2_state(rust_state: &MM2State, c_state: &bw_mm2_state) {
+        assert_svf_states(&rust_state.svf_state, &c_state.svf_state);
     }
 }

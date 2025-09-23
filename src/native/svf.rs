@@ -797,7 +797,7 @@ impl<const N_CHANNELS: usize> Default for SVFCoeffs<N_CHANNELS> {
         Self::new()
     }
 }
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SVFState {
     // State
     hp_z1: f32,
@@ -1243,7 +1243,7 @@ pub(crate) mod tests {
         );
     }
 
-    fn assert_svf_states(rust_state: &SVFState, c_state: &bw_svf_state) {
+    pub fn assert_svf_states(rust_state: &SVFState, c_state: &bw_svf_state) {
         assert_eq!(rust_state.hp_z1, c_state.hp_z1);
         assert_eq!(rust_state.lp_z1, c_state.lp_z1);
         assert_eq!(rust_state.bp_z1, c_state.bp_z1);

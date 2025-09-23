@@ -7,6 +7,7 @@ pub mod lp1;
 pub mod math;
 pub mod mm2;
 pub mod one_pole;
+pub mod peak;
 pub mod satur;
 pub mod svf;
 // #[allow(dead_code, unused_variables, unused_imports)]
