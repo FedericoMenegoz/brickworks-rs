@@ -224,18 +224,21 @@ impl<const N_CHANNELS: usize> Default for HP1Coeffs<N_CHANNELS> {
     }
 }
 
-#[derive(Default, Clone, Copy, Debug)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub struct HP1State {
     // Sub-components
     lp1_state: LP1State,
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use core::f32;
 
     use super::*;
-    use crate::{c_wrapper::hp1::HP1 as HP1Wrapper, native::lp1::tests::assert_lp1_coeffs};
+    use crate::{
+        c_wrapper::{bw_hp1_coeffs, bw_hp1_state, hp1::HP1 as HP1Wrapper},
+        native::lp1::tests::assert_lp1_coeffs,
+    };
 
     const N_CHANNELS: usize = 2;
     const N_SAMPLES: usize = 8;
@@ -250,7 +253,7 @@ mod tests {
     type HP1WrapperT = HP1Wrapper<N_CHANNELS>;
 
     #[test]
-    pub fn new() {
+    fn new() {
         let rust_hp1 = HP1T::new();
         let c_hp1 = HP1WrapperT::new();
 
@@ -258,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    pub fn set_sample_rate() {
+    fn set_sample_rate() {
         let mut rust_hp1 = HP1T::new();
         let mut c_hp1 = HP1WrapperT::new();
 
@@ -270,14 +273,14 @@ mod tests {
 
     #[should_panic(expected = "value must be non negative, got -0.1")]
     #[test]
-    pub fn set_sample_rate_invalid() {
+    fn set_sample_rate_invalid() {
         let mut rust_hp1 = HP1T::new();
 
         rust_hp1.set_sample_rate(-0.1);
     }
 
     #[test]
-    pub fn reset_none() {
+    fn reset_none() {
         let mut rust_hp1 = HP1T::new();
         let mut c_hp1 = HP1WrapperT::new();
 
@@ -291,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    pub fn reset_some() {
+    fn reset_some() {
         let mut rust_hp1 = HP1T::new();
         let mut c_hp1 = HP1WrapperT::new();
 
@@ -311,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    pub fn reset_multi() {
+    fn reset_multi() {
         let mut rust_hp1 = HP1T::new();
         let mut c_hp1 = HP1WrapperT::new();
 
@@ -332,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    pub fn process() {
+    fn process() {
         let mut rust_hp1 = HP1T::new();
         let mut c_hp1 = HP1WrapperT::new();
 
@@ -380,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    pub fn set_cutoff() {
+    fn set_cutoff() {
         let mut rust_hp1 = HP1T::new();
         let mut c_hp1 = HP1WrapperT::new();
 
@@ -397,7 +400,7 @@ mod tests {
 
     #[should_panic(expected = "value must be in range [1e-6, 1e12], got 0")]
     #[test]
-    pub fn set_cutoff_invalid() {
+    fn set_cutoff_invalid() {
         let mut rust_hp1 = HP1T::new();
 
         let cutoff = 0.0;
@@ -406,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    pub fn set_prewarp_at_cutoff() {
+    fn set_prewarp_at_cutoff() {
         let mut rust_hp1 = HP1T::new();
         let mut c_hp1 = HP1WrapperT::new();
 
@@ -420,7 +423,7 @@ mod tests {
     }
 
     #[test]
-    pub fn set_prewarp_freq() {
+    fn set_prewarp_freq() {
         let mut rust_hp1 = HP1T::new();
         let mut c_hp1 = HP1WrapperT::new();
 
@@ -440,7 +443,7 @@ mod tests {
 
     #[should_panic(expected = "value must be in range [1e-6, 1e12], got inf")]
     #[test]
-    pub fn set_prewarp_freq_invalid() {
+    fn set_prewarp_freq_invalid() {
         let mut rust_hp1 = HP1T::new();
         let prewarp_freq = f32::INFINITY;
 
@@ -453,16 +456,21 @@ mod tests {
         rust_hp1: &HP1<N_CHANNELS>,
         c_hp1: &HP1Wrapper<N_CHANNELS>,
     ) {
-        assert_lp1_coeffs(&rust_hp1.coeffs.lp1_coeffs, &c_hp1.coeffs.lp1_coeffs);
+        assert_hp1_coeffs(&rust_hp1.coeffs, &c_hp1.coeffs);
         (0..N_CHANNELS).for_each(|channel| {
-            assert_eq!(
-                rust_hp1.states[channel].lp1_state.get_x_z1(),
-                c_hp1.states[channel].lp1_state.X_z1
-            );
-            assert_eq!(
-                rust_hp1.states[channel].lp1_state.get_y_z1(),
-                c_hp1.states[channel].lp1_state.y_z1
-            );
+            assert_hp1_state(&rust_hp1.states[channel], &c_hp1.states[channel]);
         });
+    }
+
+    pub(crate) fn assert_hp1_coeffs<const N_CHANNELS: usize>(
+        rust_coeffs: &HP1Coeffs<N_CHANNELS>,
+        c_coeffs: &bw_hp1_coeffs,
+    ) {
+        assert_lp1_coeffs(&rust_coeffs.lp1_coeffs, &c_coeffs.lp1_coeffs);
+    }
+
+    pub(crate) fn assert_hp1_state(rust_state: &HP1State, c_state: &bw_hp1_state) {
+        assert_eq!(rust_state.lp1_state.get_x_z1(), c_state.lp1_state.X_z1);
+        assert_eq!(rust_state.lp1_state.get_y_z1(), c_state.lp1_state.y_z1);
     }
 }

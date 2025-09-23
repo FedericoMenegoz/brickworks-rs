@@ -357,18 +357,20 @@ impl<const N_CHANNELS: usize> Default for SaturCoeffs<N_CHANNELS> {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub struct SaturState {
     x_z1: f32,
     f_z1: f32,
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{
-        c_wrapper::{bw_satur_coeffs as SaturCoeffsWrapper, satur::Satur as SaturWrapper},
-        native::one_pole::tests::assert_one_pole_coeffs,
+        c_wrapper::{
+            bw_satur_coeffs as SaturCoeffsWrapper, bw_satur_state, satur::Satur as SaturWrapper,
+        },
+        native::one_pole::tests::{assert_one_pole_coeffs, assert_one_pole_state},
     };
 
     const N_CHANNELS: usize = 2;
@@ -545,11 +547,35 @@ mod tests {
         assert_satur(&rust_satur, &c_satur);
     }
 
-    #[allow(dead_code)]
-    fn assert_satur_coeffs<const N_CHANNELS: usize>(
+    #[test]
+    fn tanhf() {
+        let x = [1.2, 0.4, -0.45, 0.08746328];
+        x.iter().for_each(|x| {
+            assert_eq!(
+                SaturCoeffs::<N_CHANNELS>::tanhf(*x),
+                SaturCoeffsWrapper::tanhf(*x)
+            )
+        });
+    }
+
+    fn assert_satur<const N_CHANNELS: usize>(
+        rust_satur: &Satur<N_CHANNELS>,
+        c_satur: &SaturWrapper<N_CHANNELS>,
+    ) {
+        assert_satur_coeffs(&rust_satur.coeffs, &c_satur.coeffs);
+        (0..N_CHANNELS).for_each(|channel| {
+            assert_satur_state(&rust_satur.states[channel], &c_satur.states[channel]);
+        });
+    }
+
+    pub(crate) fn assert_satur_coeffs<const N_CHANNELS: usize>(
         rust_coeffs: &SaturCoeffs<N_CHANNELS>,
         c_coeffs: &SaturCoeffsWrapper,
     ) {
+        // Sub-components
+        assert_one_pole_coeffs(&rust_coeffs.smooth_coeffs, &c_coeffs.smooth_coeffs);
+        assert_one_pole_state(&rust_coeffs.smooth_bias_state, &c_coeffs.smooth_bias_state);
+        assert_one_pole_state(&rust_coeffs.smooth_gain_state, &c_coeffs.smooth_gain_state);
         // Coefficients
         assert_eq!(rust_coeffs.bias_dc, c_coeffs.bias_dc);
         assert_eq!(rust_coeffs.inv_gain, c_coeffs.inv_gain);
@@ -563,33 +589,8 @@ mod tests {
         );
     }
 
-    fn assert_satur<const N_CHANNELS: usize>(
-        rust_satur: &Satur<N_CHANNELS>,
-        c_satur: &SaturWrapper<N_CHANNELS>,
-    ) {
-        // Sub-components
-        assert_one_pole_coeffs(
-            &rust_satur.coeffs.smooth_coeffs,
-            &c_satur.coeffs.smooth_coeffs,
-        );
-        assert_eq!(
-            &rust_satur.coeffs.smooth_bias_state.get_y_z1(),
-            &c_satur.coeffs.smooth_bias_state.y_z1
-        );
-        assert_eq!(
-            &rust_satur.coeffs.smooth_gain_state.get_y_z1(),
-            &c_satur.coeffs.smooth_gain_state.y_z1
-        );
-    }
-
-    #[test]
-    fn tanhf() {
-        let x = [1.2, 0.4, -0.45, 0.08746328];
-        x.iter().for_each(|x| {
-            assert_eq!(
-                SaturCoeffs::<N_CHANNELS>::tanhf(*x),
-                SaturCoeffsWrapper::tanhf(*x)
-            )
-        });
+    pub(crate) fn assert_satur_state(rust_state: &SaturState, c_state: &bw_satur_state) {
+        assert_eq!(rust_state.f_z1, c_state.F_z1);
+        assert_eq!(rust_state.x_z1, c_state.x_z1);
     }
 }

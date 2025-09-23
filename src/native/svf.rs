@@ -829,7 +829,7 @@ pub(crate) mod tests {
     use crate::{
         c_wrapper::{bw_svf_coeffs, bw_svf_state, svf::SVF as SVFWrapper},
         native::{
-            one_pole::tests::assert_one_pole_coeffs,
+            one_pole::tests::{assert_one_pole_coeffs, assert_one_pole_state},
             svf::{SVFCoeffs, SVFState},
         },
     };
@@ -1158,6 +1158,16 @@ pub(crate) mod tests {
         rust_svf.set_prewarp_freq(prewarp_freq);
     }
 
+    fn assert_svf<const N_CHANNELS: usize>(
+        rust_svf: &SVF<N_CHANNELS>,
+        c_svf: &SVFWrapper<N_CHANNELS>,
+    ) {
+        assert_svf_coeffs(&rust_svf.coeffs, &c_svf.coeffs);
+        (0..N_CHANNELS).for_each(|channel| {
+            assert_svf_states(&rust_svf.states[channel], &c_svf.states[channel]);
+        });
+    }
+
     pub(crate) fn assert_svf_coeffs<const N_CHANNELS: usize>(
         rust_coeffs: &SVFCoeffs<N_CHANNELS>,
         c_coeffs: &bw_svf_coeffs,
@@ -1165,26 +1175,14 @@ pub(crate) mod tests {
         let pre_message = "svf.coeff.";
         let post_message = "does not match";
         assert_one_pole_coeffs(&rust_coeffs.smooth_coeffs, &c_coeffs.smooth_coeffs);
-        assert_eq!(
-            rust_coeffs.smooth_cutoff_state.get_y_z1(),
-            c_coeffs.smooth_cutoff_state.y_z1,
-            "{}smooth_cutoff_state.y_z1 {}",
-            pre_message,
-            post_message,
+        assert_one_pole_state(
+            &rust_coeffs.smooth_cutoff_state,
+            &c_coeffs.smooth_cutoff_state,
         );
-        assert_eq!(
-            rust_coeffs.smooth_q_state.get_y_z1(),
-            c_coeffs.smooth_Q_state.y_z1,
-            "{}smooth_q_state.y_z1 {}",
-            pre_message,
-            post_message,
-        );
-        assert_eq!(
-            rust_coeffs.smooth_prewarp_freq_state.get_y_z1(),
-            c_coeffs.smooth_prewarp_freq_state.y_z1,
-            "{}smooth_prewarp_freq_state.y_z1 {}",
-            pre_message,
-            post_message,
+        assert_one_pole_state(&rust_coeffs.smooth_q_state, &c_coeffs.smooth_Q_state);
+        assert_one_pole_state(
+            &rust_coeffs.smooth_prewarp_freq_state,
+            &c_coeffs.smooth_prewarp_freq_state,
         );
         assert_eq!(
             rust_coeffs.t_k, c_coeffs.t_k,
@@ -1248,15 +1246,5 @@ pub(crate) mod tests {
         assert_eq!(rust_state.lp_z1, c_state.lp_z1);
         assert_eq!(rust_state.bp_z1, c_state.bp_z1);
         assert_eq!(rust_state.cutoff_z1, c_state.cutoff_z1);
-    }
-
-    fn assert_svf<const N_CHANNELS: usize>(
-        rust_svf: &SVF<N_CHANNELS>,
-        c_svf: &SVFWrapper<N_CHANNELS>,
-    ) {
-        assert_svf_coeffs(&rust_svf.coeffs, &c_svf.coeffs);
-        (0..N_CHANNELS).for_each(|channel| {
-            assert_svf_states(&rust_svf.states[channel], &c_svf.states[channel]);
-        });
     }
 }

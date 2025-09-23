@@ -236,8 +236,8 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
             debug_assert!(value.is_finite());
             debug_assert_range(1e-6..=1e12, value);
         }
-
         self.cutoff = value;
+        print!("self.cutoff is {}", self.cutoff);
     }
 
     #[inline(always)]
@@ -281,7 +281,6 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
         let mut cutoff_cur = self.smooth_cutoff_state.get_y_z1();
         let prewarp_freq_changed = force || prewarp_freq != prewarp_freq_cur;
         let cutoff_changed = force || self.cutoff != cutoff_cur;
-
         if prewarp_freq_changed || cutoff_changed {
             if prewarp_freq_changed {
                 prewarp_freq_cur = self
@@ -310,7 +309,7 @@ impl<const N_CHANNELS: usize> Default for LP1Coeffs<N_CHANNELS> {
         Self::new()
     }
 }
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct LP1State {
     y_z1: f32,
     x_z1: f32,
@@ -333,7 +332,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::{
         c_wrapper::{bw_lp1_coeffs as LP1CoeffsWrapper, bw_lp1_state, lp1::LP1 as LP1Wrapper},
-        native::one_pole::tests::assert_one_pole_coeffs,
+        native::one_pole::tests::{assert_one_pole_coeffs, assert_one_pole_state},
     };
 
     const N_CHANNELS: usize = 2;
@@ -450,7 +449,7 @@ pub(crate) mod tests {
 
         let rust_y = rust_coeffs.process1(&mut rust_state, x0);
         let c_y = c_coeffs.process1(&mut c_state, x0);
-        println!("{rust_y} and {c_y}");
+
         assert_lp1_coeffs(&rust_coeffs, &c_coeffs);
         assert_eq!(rust_y, c_y);
         assert_eq!(rust_state.x_z1, c_state.X_z1);
@@ -581,14 +580,7 @@ pub(crate) mod tests {
     ) {
         assert_lp1_coeffs(&rust_lp1.coeffs, &c_lp1.coeffs);
         (0..N_CHANNELS).for_each(|channel| {
-            assert_eq!(
-                rust_lp1.states[channel].get_x_z1(),
-                c_lp1.states[channel].X_z1
-            );
-            assert_eq!(
-                rust_lp1.states[channel].get_y_z1(),
-                c_lp1.states[channel].y_z1
-            );
+            assert_lp1_state(&rust_lp1.states[channel], &c_lp1.states[channel]);
         });
     }
 
@@ -606,13 +598,18 @@ pub(crate) mod tests {
         assert_eq!(rust_coeffs.prewarp_freq, c_coeffs.prewarp_freq);
 
         assert_one_pole_coeffs(&rust_coeffs.smooth_coeffs, &c_coeffs.smooth_coeffs);
-        assert_eq!(
-            rust_coeffs.smooth_cutoff_state.get_y_z1(),
-            c_coeffs.smooth_cutoff_state.y_z1
+        assert_one_pole_state(
+            &rust_coeffs.smooth_cutoff_state,
+            &c_coeffs.smooth_cutoff_state,
         );
-        assert_eq!(
-            rust_coeffs.smooth_prewarp_freq_state.get_y_z1(),
-            c_coeffs.smooth_prewarp_freq_state.y_z1
+        assert_one_pole_state(
+            &rust_coeffs.smooth_prewarp_freq_state,
+            &c_coeffs.smooth_prewarp_freq_state,
         );
+    }
+
+    pub(crate) fn assert_lp1_state(rust_state: &LP1State, c_state: &bw_lp1_state) {
+        assert_eq!(rust_state.get_x_z1(), c_state.X_z1);
+        assert_eq!(rust_state.get_y_z1(), c_state.y_z1);
     }
 }

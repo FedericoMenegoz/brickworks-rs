@@ -612,6 +612,16 @@ pub(crate) mod tests {
         assert_mm2(&rust_mm2, &c_mm2);
     }
 
+    fn assert_mm2<const N_CHANNELS: usize>(
+        rust_mm2: &MM2<N_CHANNELS>,
+        c_mm2: &MM2Wrapper<N_CHANNELS>,
+    ) {
+        assert_mm2_coeffs(&rust_mm2.coeffs, &c_mm2.coeffs);
+        (0..N_CHANNELS).for_each(|channel| {
+            assert_mm2_state(&rust_mm2.states[channel], &c_mm2.states[channel]);
+        });
+    }
+
     pub(crate) fn assert_mm2_coeffs<const N_CHANNELS: usize>(
         rust_coeffs: &MM2Coeffs<N_CHANNELS>,
         c_coeffs: &bw_mm2_coeffs,
@@ -623,15 +633,6 @@ pub(crate) mod tests {
         assert_gain_coeffs(&rust_coeffs.gain_hp_coeffs, &c_coeffs.gain_hp_coeffs);
     }
 
-    fn assert_mm2<const N_CHANNELS: usize>(
-        rust_mm2: &MM2<N_CHANNELS>,
-        c_mm2: &MM2Wrapper<N_CHANNELS>,
-    ) {
-        assert_mm2_coeffs(&rust_mm2.coeffs, &c_mm2.coeffs);
-        (0..N_CHANNELS).for_each(|channel| {
-            assert_mm2_state(&rust_mm2.states[channel], &c_mm2.states[channel]);
-        });
-    }
     pub(crate) fn assert_mm2_state(rust_state: &MM2State, c_state: &bw_mm2_state) {
         assert_svf_states(&rust_state.svf_state, &c_state.svf_state);
     }

@@ -1593,19 +1593,13 @@ pub(crate) mod tests {
         );
     }
 
-    pub(crate) fn assert_one_pole_states(
-        rust_states: &[OnePoleState],
-        c_states: &[bw_one_pole_state],
-    ) {
-        let pre_message = "one_pole.states[";
+    pub(crate) fn assert_one_pole_state(rust_states: &OnePoleState, c_states: &bw_one_pole_state) {
+        let pre_message = "one_pole.states";
         let post_message = "does not match";
-
-        (1..N_CHANNELS).for_each(|channel| {
-            assert_eq!(
-                rust_states[channel].y_z1, c_states[channel].y_z1,
-                "{pre_message}{channel}].y_z1 {post_message}"
-            )
-        });
+        assert_eq!(
+            rust_states.y_z1, c_states.y_z1,
+            "{pre_message}.y_z1 {post_message}"
+        )
     }
 
     pub(crate) fn assert_one_pole<const N_CHANNELS: usize>(
@@ -1613,6 +1607,8 @@ pub(crate) mod tests {
         c_one_pole: &OnePoleWrapper<N_CHANNELS>,
     ) {
         assert_one_pole_coeffs(&rust_one_pole.coeffs, &c_one_pole.coeffs);
-        assert_one_pole_states(&rust_one_pole.states, &c_one_pole.states);
+        (0..N_CHANNELS).for_each(|channel| {
+            assert_one_pole_state(&rust_one_pole.states[channel], &c_one_pole.states[channel]);
+        });
     }
 }

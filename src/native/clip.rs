@@ -319,18 +319,21 @@ impl<const N_CHANNELS: usize> Default for ClipCoeffs<N_CHANNELS> {
         Self::new()
     }
 }
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ClipState {
     x_z1: f32,
     f_z1: f32,
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::Clip;
     use crate::{
-        c_wrapper::{bw_clip_coeffs, clip::Clip as ClipWrapper},
-        native::{clip::ClipCoeffs, one_pole::tests::assert_one_pole_coeffs},
+        c_wrapper::{bw_clip_coeffs, bw_clip_state, clip::Clip as ClipWrapper},
+        native::{
+            clip::{ClipCoeffs, ClipState},
+            one_pole::tests::assert_one_pole_coeffs,
+        },
     };
     use std::f32;
     const N_CHANNELS: usize = 2;
@@ -593,7 +596,17 @@ mod tests {
         assert_clip(&rust_clip, &c_clip);
     }
 
-    fn assert_clip_coeffs<const N_CHANNELS: usize>(
+    fn assert_clip<const N_CHANNELS: usize>(
+        rust_clip: &Clip<N_CHANNELS>,
+        c_clip: &ClipWrapper<N_CHANNELS>,
+    ) {
+        assert_clip_coeffs(&rust_clip.coeffs, &c_clip.coeffs);
+        (0..N_CHANNELS).for_each(|channel| {
+            assert_clip_state(&rust_clip.states[channel], &c_clip.states[channel]);
+        });
+    }
+
+    pub(crate) fn assert_clip_coeffs<const N_CHANNELS: usize>(
         rust_coeffs: &ClipCoeffs<N_CHANNELS>,
         c_coeffs: &bw_clip_coeffs,
     ) {
@@ -637,14 +650,8 @@ mod tests {
         );
     }
 
-    fn assert_clip<const N_CHANNELS: usize>(
-        rust_clip: &Clip<N_CHANNELS>,
-        c_clip: &ClipWrapper<N_CHANNELS>,
-    ) {
-        assert_clip_coeffs(&rust_clip.coeffs, &c_clip.coeffs);
-        (0..N_CHANNELS).for_each(|channel| {
-            assert_eq!(rust_clip.states[channel].x_z1, c_clip.states[channel].x_z1);
-            assert_eq!(rust_clip.states[channel].f_z1, c_clip.states[channel].F_z1);
-        });
+    pub(crate) fn assert_clip_state(rust_state: &ClipState, c_state: &bw_clip_state) {
+        assert_eq!(rust_state.x_z1, c_state.x_z1);
+        assert_eq!(rust_state.f_z1, c_state.F_z1);
     }
 }

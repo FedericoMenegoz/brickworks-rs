@@ -394,12 +394,12 @@ pub struct PeakState {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use core::f32;
 
     use super::*;
     use crate::{
-        c_wrapper::{bw_peak_coeffs, peak::Peak as PeakWrapper},
+        c_wrapper::{bw_peak_coeffs, bw_peak_state, peak::Peak as PeakWrapper},
         native::mm2::tests::{assert_mm2_coeffs, assert_mm2_state},
     };
 
@@ -688,7 +688,17 @@ mod tests {
         assert_peak(&rust_peak, &c_peak);
     }
 
-    fn assert_peak_coeff<const N_CHANNELS: usize>(
+    fn assert_peak<const N_CHANNELS: usize>(
+        rust_peak: &Peak<N_CHANNELS>,
+        c_peak: &PeakWrapper<N_CHANNELS>,
+    ) {
+        assert_peak_coeffs(&rust_peak.coeffs, &c_peak.coeffs);
+        (0..N_CHANNELS).for_each(|channel| {
+            assert_peak_state(&rust_peak.states[channel], &c_peak.states[channel]);
+        });
+    }
+
+    pub(crate) fn assert_peak_coeffs<const N_CHANNELS: usize>(
         rust_coeffs: &PeakCoeffs<N_CHANNELS>,
         c_coeffs: &bw_peak_coeffs,
     ) {
@@ -699,29 +709,14 @@ mod tests {
         assert_eq!(rust_coeffs.q, c_coeffs.Q);
         assert_eq!(rust_coeffs.peak_gain, c_coeffs.peak_gain);
         assert_eq!(rust_coeffs.bandwidth, c_coeffs.bandwidth);
-        assert_eq!(
-            rust_coeffs.use_bandwidth,
-            match c_coeffs.use_bandwidth {
-                0 => false,
-                _ => true,
-            }
-        );
+        assert_eq!(rust_coeffs.use_bandwidth, c_coeffs.use_bandwidth != 0,);
         assert_eq!(
             rust_coeffs.param_changed.bits(),
             c_coeffs.param_changed as u32
         );
     }
 
-    fn assert_peak<const N_CHANNELS: usize>(
-        rust_peak: &Peak<N_CHANNELS>,
-        c_peak: &PeakWrapper<N_CHANNELS>,
-    ) {
-        assert_peak_coeff(&rust_peak.coeffs, &c_peak.coeffs);
-        (0..N_CHANNELS).for_each(|channel| {
-            assert_mm2_state(
-                &rust_peak.states[channel].mm2_state,
-                &c_peak.states[channel].mm2_state,
-            );
-        });
+    pub(crate) fn assert_peak_state(rust_state: &PeakState, c_state: &bw_peak_state) {
+        assert_mm2_state(&rust_state.mm2_state, &c_state.mm2_state);
     }
 }
