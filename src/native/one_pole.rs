@@ -9,7 +9,7 @@ use crate::native::math::{INVERSE_2_PI, NANO};
 ///
 /// One-pole (6 dB/oct) lowpass filter with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
 ///
-/// This is better suited to implement smoothing than bw_lp1.
+/// This is better suited to implement smoothing than lp1.
 ///
 /// # Example
 /// ```
@@ -82,7 +82,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-    /// Resets the filter state for all channels to the initial input `x0`, or to 0 if `x0` is not provided.
+    /// Resets the filter state and coeffs for all channels to the initial input `x0`, or to 0 if `x0` is not provided.
     /// If `y0` is provided, the resulting initial outputs are stored in it.
     #[inline(always)]
     pub fn reset(&mut self, x0: Option<f32>, y0: Option<&mut [f32; N_CHANNELS]>) {
@@ -100,6 +100,14 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
             }
         }
     }
+    /// Resets the filter state and coefficients for all channels using the provided initial input values.
+    ///
+    /// # Parameters
+    /// - `x0`: array of initial input values for each channel.
+    /// - `y0`: optional array to store the resulting initial output values.
+    ///
+    /// # Notes
+    /// Both the coefficients and all channel states are reset. If `y0` is `Some`, the initial outputs are written into it.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
@@ -256,7 +264,7 @@ impl<const N_CHANNELS: usize> Default for OnePole<N_CHANNELS> {
         Self::new()
     }
 }
-
+/// Coefficients and related.
 #[derive(Clone, Debug, Copy)]
 pub struct OnePoleCoeffs<const N_CHANNELS: usize> {
     fs_2pi: f32,
@@ -282,25 +290,25 @@ bitflags! {
     }
 }
 
+/// Internal state and related.
 #[derive(Debug, Clone, Copy)]
 pub struct OnePoleState {
     y_z1: f32,
 }
-
 impl OnePoleState {
     #[inline(always)]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { y_z1: 0.0 }
     }
 
     #[inline(always)]
-    pub fn reset(&mut self, x0: f32) -> f32 {
+    pub(crate) fn reset(&mut self, x0: f32) -> f32 {
         self.y_z1 = x0;
         x0
     }
 
     #[inline(always)]
-    pub fn get_y_z1(&self) -> f32 {
+    pub(crate) fn get_y_z1(&self) -> f32 {
         self.y_z1
     }
 }
@@ -312,6 +320,7 @@ impl Default for OnePoleState {
 }
 
 impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
+    /// Creates a new instance of `OnePoleCoeffs` with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -326,7 +335,13 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             param_changed: ParamChanged::all(),
         }
     }
-
+    /// Sets the sample rate (Hz) in `OnePoleCoeffs`.
+    ///
+    /// # Parameters
+    /// - `sample_rate`: the new sample rate in Hz.
+    ///
+    /// # Panics
+    /// In debug mode, panics if `sample_rate` is non-positive or not finite.
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
@@ -336,19 +351,33 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         }
         self.fs_2pi = INVERSE_2_PI * sample_rate;
     }
-
+    /// Resets coefficients in `OnePoleCoeffs` to assume their target values.
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
         self.param_changed = ParamChanged::all();
         self.do_update_coeffs_ctrl();
     }
-
+    /// Resets the given state to its initial values using the given `OnePoleCoeffs` and initial input value `x0`.
+    ///
+    /// # Parameters
+    /// - `state`: the `OnePoleState` to reset.
+    /// - `x0`: the initial input value.
+    ///
+    /// # Returns
+    /// The corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut OnePoleState, x0: f32) -> f32 {
         debug_assert!(x0.is_finite());
         state.reset(x0)
     }
-
+    /// Resets each of the `N_CHANNELS` states to its initial values using the given `OnePoleCoeffs` and the corresponding initial input values in `x0`.
+    ///
+    /// # Parameters
+    /// - `states`: array of `OnePoleState` to reset.
+    /// - `x0`: array of initial input values for each channel.
+    /// - `y0`: optional array to store the corresponding initial output values.
+    ///
+    /// The output values are written into `y0` if it is not `None`.
     #[inline(always)]
     pub fn reset_state_multi(
         &mut self,
@@ -368,7 +397,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             });
         }
     }
-
+    /// Triggers control-rate update of coefficients in `OnePoleCoeffs`.
     #[inline(always)]
     pub fn update_coeffs_ctrl(&mut self) {
         self.do_update_coeffs_ctrl();
@@ -376,18 +405,37 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
 
     // Not implemented yet: C version only contained assertions
     // need to revisit which assertions from the C version make sense to keep in Rust
+    // /// Triggers audio-rate update of coefficients in `OnePoleCoeffs`.
     // #[inline(always)]
     // fn update_coeffs_audio(&self) {
     //     todo!()
     // }
 
+    /// Processes a single input sample `x` using `OnePoleCoeffs`, updating the provided `state`.
+    /// Assumes that the upgoing and downgoing cutoff/tau are equal, and the target-reach threshold is `0.0`.
+    ///
+    /// # Parameters
+    /// - `state`: the `OnePoleState` to update.
+    /// - `x`: the input sample to process.
+    ///
+    /// # Returns
+    /// The corresponding output sample.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let y = x + self.m_a1u * (state.get_y_z1() - x);
         state.y_z1 = y;
         y
     }
-
+    /// Processes a single input sample `x` using `OnePoleCoeffs` with sticky absolute threshold behavior,
+    /// updating the provided `state`. Assumes upgoing and downgoing cutoff/tau are equal, the target-reach
+    /// threshold is not `0.0`, and sticky mode is absolute (`StickyMode::Abs`).
+    ///
+    /// # Parameters
+    /// - `state`: the `OnePoleState` to update.
+    /// - `x`: the input sample to process.
+    ///
+    /// # Returns
+    /// The corresponding output sample.
     #[inline(always)]
     pub fn process1_sticky_abs(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let mut y = x + self.m_a1u * (state.get_y_z1() - x);
@@ -399,7 +447,16 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes a single input sample `x` using `OnePoleCoeffs` with sticky relative threshold behavior,
+    /// updating the provided `state`. Assumes upgoing and downgoing cutoff/tau are equal, the target-reach
+    /// threshold is not `0.0`, and sticky mode is relative (`StickyMode::Rel`).
+    ///
+    /// # Parameters
+    /// - `state`: the `OnePoleState` to update.
+    /// - `x`: the input sample to process.
+    ///
+    /// # Returns
+    /// The corresponding output sample.
     #[inline(always)]
     pub fn process1_sticky_rel(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let mut y = x + self.m_a1u * (state.get_y_z1() - x);
@@ -411,7 +468,15 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes a single input sample `x` using asymmetric `OnePoleCoeffs`, updating the provided `state`.
+    /// Assumes upgoing and downgoing cutoff/tau may differ and the target-reach threshold is `0.0`.
+    ///
+    /// # Parameters
+    /// - `state`: the `OnePoleState` to update.
+    /// - `x`: the input sample to process.
+    ///
+    /// # Returns
+    /// The corresponding output sample.
     #[inline(always)]
     pub fn process1_asym(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let y_z1 = state.get_y_z1();
@@ -422,7 +487,16 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes a single input sample `x` using asymmetric `OnePoleCoeffs` with sticky absolute threshold,
+    /// updating the provided `state`. Assumes upgoing and downgoing cutoff/tau may differ, the target-reach
+    /// threshold is not `0.0`, and sticky mode is absolute (`StickyMode::Abs`).
+    ///
+    /// # Parameters
+    /// - `state`: the `OnePoleState` to update.
+    /// - `x`: the input sample to process.
+    ///
+    /// # Returns
+    /// The corresponding output sample.
     #[inline(always)]
     pub fn process1_asym_sticky_abs(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let y_z1 = state.get_y_z1();
@@ -437,7 +511,16 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes a single input sample `x` using asymmetric `OnePoleCoeffs` with sticky relative threshold,
+    /// updating the provided `state`. Assumes upgoing and downgoing cutoff/tau may differ, the target-reach
+    /// threshold is not `0.0`, and sticky mode is relative (`StickyMode::Rel`).
+    ///
+    /// # Parameters
+    /// - `state`: the `OnePoleState` to update.
+    /// - `x`: the input sample to process.
+    ///
+    /// # Returns
+    /// The corresponding output sample.
     #[inline(always)]
     pub fn process1_asym_sticky_rel(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let y_z1 = state.get_y_z1();
@@ -452,7 +535,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes the first `n_samples` of the input buffer `x` and writes the results to the first `n_samples` of the output buffer `y`,
+    /// while updating both coefficients and state (control and audio rate).
+    ///
+    /// # Parameters
+    /// - `x`: input buffer containing the samples to process.
+    /// - `y`: output buffer to write the processed samples. Can be `BW_NULL` if output is not needed.
+    /// - `n_samples`: number of samples to process.
+    ///
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -545,7 +635,13 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             }
         }
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and writes the results to the first `n_samples` of the `N_CHANNELS` output buffers `y`,
+    /// while updating the shared coefficients and each channel's state (control and audio rate).
+    ///
+    /// # Parameters
+    /// - `x`: array of input buffers, one per channel, containing the samples to process.
+    /// - `y`: array of output buffers, one per channel, to write the processed samples. Can be `None` or contain `None` elements if output is not needed.
+    /// - `n_samples`: number of samples to process.
     #[inline(always)]
     pub fn process_multi(
         &mut self,
@@ -728,7 +824,15 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             });
         }
     }
-
+    /// Sets both the upgoing (attack) and downgoing (decay) cutoff frequency to `value` (Hz) in the coefficients.
+    ///
+    /// # Parameters
+    /// - `value`: cutoff frequency in Hz. Must be positive.
+    ///
+    /// # Notes
+    /// Equivalent to calling `set_cutoff_up(value)` and `set_cutoff_down(value)`.
+    /// Can also be derived from `set_tau(value)` as `1 / (2 * pi * value)` (net of numerical errors).
+    /// Default: `INFINITY`.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -736,7 +840,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         self.set_cutoff_up(value);
         self.set_cutoff_down(value);
     }
-
+    /// Sets the upgoing (attack) cutoff frequency to `value` (Hz) in the coefficients.
+    ///
+    /// # Parameters
+    /// - `value`: cutoff frequency in Hz. Must be positive.
+    ///
+    /// # Notes
+    /// Equivalent to calling `set_tau_up(value)` as `1 / (2 * pi * value)` (net of numerical errors).
+    /// Default: `INFINITY`.
     #[inline(always)]
     pub fn set_cutoff_up(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -746,7 +857,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             self.param_changed |= ParamChanged::CUTOFF_UP;
         }
     }
-
+    /// Sets the downgoing (decay) cutoff frequency to `value` (Hz) in the coefficients.
+    ///
+    /// # Parameters
+    /// - `value`: cutoff frequency in Hz. Must be positive.
+    ///
+    /// # Notes
+    /// Equivalent to calling `set_tau_down(value)` as `1 / (2 * pi * value)` (net of numerical errors).
+    /// Default: `INFINITY`.
     #[inline(always)]
     pub fn set_cutoff_down(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -756,13 +874,27 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             self.param_changed |= ParamChanged::CUTOFF_DOWN;
         }
     }
-
+    /// Sets both the upgoing (attack) and downgoing (decay) time constants to `value` (seconds) in the coefficients.
+    ///
+    /// # Parameters
+    /// - `value`: time constant in seconds. Must be non-negative.
+    ///
+    /// # Notes
+    /// Equivalent to calling `set_tau_up(value)` and `set_tau_down(value)`, or `set_cutoff(1 / (2 * pi * value))` (net of numerical errors).
+    /// Default: `0.0`.
     #[inline(always)]
     pub fn set_tau(&mut self, value: f32) {
         self.set_tau_up(value);
         self.set_tau_down(value);
     }
-
+    /// Sets the upgoing (attack) time constant to `value` (seconds) in the coefficients.
+    ///
+    /// # Parameters
+    /// - `value`: time constant in seconds. Must be non-negative.
+    ///
+    /// # Notes
+    /// Equivalent to `set_cutoff_up(1 / (2 * pi * value))` (net of numerical errors).
+    /// Default: `0.0`.
     #[inline(always)]
     pub fn set_tau_up(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -774,7 +906,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         };
         self.set_cutoff_up(cutoff);
     }
-
+    /// Sets the downgoing (decay) time constant to `value` (seconds) in the coefficients.
+    ///
+    /// # Parameters
+    /// - `value`: time constant in seconds. Must be non-negative.
+    ///
+    /// # Notes
+    /// Equivalent to `set_cutoff_down(1 / (2 * pi * value))` (net of numerical errors).
+    /// Default: `0.0`.
     #[inline(always)]
     pub fn set_tau_down(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -786,7 +925,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         };
         self.set_cutoff_down(cutoff);
     }
-
+    /// Sets the target-reach threshold in the coefficients.
+    ///
+    /// # Parameters
+    /// - `value`: threshold value in the range `[0.0, 1e18]`.
+    ///
+    /// # Notes
+    /// When the difference between the output and input falls below this threshold according to the current sticky mode, the output is forced to equal the input.
+    /// Default: `0.0`.
     #[inline(always)]
     pub fn set_sticky_thresh(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -796,32 +942,50 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             self.param_changed |= ParamChanged::STICKY_TRESH;
         }
     }
-
+    /// Sets the current distance metric for sticky behavior in the coefficients.
+    ///
+    /// # Parameters
+    /// - `value`: the sticky mode to use.
+    ///
+    /// # Notes
+    /// Default: `StickyMode::Abs`.
     #[inline(always)]
     pub fn set_sticky_mode(&mut self, value: StickyMode) {
         self.sticky_mode = value;
     }
-
+    /// Returns the current target-reach threshold from the coefficients.
     #[inline(always)]
     pub fn get_sticky_thresh(&self) -> f32 {
         self.sticky_thresh
     }
-
+    /// Returns the current sticky mode from the coefficients.
     #[inline(always)]
     pub fn get_sticky_mode(&self) -> StickyMode {
         self.sticky_mode
     }
-
+    /// Returns the last output sample stored in the state.
+    ///
+    /// # Parameters
+    /// - `state`: the `OnePoleState` to query.
+    ///
+    /// # Returns
+    /// The last output sample as `f32`.
     #[inline(always)]
     pub fn get_y_z1(&self, state: OnePoleState) -> f32 {
         state.get_y_z1()
-    }
-
+    }   
+    /// Checks whether the coefficients are valid.
+    ///
+    /// # Notes
+    /// Currently not implemented.
     #[inline(always)]
     pub fn coeffs_is_valid(&self) {
         todo!()
     }
-
+    /// Checks whether the given state is valid.
+    ///
+    /// # Parameters
+    /// - `state`: the `OnePoleState` to check.
     #[inline(always)]
     pub fn state_is_valid(&self, state: OnePoleState) -> bool {
         state.get_y_z1().is_finite()

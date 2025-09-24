@@ -9,26 +9,13 @@
 //!
 //! Both implementations expose the same Rust interface.
 //!
-//! ---
-//! ### Currently included:
-//! - [X] One pole filter
-//!
-//! ### Working on:
-//! - [ ] Clip
-//! - [ ] Gain
-//! - [ ] Antialiased tanh-based saturation
-//! - [ ] First-order lowpass filter
-//! - [ ] First-order highpass filter
-//! - [ ] State variable filter
-//! - [ ] Second-order multimode filter
-//! - [ ] Second-order peak filter
-//! - [ ] Distortion
-//!
 //! ### See also
 //! - [example of use](https://github.com/FedericoMenegoz/Brickworks-rs-plugin)
 //! - [project wiki](https://github.com/FedericoMenegoz/brickworks-rs/wiki/Index)
 // Silence clippy warnings for the wrapper
 #[allow(clippy::all)]
 // Silence clippy warnings for the wrapper
+#[warn(missing_docs)]
 pub mod c_wrapper;
+#[warn(missing_docs)]
 pub mod native;
