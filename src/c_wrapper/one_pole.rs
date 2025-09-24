@@ -1,4 +1,4 @@
-//! One-pole (6 dB/oct) lowpass filter with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
+//! **One-pole (6 dB/oct) lowpass filter** with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
 //!
 //! This is better suited to implement smoothing than lp1.
 //!
@@ -42,7 +42,7 @@
 //!
 //! ```
 //!
-//!  # Notes
+//! # Notes
 //! This module provides Rust bindings to the original C implementation.
 //! For a fully native Rust implementation with the same interface,
 //! see [crate::native::one_pole].
@@ -55,7 +55,7 @@ use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
 /// This struct manages both the filter coefficients and the runtime states
 /// for a given number of channels (`N_CHANNELS`).  
 /// # Usage
-/// ```rust 
+/// ```rust
 /// use brickworks_rs::native::one_pole::{OnePole, StickyMode};
 /// const N_CHANNELS: usize = 2;
 /// let mut op = OnePole::<N_CHANNELS>::new();

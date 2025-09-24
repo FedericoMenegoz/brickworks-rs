@@ -1,13 +1,91 @@
-use std::ptr::null_mut;
-
+//! **Second-order multimode filter**.
+//!
+//! It implements an approximation of the Laplace-domain transfer function
+//! ```text
+//! H(s) = coeff_x + (coeff_hp s^2 + 2 pi fc s coeff_bp + (2 pi fc)^2 coeff_lp) / (s^2 + 2 pi fc / Q s + (2 pi fc)^2)
+//! ```
+//!
+//! where `fc` is the cutoff frequency and `Q` is the quality factor.
+//!
+//! ## Example
+//!
+//! ```rust
+//! use brickworks_rs::c_wrapper::mm2::MM2;
+//!
+//! const N_CHANNELS: usize = 2;
+//! const N_SAMPLES: usize = 8;
+//!
+//! fn main() {
+//!     // Create a stereo MM2 filter
+//!     let mut mm2 = MM2::<N_CHANNELS>::new();
+//!
+//!     // Configure sample rate
+//!     mm2.set_sample_rate(44_100.0);
+//!
+//!     // Set filter parameters
+//!     mm2.set_cutoff(2_000.0);   // cutoff frequency in Hz
+//!     mm2.set_q(0.707);          // Q factor
+//!
+//!     // Mix coefficients
+//!     mm2.set_coeff_lp(0.9);
+//!     mm2.set_coeff_x(0.3);
+//!
+//!     // Reset states with initial input = silence
+//!     mm2.reset(0.0, None);
+//!
+//!     // Example input: stereo pulse at first sample
+//!     let input: [&[f32]; N_CHANNELS] = [
+//!         &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!         &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!     ];
+//!
+//!     // Output buffers
+//!     let mut output_l = [0.0; N_SAMPLES];
+//!     let mut output_r = [0.0; N_SAMPLES];
+//!     let mut outputs: [&mut [f32]; N_CHANNELS] = [&mut output_l, &mut output_r];
+//!
+//!     // Process audio block
+//!     mm2.process(&input, &mut outputs, N_SAMPLES);
+//!
+//!     println!("Left channel:  {:?}", outputs[0]);
+//!     println!("Right channel: {:?}", outputs[1]);
+//! }
+//! ```
+//! # Notes
+//! This module provides Rust bindings to the original C implementation.
+//! For a fully native Rust implementation with the same interface,
+//! see [crate::native::mm2].
+//! Original C library by [Orastron](https://www.orastron.com/algorithms/bw_mm2).
 use super::*;
-
+use std::ptr::null_mut;
+/// Multi–Mode 2–pole filter (`MM2`) with per–channel state and coefficients.
+///
+/// Manages both the filter coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+///
+/// # Usage
+///
+/// ```rust
+/// use brickworks_rs::c_wrapper::mm2::MM2;
+///
+/// // Stereo filter
+/// let mut mm2 = MM2::<2>::new();
+///
+/// mm2.set_sample_rate(44_100.0);
+/// mm2.set_cutoff(2_000.0);
+/// mm2.set_q(0.707);
+/// mm2.set_coeff_x(0.8);
+/// mm2.set_coeff_bp(0.2);
+/// mm2.reset(0.0, None);
+/// // mm2.process(...)
+/// ```
 pub struct MM2<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_mm2_coeffs,
     pub(crate) states: [bw_mm2_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> MM2<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let mut coeffs = bw_mm2_coeffs::default();
@@ -19,14 +97,17 @@ impl<const N_CHANNELS: usize> MM2<N_CHANNELS> {
             states: [bw_mm2_state::default(); N_CHANNELS],
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         unsafe {
             bw_mm2_set_sample_rate(&mut self.coeffs, sample_rate);
         }
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if it is Some.
     #[inline(always)]
     pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
         unsafe {
@@ -42,7 +123,10 @@ impl<const N_CHANNELS: usize> MM2<N_CHANNELS> {
             }
         }
     }
-
+    /// Resets the satur's coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if is Some.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32], y0: Option<&mut [f32; N_CHANNELS]>) {
         let y0_ptrs = match y0 {
@@ -62,7 +146,9 @@ impl<const N_CHANNELS: usize> MM2<N_CHANNELS> {
             );
         }
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -85,56 +171,90 @@ impl<const N_CHANNELS: usize> MM2<N_CHANNELS> {
             );
         }
     }
-
+    /// Sets the cutoff frequency value (Hz).
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         unsafe {
             bw_mm2_set_cutoff(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the quality factor to the given value.
+    ///
+    /// Valid range: [1e-6, 1e6].
+    ///
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_q(&mut self, value: f32) {
         unsafe {
             bw_mm2_set_Q(&mut self.coeffs, value);
         }
     }
-
+    /// Sets whether bilinear transform prewarping frequency should match the
+    /// cutoff frequency (true) or not (false).
+    ///
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         unsafe {
             bw_mm2_set_prewarp_at_cutoff(&mut self.coeffs, if value { 1 } else { 0 });
         }
     }
-
+    /// Sets the prewarping frequency value (Hz).
+    ///
+    /// Only used when the `prewarp_at_cutoff` parameter is off and however
+    /// internally limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_prewarp_freq(&mut self, value: f32) {
         unsafe {
             bw_mm2_set_prewarp_freq(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the input mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_coeff_x(&mut self, value: f32) {
         unsafe {
             bw_mm2_set_coeff_x(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the lowpass mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_coeff_lp(&mut self, value: f32) {
         unsafe {
             bw_mm2_set_coeff_lp(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the bandpass mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_coeff_bp(&mut self, value: f32) {
         unsafe {
             bw_mm2_set_coeff_bp(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the highpass mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_coeff_hp(&mut self, value: f32) {
         unsafe {

@@ -1,4 +1,4 @@
-//! Antialiased tanh-based saturation with parametric bias and gain (compensation) and
+//! **Antialiased tanh-based saturation** with parametric bias and gain (compensation) and
 //! output bias removal.
 //!
 //! In other words this implements (approximately):
@@ -33,7 +33,7 @@
 //!     satur.reset_multi(&x0, None);
 //!
 //!     let mut y: [&mut [f32]; 2] = [
-//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 
+//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 //!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 //!     ];
 //!     satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
@@ -62,15 +62,15 @@ use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug
 /// Antialiased tanh-based saturation with parametric bias and gain (compensation) and
 /// output bias removal.
 ///
-/// 
+///
 /// This struct manages both the filter coefficients and the runtime states
 /// for a given number of channels (`N_CHANNELS`).  
 /// It wraps:
-/// - [`SaturCoeffs`] 
-/// - [`SaturState`] 
+/// - [`SaturCoeffs`]
+/// - [`SaturState`]
 ///
 /// # Usage
-/// ```rust 
+/// ```rust
 /// use brickworks_rs::native::satur::Satur;
 /// const N_CHANNELS: usize = 2;
 /// let mut satur = Satur::<N_CHANNELS>::new();

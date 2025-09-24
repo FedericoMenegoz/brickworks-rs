@@ -1,4 +1,4 @@
-//! State variable filter (2nd order, 12 dB/oct) model with separated lowpass,
+//! **State variable filter** (2nd order, 12 dB/oct) model with separated lowpass,
 //! bandpass, and highpass outputs.
 //!
 //! # Example
@@ -57,9 +57,9 @@ use std::ptr::null_mut;
 /// The SVF provides lowpass, bandpass, and highpass outputs for each channel.
 /// Filter parameters are shared across channels, while each channel maintains
 /// its own state.
-/// 
+///
 /// # Usage
-/// ```rust 
+/// ```rust
 /// use brickworks_rs::c_wrapper::svf::SVF;
 /// const N_CHANNELS: usize = 2;
 /// let mut svf = SVF::<N_CHANNELS>::new();
@@ -213,7 +213,7 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
             );
         }
     }
-    /// Sets the cutoff frequency to the given value (Hz) in SVF.
+    /// Sets the cutoff frequency to the given value (Hz).
     ///
     /// Valid range: [1e-6, 1e12].
     ///
@@ -223,7 +223,7 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
             bw_svf_set_cutoff(&mut self.coeffs, value);
         }
     }
-    /// Sets the quality factor to the given value in SVF.
+    /// Sets the quality factor to the given value.
     ///
     /// Valid range: [1e-6, 1e6].
     ///
@@ -234,15 +234,15 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
         }
     }
     /// Sets whether bilinear transform prewarping frequency should match the cutoff
-    /// frequency (non-0) or not (0).
+    /// frequency (true) or not (false).
     ///
-    /// Default value: non-0 (on).
+    /// Default value: true (on).
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         unsafe {
             bw_svf_set_prewarp_at_cutoff(&mut self.coeffs, if value { 1 } else { 0 });
         }
     }
-    /// Sets the prewarping frequency value (Hz) in coeffs.
+    /// Sets the prewarping frequency value (Hz).
     ///
     /// Only used when the prewarp_at_cutoff parameter is off and however internally
     /// limited to avoid instability.

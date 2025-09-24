@@ -1,3 +1,11 @@
+//! **Second-order multimode filter**.
+//!
+//! It implements an approximation of the Laplace-domain transfer function
+//! ```text
+//! H(s) = coeff_x + (coeff_hp s^2 + 2 pi fc s coeff_bp + (2 pi fc)^2 coeff_lp) / (s^2 + 2 pi fc / Q s + (2 pi fc)^2)
+//! ```
+//!
+//! where `fc` is the cutoff frequency and `Q` is the quality factor.
 //!
 //! ## Example
 //!
@@ -16,9 +24,9 @@
 //!
 //!     // Set filter parameters
 //!     mm2.set_cutoff(2_000.0);   // cutoff frequency in Hz
-//!     mm2.set_q(0.707);          // resonance (Q factor)
+//!     mm2.set_q(0.707);          // Q factor
 //!
-//!     // Mix coefficients: here we take mostly low–pass and some dry input
+//!     // Mix coefficients
 //!     mm2.set_coeff_lp(0.9);
 //!     mm2.set_coeff_x(0.3);
 //!
@@ -47,7 +55,6 @@
 //! This module provides a native Rust implementation, but the same interface is
 //! also available via bindings to the original C library at [crate::c_wrapper::mm2].
 //! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_mm2).
-
 use crate::native::{
     gain::GainCoeffs,
     svf::{SVFCoeffs, SVFState},
@@ -60,9 +67,8 @@ use crate::native::common::{debug_assert_positive, debug_assert_range};
 /// Manages both the filter coefficients and the runtime states
 /// for a given number of channels (`N_CHANNELS`).  
 /// It wraps:
-/// - [`MM2Coeffs`] 
-/// - [`MM2State`] 
-///
+/// - [`MM2Coeffs`]
+/// - [`MM2State`]
 ///
 /// # Usage
 ///
@@ -75,7 +81,10 @@ use crate::native::common::{debug_assert_positive, debug_assert_range};
 /// mm2.set_sample_rate(44_100.0);
 /// mm2.set_cutoff(2_000.0);
 /// mm2.set_q(0.707);
+/// mm2.set_coeff_x(0.8);
+/// mm2.set_coeff_bp(0.2);
 /// mm2.reset(0.0, None);
+/// // mm2.process(...)
 /// ```
 pub struct MM2<const N_CHANNELS: usize> {
     pub(crate) coeffs: MM2Coeffs<N_CHANNELS>,
@@ -83,6 +92,7 @@ pub struct MM2<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> MM2<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let coeffs = MM2Coeffs::<N_CHANNELS>::new();
@@ -91,12 +101,15 @@ impl<const N_CHANNELS: usize> MM2<N_CHANNELS> {
             states: [MM2State::default(); N_CHANNELS],
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if it is Some.
     #[inline(always)]
     pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
@@ -109,13 +122,18 @@ impl<const N_CHANNELS: usize> MM2<N_CHANNELS> {
             }),
         }
     }
-
+    /// Resets the satur's coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if is Some.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
         self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -125,42 +143,76 @@ impl<const N_CHANNELS: usize> MM2<N_CHANNELS> {
     ) {
         self.coeffs.process_multi(&mut self.states, x, y, n_samples);
     }
-
+    /// Sets the cutoff frequency value (Hz).
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         self.coeffs.set_cutoff(value);
     }
-
+    /// Sets the quality factor to the given value.
+    ///
+    /// Valid range: [1e-6, 1e6].
+    ///
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_q(&mut self, value: f32) {
         self.coeffs.set_q(value);
     }
-
+    /// Sets whether bilinear transform prewarping frequency should match the
+    /// cutoff frequency (true) or not (false).
+    ///
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         self.coeffs.set_prewarp_at_cutoff(value);
     }
-
+    /// Sets the prewarping frequency value (Hz).
+    ///
+    /// Only used when the `prewarp_at_cutoff` parameter is off and however
+    /// internally limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_prewarp_freq(&mut self, value: f32) {
         self.coeffs.set_prewarp_freq(value);
     }
-
+    /// Sets the input mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_coeff_x(&mut self, value: f32) {
         self.coeffs.set_coeff_x(value);
     }
-
+    /// Sets the lowpass mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_coeff_lp(&mut self, value: f32) {
         self.coeffs.set_coeff_lp(value);
     }
-
+    /// Sets the bandpass mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_coeff_bp(&mut self, value: f32) {
         self.coeffs.set_coeff_bp(value);
     }
-
+    /// Sets the highpass mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_coeff_hp(&mut self, value: f32) {
         self.coeffs.set_coeff_hp(value);
@@ -172,7 +224,7 @@ impl<const N_CHANNELS: usize> Default for MM2<N_CHANNELS> {
         Self::new()
     }
 }
-
+/// Coefficients and related.
 pub struct MM2Coeffs<const N_CHANNELS: usize> {
     // Sub-components
     svf_coeffs: SVFCoeffs<N_CHANNELS>,
@@ -183,6 +235,7 @@ pub struct MM2Coeffs<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let svf_coeffs = SVFCoeffs::<N_CHANNELS>::new();
@@ -212,7 +265,7 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
             gain_hp_coeffs,
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
@@ -227,7 +280,7 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
         self.gain_bp_coeffs.set_sample_rate(sample_rate);
         self.gain_hp_coeffs.set_sample_rate(sample_rate);
     }
-
+    /// Resets coefficients to assume their target values.
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
         self.svf_coeffs.reset_coeffs();
@@ -236,7 +289,10 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
         self.gain_bp_coeffs.reset_coeffs();
         self.gain_hp_coeffs.reset_coeffs();
     }
-
+    /// Resets the given state to its initial values using the initial
+    /// input value `x0`.
+    ///
+    /// Returns the corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut MM2State, x0: f32) -> f32 {
         let (mut lp, mut bp, mut hp) = (0.0, 0.0, 0.0);
@@ -252,7 +308,11 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Resets each of the `N_CHANNELS` states to its initial values using
+    /// the corresponding initial input value in the `x0` array.
+    ///
+    /// The corresponding initial output values are written into the `y0` array,
+    /// if not None.
     #[inline(always)]
     pub fn reset_state_multi(
         &mut self,
@@ -269,7 +329,7 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
             }),
         }
     }
-
+    /// Triggers control-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_ctrl(&mut self) {
         // Not implemented yet as only asserting:
@@ -281,7 +341,7 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
         self.gain_bp_coeffs.update_coeffs_ctrl();
         self.gain_hp_coeffs.update_coeffs_ctrl();
     }
-
+    /// Triggers audio-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_audio(&mut self) {
         self.svf_coeffs.update_coeffs_audio();
@@ -290,7 +350,8 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
         self.gain_bp_coeffs.update_coeffs_audio();
         self.gain_hp_coeffs.update_coeffs_audio();
     }
-
+    /// Processes one input sample `x`, while using and updating state.
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut MM2State, x: f32) -> f32 {
         debug_assert!(x.is_finite(), "value must be finite, got {}", x);
@@ -309,7 +370,9 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes the first `n_samples` of the input buffer `x` and fills the first
+    /// `n_samples` of the output buffer `y`, while using and updating both coeffs
+    /// and state (control and audio rate).
     #[inline(always)]
     pub fn process(&mut self, state: &mut MM2State, x: &[f32], y: &mut [f32], n_samples: usize) {
         self.update_coeffs_ctrl();
@@ -319,7 +382,9 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
             y[sample] = self.process1(state, x[sample]);
         });
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     #[inline(always)]
     pub fn process_multi(
         &mut self,
@@ -337,7 +402,11 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
             });
         });
     }
-
+    /// Sets the cutoff frequency value (Hz).
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -348,7 +417,11 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
 
         self.svf_coeffs.set_cutoff(value);
     }
-
+    /// Sets the quality factor to the given value.
+    ///
+    /// Valid range: [1e-6, 1e6].
+    ///
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_q(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -359,12 +432,22 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
 
         self.svf_coeffs.set_q(value);
     }
-
+    /// Sets whether bilinear transform prewarping frequency should match the
+    /// cutoff frequency (true) or not (false).
+    ///
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         self.svf_coeffs.set_prewarp_at_cutoff(value);
     }
-
+    /// Sets the prewarping frequency value (Hz).
+    ///
+    /// Only used when the `prewarp_at_cutoff` parameter is off and however
+    /// internally limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_prewarp_freq(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -375,37 +458,57 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
 
         self.svf_coeffs.set_prewarp_freq(value);
     }
-
+    /// Sets the input mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_coeff_x(&mut self, value: f32) {
         debug_assert!(value.is_finite(), "value must be finite, got {}", value);
 
         self.gain_x_coeffs.set_gain_lin(value);
     }
-
+    /// Sets the lowpass mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_coeff_lp(&mut self, value: f32) {
         debug_assert!(value.is_finite(), "value must be finite, got {}", value);
 
         self.gain_lp_coeffs.set_gain_lin(value);
     }
-
+    /// Sets the bandpass mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_coeff_bp(&mut self, value: f32) {
         debug_assert!(value.is_finite(), "value must be finite, got {}", value);
 
         self.gain_bp_coeffs.set_gain_lin(value);
     }
-
+    /// Sets the highpass mode coefficient value.
+    ///
+    /// value must be finite.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_coeff_hp(&mut self, value: f32) {
         debug_assert!(value.is_finite(), "value must be finite, got {}", value);
 
         self.gain_hp_coeffs.set_gain_lin(value);
     }
-
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether coeffs is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    /// # Notes
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn coeffs_is_valid(&mut self) -> bool {
         todo!();
@@ -413,6 +516,11 @@ impl<const N_CHANNELS: usize> MM2Coeffs<N_CHANNELS> {
 
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether state is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    /// # Notes
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn state_is_valid(&mut self) -> bool {
         todo!();
@@ -425,6 +533,7 @@ impl<const N_CHANNELS: usize> Default for MM2Coeffs<N_CHANNELS> {
     }
 }
 
+/// Internal state and related.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct MM2State {
     // Sub-components

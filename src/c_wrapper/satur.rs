@@ -1,4 +1,4 @@
-//! Antialiased tanh-based saturation with parametric bias and gain (compensation) and
+//! **Antialiased tanh-based saturation** with parametric bias and gain (compensation) and
 //! output bias removal.
 //!
 //! In other words this implements (approximately):
@@ -33,7 +33,7 @@
 //!     satur.reset_multi(&x0, None);
 //!
 //!     let mut y: [&mut [f32]; 2] = [
-//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 
+//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 //!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 //!     ];
 //!     satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
@@ -61,7 +61,7 @@ use std::ptr::null_mut;
 /// for a given number of channels (`N_CHANNELS`).  
 ///
 /// # Usage
-/// ```rust 
+/// ```rust
 /// use brickworks_rs::c_wrapper::satur::Satur;
 /// const N_CHANNELS: usize = 2;
 /// let mut satur = Satur::<N_CHANNELS>::new();
@@ -140,7 +140,7 @@ impl<const N_CHANNELS: usize> Satur<N_CHANNELS> {
     }
     /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
     /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
-    /// both the common coeffs and each of the N_CHANNELS states (control and audio rate).
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     #[inline(always)]
     pub fn process(&mut self, x: &[&[f32]; N_CHANNELS], y: &mut [&mut [f32]], n_samples: usize) {
         let x_ptrs: [*const f32; N_CHANNELS] = std::array::from_fn(|i| x[i].as_ptr());

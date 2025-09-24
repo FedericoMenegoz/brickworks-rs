@@ -1,4 +1,4 @@
-//! Second-order peak filter with unitary gain at DC and asymptotically as
+//! **Second-order peak filter** with unitary gain at DC and asymptotically as
 //! frequency increases.
 //!
 //! The quality factor of the underlying bandpass filter can be either directly
@@ -45,17 +45,17 @@ use crate::native::{
     math::{db2linf, pow2f, rcpf, sqrtf},
     mm2::{MM2Coeffs, MM2State},
 };
-/// Second-order peak filter with unitary gain at DC and asymptotically 
+/// Second-order peak filter with unitary gain at DC and asymptotically
 /// as frequency increases.
-/// 
+///
 /// This struct manages both the filter coefficients and the runtime states
 /// for a given number of channels (`N_CHANNELS`).  
 /// It wraps:
-/// - [`PeakCoeffs`] 
-/// - [`PeakState`] 
-/// 
+/// - [`PeakCoeffs`]
+/// - [`PeakState`]
+///
 /// # Usage
-/// ```rust 
+/// ```rust
 /// use brickworks_rs::native::peak::Peak;
 /// const N_CHANNELS: usize = 2;
 /// let mut peak = Peak::<N_CHANNELS>::new();

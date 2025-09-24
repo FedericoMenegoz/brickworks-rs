@@ -1,4 +1,4 @@
-//! State variable filter (2nd order, 12 dB/oct) model with separated lowpass,
+//! **State variable filter** (2nd order, 12 dB/oct) model with separated lowpass,
 //! bandpass, and highpass outputs.
 //!
 //! # Example
@@ -61,16 +61,16 @@ use crate::native::common::{debug_assert_positive, debug_assert_range};
 /// The SVF provides lowpass, bandpass, and highpass outputs for each channel.
 /// Filter parameters are shared across channels, while each channel maintains
 /// its own state.
-/// 
+///
 /// This struct manages both the filter coefficients and the runtime states
 /// for a given number of channels (`N_CHANNELS`).  
 /// It wraps:
-/// - [`SVFCoeffs`] 
-/// - [`SVFState`] 
+/// - [`SVFCoeffs`]
+/// - [`SVFState`]
 ///
 ///
 /// # Usage
-/// ```rust 
+/// ```rust
 /// use brickworks_rs::native::svf::SVF;
 /// const N_CHANNELS: usize = 2;
 /// let mut svf = SVF::<N_CHANNELS>::new();
@@ -308,7 +308,7 @@ pub struct SVFCoeffs<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
-    /// Creates a new instance of `SVFCoeffs` with all fields initialized.
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let mut coeffs = Self {
@@ -333,13 +333,7 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
 
         coeffs
     }
-    /// Sets the sample rate (Hz) in `SVFCoeffs`.
-    ///
-    /// # Parameters
-    /// - `sample_rate`: the new sample rate in Hz.
-    ///
-    /// # Panics
-    /// In debug mode, panics if `sample_rate` is non-positive or not finite.
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
@@ -353,7 +347,7 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
         self.t_k = PI / sample_rate;
         self.prewarp_freq_max = 0.499 * sample_rate;
     }
-    /// Resets coefficients in `OnePoleCoeffs` to assume their target values.
+    /// Resets coefficients to assume their target values.
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
         self.smooth_coeffs
@@ -366,17 +360,11 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
         );
         self.do_update_coeffs(true);
     }
-    /// Resets the given state to its initial values using the provided coefficients and initial input `x0`.
-    ///
-    /// # Parameters
-    /// - `state`: the filter state to reset
-    /// - `x0`: the initial input value
-    /// - `y_lp0`: output for the initial lowpass value
-    /// - `y_bp0`: output for the initial bandpass value
-    /// - `y_hp0`: output for the initial highpass value
+    /// Resets the given state to its initial values using the initial input `x0`.
     ///
     /// # Notes
-    /// The corresponding initial lowpass, bandpass, and highpass outputs are stored in `y_lp`, `y_bp`, and `y_hp`.
+    /// The corresponding initial lowpass, bandpass, and highpass outputs are
+    /// stored in `y_lp`, `y_bp`, and `y_hp`.
     #[inline(always)]
     pub fn reset_state(
         &mut self,
@@ -394,17 +382,12 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
         *y_bp0 = 0.0;
         *y_hp0 = 0.0;
     }
-    /// Resets each of the `n_channels` states to their initial values using the provided coefficients and initial inputs.
-    ///
-    /// # Parameters
-    /// - `states`: slice of filter states to reset, one per channel
-    /// - `x0`: array of initial input values, one per channel
-    /// - `y_lp`: optional array to store initial lowpass outputs per channel
-    /// - `y_bp`: optional array to store initial bandpass outputs per channel
-    /// - `y_hp`: optional array to store initial highpass outputs per channel
+    /// Resets each of the `N_CHANNELS` states to their initial values using the
+    /// provided coefficients and initial inputs.
     ///
     /// # Notes
-    /// The corresponding initial lowpass, bandpass, and highpass outputs are written into `y_lp`, `y_bp`, and `y_hp` arrays if provided.
+    /// The corresponding initial lowpass, bandpass, and highpass outputs are
+    /// written into `y_lp`, `y_bp`, and `y_hp` arrays if provided.
     #[inline(always)]
     pub fn reset_state_multi(
         &mut self,
@@ -525,18 +508,11 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
     pub fn update_coeffs_audio(&mut self) {
         self.do_update_coeffs(false);
     }
-    /// Processes a single input sample `x` using the given SVF coefficients, updating the provided state.
-    ///
-    /// # Parameters
-    /// - `coeffs`: the SVF coefficients to use
-    /// - `state`: the SVF state to update
-    /// - `x`: the input sample to process
-    /// - `y_lp`: output for the lowpass result
-    /// - `y_bp`: output for the bandpass result
-    /// - `y_hp`: output for the highpass result
+    /// Processes a single input sample `x`, updating the provided state.
     ///
     /// # Notes
-    /// The lowpass, bandpass, and highpass outputs are written into `y_lp`, `y_bp`, and `y_hp`, respectively.
+    /// The lowpass, bandpass, and highpass outputs are written into
+    /// `y_lp`, `y_bp`, and `y_hp`, respectively.
     #[inline(always)]
     pub fn process1(
         &mut self,
@@ -561,16 +537,7 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
         debug_assert!(y_lp.is_finite());
         debug_assert!(y_bp.is_finite());
     }
-    /// Processes the first `n_samples` of the input buffer `x` using the given SVF coefficients and state.
-    ///
-    /// # Parameters
-    /// - `coeffs`: the SVF coefficients to use
-    /// - `state`: the SVF state to update
-    /// - `x`: input buffer containing samples to process
-    /// - `y_lp`: optional output buffer for lowpass results
-    /// - `y_bp`: optional output buffer for bandpass results
-    /// - `y_hp`: optional output buffer for highpass results
-    /// - `n_samples`: number of samples to process
+    /// Processes the first `n_samples` of the input buffer `x`.
     ///
     /// # Notes
     /// The coefficients and state are updated during processing.
@@ -682,19 +649,11 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
             }
         }
     }
-    /// Processes the first `n_samples` of the `n_channels` input buffers `x` using shared SVF coefficients and states.
-    ///
-    /// # Parameters
-    /// - `coeffs`: the SVF coefficients to use
-    /// - `states`: slice of states, one per channel
-    /// - `x`: slice of input buffers, one per channel
-    /// - `y_lp`: optional slice of output buffers for lowpass results, one per channel
-    /// - `y_bp`: optional slice of output buffers for bandpass results, one per channel
-    /// - `y_hp`: optional slice of output buffers for highpass results, one per channel
-    /// - `n_samples`: number of samples to process per channel
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x`.
     ///
     /// # Notes
-    /// The coefficients and all channel states are updated during processing. Output buffers must be provided for all channels.
+    /// The coefficients and all channel states are updated during processing.
+    /// Output buffers must be provided for all channels.
     #[inline(always)]
     pub fn process_multi(
         &mut self,
@@ -865,13 +824,11 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
             }
         }
     }
-    /// Sets the cutoff frequency in the SVFCoeffs.
+    /// Sets the cutoff frequency to the given value (Hz).
     ///
-    /// # Parameters
-    /// - `value`: cutoff frequency in Hz. Valid range: `[1e-6, 1e12]`.
+    /// Valid range: [1e-6, 1e12].
     ///
-    /// # Notes
-    /// Default: `1e3`.
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -882,13 +839,11 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
 
         self.cutoff = value;
     }
-    /// Sets the quality factor in the SVF coefficients.
+    /// Sets the quality factor to the given value.
     ///
-    /// # Parameters
-    /// - `value`: quality factor. Valid range: `[1e-6, 1e6]`.
+    /// Valid range: [1e-6, 1e6].
     ///
-    /// # Notes
-    /// Default: `0.5`.
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_q(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -899,24 +854,22 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
 
         self.q = value;
     }
-    /// Enables or disables bilinear transform prewarping at the cutoff frequency.
+    /// Sets whether bilinear transform prewarping frequency should match the cutoff
+    /// frequency (true) or not (false).
     ///
-    /// # Parameters
-    /// - `value`: `true` to prewarp at cutoff, `false` otherwise.
-    ///
-    /// # Notes
-    /// Default: `true`.
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         self.prewarp_k = if value { 1.0 } else { 0.0 }
     }
-    /// Sets the prewarping frequency in the SVF coefficients.
+    /// Sets the prewarping frequency value (Hz).
     ///
-    /// # Parameters
-    /// - `value`: prewarping frequency in Hz. Valid range: `[1e-6, 1e12]`.
+    /// Only used when the prewarp_at_cutoff parameter is off and however internally
+    /// limited to avoid instability.
     ///
-    /// # Notes
-    /// Only used when `prewarp_at_cutoff` is disabled. Default: `1e3`.
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_prewarp_freq(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -930,13 +883,10 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
 
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
-    /// Checks whether the SVF coefficients are valid.
-    ///
-    /// # Returns
-    /// `true` if the coefficients appear valid, `false` if they are certainly invalid.
-    ///
+    /// Tries to determine whether coeffs is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
     /// # Notes
-    /// False positives are possible, false negatives are not. The coefficients must point to a readable memory block of appropriate size.
     /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn coeffs_is_valid(&mut self) -> bool {
@@ -945,16 +895,10 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
 
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
-    /// Checks whether the given SVF state is valid.
-    ///
-    /// # Parameters
-    /// - `state`: the state to check.
-    ///
-    /// # Returns
-    /// `true` if the state appears valid, `false` if it is certainly invalid.
-    ///
+    /// Tries to determine whether state is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
     /// # Notes
-    /// If coefficients are provided, extra cross-checks may be performed. The state must point to a readable memory block of appropriate size.
     /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn state_is_valid(&mut self) -> bool {

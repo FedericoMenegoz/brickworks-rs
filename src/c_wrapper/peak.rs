@@ -1,4 +1,4 @@
-//! Second-order peak filter with unitary gain at DC and asymptotically as
+//! **Second-order peak filter** with unitary gain at DC and asymptotically as
 //! frequency increases.
 //!
 //! The quality factor of the underlying bandpass filter can be either directly
@@ -41,14 +41,14 @@
 use std::ptr::null_mut;
 
 use super::*;
-/// Second-order peak filter with unitary gain at DC and asymptotically 
+/// Second-order peak filter with unitary gain at DC and asymptotically
 /// as frequency increases.
-/// 
+///
 /// This struct manages both the filter coefficients and the runtime states
 /// for a given number of channels (`N_CHANNELS`).  
-/// 
+///
 /// # Usage
-/// ```rust 
+/// ```rust
 /// use brickworks_rs::c_wrapper::peak::Peak;
 /// const N_CHANNELS: usize = 2;
 /// let mut peak = Peak::<N_CHANNELS>::new();
