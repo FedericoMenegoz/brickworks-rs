@@ -6,7 +6,7 @@ use std::ptr::null_mut;
 ///
 /// # Example
 /// ```rust
-/// use brickworks_rs::native::svf::*;
+/// use brickworks_rs::c_wrapper::svf::*;
 ///
 /// const SAMPLE_RATE: f32 = 48_000.0;
 /// const N_CHANNELS: usize = 2;

@@ -5,13 +5,55 @@ use crate::native::{
 
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
-
+/// Antialiased tanh-based saturation with parametric bias and gain (compensation) and 
+/// output bias removal.
+/// 
+/// In other words this implements (approximately)
+/// 
+/// > y(n) = tanh(gain * x(n) + bias) - tanh(bias)
+/// 
+/// with antialiasing and optionally dividing the output by gain.
+/// 
+/// As a side effect, antialiasing causes attenuation at higher frequencies (about 
+/// 3 dB at 0.5 × Nyquist frequency and rapidly increasing at higher frequencies).
+/// # Example
+/// ```rust
+/// use brickworks_rs::native::satur::*;
+/// const N_CHANNELS: usize = 2;
+/// const SAMPLE_RATE: f32 = 44_100.0;
+///
+/// const PULSE_INPUT: [&[f32]; N_CHANNELS] = [
+///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+/// ];
+/// const N_SAMPLES: usize = 8;
+/// fn main() {
+///     let mut satur = Satur::new();
+///     satur.set_sample_rate(SAMPLE_RATE);
+///     let x0 = [0.0, 0.0];
+/// 
+///     satur.reset_multi(&x0, None);
+/// 
+///     let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]];
+///     satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
+/// }
+/// ```
+/// # Notes
+/// The antialiasing technique used here is described in:
+/// J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of Nonlinear 
+/// Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl. Conf. Digital 
+/// Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic, September 2016.
+/// 
+/// This module provides a native Rust implementation, but the same interface is
+/// also available via bindings to the original C library at [crate::c_wrapper::satur].
+/// Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_satur).
 pub struct Satur<const N_CHANNELS: usize> {
     pub(crate) coeffs: SaturCoeffs<N_CHANNELS>,
     pub(crate) states: [SaturState; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Satur<N_CHANNELS> {
+    /// Creates a new instance with default parameters and zeroed state.
     #[inline(always)]
     pub fn new() -> Self {
         Satur {
@@ -19,12 +61,15 @@ impl<const N_CHANNELS: usize> Satur<N_CHANNELS> {
             states: [SaturState::default(); N_CHANNELS],
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    /// 
+    /// The corresponding initial output values are written into the y0 array, if it is Some.
     #[inline(always)]
     pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
@@ -41,13 +86,18 @@ impl<const N_CHANNELS: usize> Satur<N_CHANNELS> {
             }
         }
     }
-
+    /// Resets the satur's coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    /// 
+    /// The corresponding initial output values are written into the y0 array, if is Some.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
         self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the 
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating 
+    /// both the common coeffs and each of the N_CHANNELS states (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -57,17 +107,27 @@ impl<const N_CHANNELS: usize> Satur<N_CHANNELS> {
     ) {
         self.coeffs.process_multi(&mut self.states, x, y, n_samples);
     }
-
+    /// Sets the input bias value.
+    /// 
+    /// Valid range: [-1e12, 1e12].
+    /// 
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_bias(&mut self, value: f32) {
         self.coeffs.set_bias(value);
     }
-
+    /// Sets the gain value.
+    /// 
+    /// Valid range: [1e-12, 1e12].
+    /// 
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_gain(&mut self, value: f32) {
         self.coeffs.set_gain(value);
     }
-
+    /// Sets whether the output should be divided by gain (`true`) or not (`false`).
+    /// 
+    /// Default value: `false` (off).
     #[inline(always)]
     pub fn set_gain_compensation(&mut self, value: bool) {
         self.coeffs.set_gain_compensation(value);
@@ -79,7 +139,7 @@ impl<const N_CHANNELS: usize> Default for Satur<N_CHANNELS> {
         Self::new()
     }
 }
-
+/// Coefficients and related.
 pub struct SaturCoeffs<const N_CHANNELS: usize> {
     // Sub-components
     smooth_coeffs: OnePoleCoeffs<N_CHANNELS>,
@@ -97,6 +157,7 @@ pub struct SaturCoeffs<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
+    /// Creates a new instance with all field initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let mut smooth_coeffs = OnePoleCoeffs::<N_CHANNELS>::new();
@@ -117,7 +178,7 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
             gain_compensation: false,
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
@@ -129,7 +190,7 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
         self.smooth_coeffs.set_sample_rate(sample_rate);
         self.smooth_coeffs.reset_coeffs();
     }
-
+    /// Resets coefficients to assume their target values.
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
         self.smooth_coeffs
@@ -138,7 +199,9 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
             .reset_state(&mut self.smooth_gain_state, self.gain);
         self.do_update_coeffs(true);
     }
-
+    /// Resets the given state to its initial values using the initial input value x0.
+    /// 
+    /// Returns the corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut SaturState, x0: f32) -> f32 {
         #[cfg(debug_assertions)]
@@ -166,7 +229,10 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Resets each of the `N_CHANNELS` states to its initial values using 
+    /// the corresponding initial input value in the `x0` array.
+    /// 
+    /// The corresponding initial output values are written into the `y0` array, if not None.
     #[inline(always)]
     pub fn reset_state_multi(
         &mut self,
@@ -186,16 +252,22 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
 
     // Not implemented yet: C version only contained assertions
     // need to revisit which assertions from the C version make sense to keep in Rust
+    // /// Triggers control-rate update of coefficients.
     // #[inline(always)]
     // pub fn update_coeffs_ctrl(&mut self, value: f32) {
     //     todo!()
     // }
-
+    /// Triggers audio-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_audio(&mut self) {
         self.do_update_coeffs(false);
     }
-
+    /// Processes a single input sample `x`, updating the provided `state`. 
+    /// Assumes that gain compensation is disabled.
+    ///
+    /// # Returns
+    /// The corresponding output sample.
+    /// The actual gain compensation parameter value is ignored.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut SaturState, mut x: f32) -> f32 {
         #[cfg(debug_assertions)]
@@ -223,7 +295,12 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes a single input sample `x`, updating the provided `state`. 
+    /// Assumes that gain compensation is enabled.
+    ///
+    /// # Returns
+    /// The corresponding output sample.
+    /// The actual gain compensation parameter value is ignored.
     #[inline(always)]
     pub fn process1_comp(&mut self, state: &mut SaturState, x: f32) -> f32 {
         #[cfg(debug_assertions)]
@@ -236,7 +313,9 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes the first `n_samples` of the input buffer `x` and fills the first 
+    /// `n_samples` of the output buffer `y`, while using and updating both coeffs
+    ///  and state (control and audio rate).
     #[inline(always)]
     pub fn process(&mut self, state: &mut SaturState, x: &[f32], y: &mut [f32], n_samples: usize) {
         if self.gain_compensation {
@@ -251,7 +330,10 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
             });
         }
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` 
+    /// and fills the first `n_samples` of the `N_CHANNELS` output buffers `y`,
+    /// while using and updating both the common coeffs and each of the `N_CHANNELS`
+    /// states (control and audio rate).
     #[inline(always)]
     pub fn process_multi(
         &mut self,
@@ -280,7 +362,11 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
             });
         }
     }
-
+    /// Sets the input bias value.
+    /// 
+    /// Valid range: [-1e12, 1e12].
+    /// 
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_bias(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -291,7 +377,11 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
 
         self.bias = value;
     }
-
+    /// Sets the gain value.
+    /// 
+    /// Valid range: [1e-12, 1e12].
+    /// 
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_gain(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -302,7 +392,9 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
 
         self.gain = value;
     }
-
+    /// Sets whether the output should be divided by gain (`true`) or not (`false`).
+    /// 
+    /// Default value: `false` (off).
     #[inline(always)]
     pub fn set_gain_compensation(&mut self, value: bool) {
         self.gain_compensation = value;
@@ -310,6 +402,12 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
 
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether coeffs is valid and returns true if it seems to 
+    /// be the case and `false` if it is certainly not. False positives are possible, 
+    /// false negatives are not.
+    /// 
+    /// # Note
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn coeffs_is_valid() -> bool {
         todo!()
@@ -317,6 +415,12 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
 
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether state is valid and returns `true` if it seems to 
+    /// be the case and `false` if it is certainly not. False positives are possible, 
+    /// false negatives are not.
+    ///
+    /// # Note
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn state_is_valid() -> bool {
         todo!()
@@ -356,7 +460,7 @@ impl<const N_CHANNELS: usize> Default for SaturCoeffs<N_CHANNELS> {
         Self::new()
     }
 }
-
+/// Internal state and related.
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub struct SaturState {
     x_z1: f32,
