@@ -1,7 +1,56 @@
 use super::*;
 use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
 use std::ptr::null_mut;
-
+/// State variable filter (2nd order, 12 dB/oct) model with separated lowpass,
+/// bandpass, and highpass outputs.
+///
+/// # Example
+/// ```rust
+/// use brickworks_rs::native::svf::*;
+///
+/// const SAMPLE_RATE: f32 = 48_000.0;
+/// const N_CHANNELS: usize = 2;
+///
+/// fn main() {
+///     let mut svf = SVF::new();
+///     svf.set_sample_rate(SAMPLE_RATE);
+///     let cutoff = 185.0;
+///     let q = 0.707;
+///     let prewarpfreq = 185.0;
+///     let n_samples = 2;
+///
+///     let x_ch0 = [1.0, 0.0];
+///     let x_ch1 = [1.0, 0.0];
+///     let x: [&[f32]; 2] = [&x_ch0, &x_ch1];
+///
+///     let mut y_lp_ch0 = [0.0, 0.0];
+///     let mut y_lp_ch1 = [0.0, 0.0];
+///     let mut y_lp: [Option<&mut [f32]>; N_CHANNELS] =
+///         [Some(&mut y_lp_ch0), Some(&mut y_lp_ch1)];
+///
+///     svf.set_sample_rate(SAMPLE_RATE);
+///     svf.set_cutoff(cutoff);
+///     svf.set_prewarp_at_cutoff(true);
+///     svf.set_q(q);
+///     svf.set_prewarp_freq(prewarpfreq);
+///     svf.reset(0.0, None, None, None);
+///
+///
+///     svf.process(
+///         &x,
+///         Some(&mut y_lp),
+///         None,
+///         None,
+///         n_samples,
+///     );
+/// }
+/// ```
+/// # Notes
+/// This module provides Rust bindings to the original C implementation.
+/// For a fully native Rust implementation with the same interface,
+/// see [crate::native::svf].
+/// Original C library by [Orastron](https://www.orastron.com/algorithms/bw_svf).
+///
 #[derive(Debug)]
 pub struct SVF<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_svf_coeffs,
@@ -9,6 +58,7 @@ pub struct SVF<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
+    /// Creates a new `SVF` filter with default parameters and zeroed state.
     pub fn new() -> Self {
         let mut coeffs = bw_svf_coeffs::default();
         unsafe {
@@ -19,13 +69,17 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
             states: make_array::<bw_svf_state, N_CHANNELS>(),
         }
     }
-
+    /// Sets the filter's sample rate (Hz).
     pub fn set_sample_rate(&mut self, value: f32) {
         unsafe {
             bw_svf_set_sample_rate(&mut self.coeffs, value);
         }
     }
-
+    /// Resets the given state to its initial values using the given coeffs and the
+    /// initial input value x_0.
+    ///
+    /// The corresponding initial lowpass, bandpass, and highpass output values are
+    /// put into y_lp_0, y_bp_0, and y_hp_0 respectively if they are Some.
     pub fn reset(
         &mut self,
         x0: f32,
@@ -66,7 +120,11 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
             };
         }
     }
-
+    /// Resets each of the n_channels states to its initial values using the given
+    /// coeffs and the corresponding initial input value in the x_0 array.
+    ///
+    /// The corresponding initial lowpass, bandpass, and highpass output values are
+    /// put into the y_lp0, y_bp0, and y_hp0 arrays, respectively, if they are Some.
     pub fn reset_multi(
         &mut self,
         x0: &[f32; N_CHANNELS],
@@ -105,7 +163,11 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
             );
         }
     }
-
+    /// Processes the first `n_sample` of the `N_CHANNELS` input buffers `x` and fills
+    /// the first `n_sample` of the `N_CHANNELS` output buffers `y_lp` (lowpass),
+    /// `y_bp` (bandpass) and `y_hp`(highpass) if they are Some, while using and
+    /// updating both the common coeffs and each of the `N_CHANNELS` states (control
+    /// and audio rate).
     pub fn process(
         &mut self,
         x: &[&[f32]; N_CHANNELS],
@@ -135,25 +197,43 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
             );
         }
     }
-
+    /// Sets the cutoff frequency to the given value (Hz) in SVF.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     pub fn set_cutoff(&mut self, value: f32) {
         unsafe {
             bw_svf_set_cutoff(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the quality factor to the given value in SVF.
+    ///
+    /// Valid range: [1e-6, 1e6].
+    ///
+    /// Default value: 0.5.
     pub fn set_q(&mut self, value: f32) {
         unsafe {
             bw_svf_set_Q(&mut self.coeffs, value);
         }
     }
-
+    /// Sets whether bilinear transform prewarping frequency should match the cutoff
+    /// frequency (non-0) or not (0).
+    ///
+    /// Default value: non-0 (on).
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         unsafe {
             bw_svf_set_prewarp_at_cutoff(&mut self.coeffs, if value { 1 } else { 0 });
         }
     }
-
+    /// Sets the prewarping frequency value (Hz) in coeffs.
+    ///
+    /// Only used when the prewarp_at_cutoff parameter is off and however internally
+    /// limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     pub fn set_prewarp_freq(&mut self, value: f32) {
         unsafe {
             bw_svf_set_prewarp_freq(&mut self.coeffs, value);

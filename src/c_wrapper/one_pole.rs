@@ -1,8 +1,6 @@
 use super::*;
 use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
 
-/// One-pole filter: Rust binding to the C library by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
-///
 /// One-pole (6 dB/oct) lowpass filter with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
 ///
 /// This is better suited to implement smoothing than bw_lp1.
@@ -48,7 +46,9 @@ use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
 ///
 /// # Notes
 /// This module provides Rust bindings to the original C implementation.
-/// For a fully native Rust implementation with the same interface, see [crate::native::one_pole].
+/// For a fully native Rust implementation with the same interface,
+/// see [crate::native::one_pole].
+/// Original C library by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
 #[derive(Debug)]
 pub struct OnePole<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_one_pole_coeffs,

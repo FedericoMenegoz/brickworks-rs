@@ -5,27 +5,26 @@ use super::math::rcpf;
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 use crate::native::math::{INVERSE_2_PI, NANO};
 
-/// One-pole filter: Rust native port of the original implementation by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
-///
 /// One-pole (6 dB/oct) lowpass filter with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
 ///
 /// This is better suited to implement smoothing than lp1.
 ///
 /// # Example
-/// ```
+/// ```rust
 /// use brickworks_rs::native::one_pole::*;
 ///
 /// const CUTOFF: f32 = 100_000.0;
 /// const STICKY_THRESH: f32 = 0.9;
-/// const SAMPLE_RATE: f32 = 48_000.0;
 /// const N_CHANNELS: usize = 2;
 /// const N_SAMPLES: usize = 1;
+/// const SAMPLE_RATE: f32 = 48_000.0;
+///
 /// fn main() {
 ///     // Create a new OnePole filter instance for N_CHANNELS
 ///     let mut one_pole = OnePole::<N_CHANNELS>::new();
 ///
 ///     // Input signal: one sample per channel
-///     let x:[&[f32]; N_CHANNELS] = [&[1.0], &[33.0]];
+///     let x:[&[f32]; N_CHANNELS] = [&[1.0], &[0.0]];
 ///
 ///     // Output buffer, same shape as input
 ///     let mut y_ch1 = [0.0];
@@ -53,6 +52,7 @@ use crate::native::math::{INVERSE_2_PI, NANO};
 ///# Notes
 /// This module provides a native Rust implementation of the filter, but the same interface is
 /// also available via bindings to the original C library at [crate::c_wrapper::one_pole].
+/// Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
 ///
 #[derive(Debug)]
 pub struct OnePole<const N_CHANNELS: usize> {
@@ -77,7 +77,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
             states: [OnePoleState { y_z1: 0.0 }; N_CHANNELS],
         }
     }
-    /// Sets the filter's sample rate, required for accurate time constant conversion.
+    /// Sets the filter's sample rate.
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
@@ -973,7 +973,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn get_y_z1(&self, state: OnePoleState) -> f32 {
         state.get_y_z1()
-    }   
+    }
     /// Checks whether the coefficients are valid.
     ///
     /// # Notes
