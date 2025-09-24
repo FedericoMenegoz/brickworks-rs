@@ -298,8 +298,8 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
     /// Processes a single input sample `x`, updating the provided `state`.
     /// Assumes that gain compensation is disabled.
     ///
-    /// # Returns
-    /// The corresponding output sample.
+    /// Returns the corresponding output sample.
+    ///
     /// The actual gain compensation parameter value is ignored.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut SaturState, mut x: f32) -> f32 {
@@ -331,8 +331,7 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
     /// Processes a single input sample `x`, updating the provided `state`.
     /// Assumes that gain compensation is enabled.
     ///
-    /// # Returns
-    /// The corresponding output sample.
+    /// Returns the corresponding output sample.
     /// The actual gain compensation parameter value is ignored.
     #[inline(always)]
     pub fn process1_comp(&mut self, state: &mut SaturState, x: f32) -> f32 {

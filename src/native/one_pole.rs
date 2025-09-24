@@ -1,6 +1,6 @@
 //! **One-pole (6 dB/oct) lowpass filter** with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
 //!
-//! This is better suited to implement smoothing than lp1.
+//! This is better suited to implement smoothing than [crate::native::lp1].
 //!
 //! # Example
 //! ```rust
@@ -12,34 +12,31 @@
 //! const N_SAMPLES: usize = 1;
 //! const SAMPLE_RATE: f32 = 48_000.0;
 //!
-//! fn main() {
-//!     // Create a new OnePole filter instance for N_CHANNELS
-//!     let mut one_pole = OnePole::<N_CHANNELS>::new();
+//! // Create a new OnePole filter instance for N_CHANNELS
+//! let mut one_pole = OnePole::<N_CHANNELS>::new();
 //!
-//!     // Input signal: one sample per channel
-//!     let x:[&[f32]; N_CHANNELS] = [&[1.0], &[0.0]];
+//! // Input signal: one sample per channel
+//! let x:[&[f32]; N_CHANNELS] = [&[1.0], &[0.0]];
 //!
-//!     // Output buffer, same shape as input
-//!     let mut y_ch1 = [0.0];
-//!     let mut y_ch2 = [0.0];
-//!     let mut y: [Option<&mut[f32]>; N_CHANNELS] = [Some(&mut y_ch1), Some(&mut y_ch2)];
+//! // Output buffer, same shape as input
+//! let mut y_ch1 = [0.0];
+//! let mut y_ch2 = [0.0];
+//! let mut y: [Option<&mut[f32]>; N_CHANNELS] = [Some(&mut y_ch1), Some(&mut y_ch2)];
 //!
-//!     // Configure the filter
-//!     one_pole.set_sample_rate(SAMPLE_RATE);
-//!     one_pole.set_cutoff(CUTOFF);
-//!     one_pole.set_sticky_mode(StickyMode::Rel);
-//!     one_pole.set_sticky_thresh(STICKY_THRESH);
+//! // Configure the filter
+//! one_pole.set_sample_rate(SAMPLE_RATE);
+//! one_pole.set_cutoff(CUTOFF);
+//! one_pole.set_sticky_mode(StickyMode::Rel);
+//! one_pole.set_sticky_thresh(STICKY_THRESH);
 //!
-//!     // Initialize the filter state for each channel
-//!     one_pole.reset(None, None);
+//! // Initialize the filter state for each channel
+//! one_pole.reset(None, None);
 //!
-//!     // Process one sample per channel
-//!     one_pole.process(&x, Some(&mut y), N_SAMPLES);
+//! // Process one sample per channel
+//! one_pole.process(&x, Some(&mut y), N_SAMPLES);
 //!
-//!     // Output the filtered result
-//!     println!("Filtered output: {:?}", y);
-//! }
-//!
+//! // Output the filtered result
+//! println!("Filtered output: {:?}", y);
 //! ```
 //!
 //! # Notes
@@ -83,7 +80,6 @@ pub enum StickyMode {
     /// `StickyMode::Rel`: relative difference with respect to input (`|out - in| / |in|`).
     Rel,
 }
-
 impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// Creates a new instance with default parameters and zeroed state.
     #[inline(always)]
@@ -98,7 +94,8 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-    /// Resets the states and coeffs for all channels to the initial input `x0`, or to 0 if `x0` is not provided.
+    /// Resets the states and coeffs for all channels to the initial input `x0`,
+    /// or to 0 if `x0` is not provided.
     /// If `y0` is provided, the resulting initial outputs are stored in it.
     #[inline(always)]
     pub fn reset(&mut self, x0: Option<f32>, y0: Option<&mut [f32; N_CHANNELS]>) {
@@ -116,14 +113,11 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
             }
         }
     }
-    /// Resets the state and coefficients for all channels using the provided initial input values.
+    /// Resets the state and coefficients for all channels using the provided initial
+    /// input values.
     ///
-    /// # Parameters
-    /// - `x0`: array of initial input values for each channel.
-    /// - `y0`: optional array to store the resulting initial output values.
-    ///
-    /// # Notes
-    /// Both the coefficients and all channel states are reset. If `y0` is `Some`, the initial outputs are written into it.
+    /// Both the coefficients and all channel states are reset.
+    /// If `y0` is `Some`, the initial outputs are written into it.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
@@ -369,8 +363,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     }
     /// Resets the given state to its initial values using the initial input value `x0`.
     ///
-    /// # Returns
-    /// The corresponding initial output value.
+    /// Returns the corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut OnePoleState, x0: f32) -> f32 {
         debug_assert!(x0.is_finite());
@@ -417,8 +410,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Assumes that the upgoing and downgoing cutoff/tau are equal, and the
     /// target-reach threshold is `0.0`.
     ///
-    /// # Returns
-    /// The corresponding output sample.
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let y = x + self.m_a1u * (state.get_y_z1() - x);
@@ -430,8 +422,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Assumes upgoing and downgoing cutoff/tau are equal, the target-reach
     /// threshold is not `0.0`, and sticky mode is absolute (`StickyMode::Abs`).
     ///
-    /// # Returns
-    /// The corresponding output sample.
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_sticky_abs(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let mut y = x + self.m_a1u * (state.get_y_z1() - x);
@@ -448,8 +439,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Assumes upgoing and downgoing cutoff/tau are equal, the target-reach
     /// threshold is not `0.0`, and sticky mode is relative (`StickyMode::Rel`).
     ///
-    /// # Returns
-    /// The corresponding output sample.
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_sticky_rel(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let mut y = x + self.m_a1u * (state.get_y_z1() - x);
@@ -464,8 +454,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Processes a single input sample `x`, updating the provided `state`.
     /// Assumes upgoing and downgoing cutoff/tau may differ and the target-reach threshold is `0.0`.
     ///
-    /// # Returns
-    /// The corresponding output sample.
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_asym(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let y_z1 = state.get_y_z1();
@@ -481,8 +470,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Assumes upgoing and downgoing cutoff/tau may differ, the target-reach
     /// threshold is not `0.0`, and sticky mode is absolute (`StickyMode::Abs`).
     ///
-    /// # Returns
-    /// The corresponding output sample.
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_asym_sticky_abs(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let y_z1 = state.get_y_z1();
@@ -502,8 +490,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Assumes upgoing and downgoing cutoff/tau may differ, the target-reach
     /// threshold is not `0.0`, and sticky mode is relative (`StickyMode::Rel`).
     ///
-    /// # Returns
-    /// The corresponding output sample.
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_asym_sticky_rel(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
         let y_z1 = state.get_y_z1();
@@ -945,8 +932,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// # Parameters
     /// - `state`: the `OnePoleState` to query.
     ///
-    /// # Returns
-    /// The last output sample as `f32`.
+    /// Returns the last output sample as `f32`.
     #[inline(always)]
     pub fn get_y_z1(&self, state: OnePoleState) -> f32 {
         state.get_y_z1()

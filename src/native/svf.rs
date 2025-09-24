@@ -240,7 +240,7 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
         self.coeffs
             .process_multi(&mut self.states, x, y_lp, y_bp, y_hp, n_samples);
     }
-    /// Sets the cutoff frequency to the given value (Hz) in SVF.
+    /// Sets the cutoff frequency to the given value (Hz).
     ///
     /// Valid range: [1e-6, 1e12].
     ///
@@ -248,7 +248,7 @@ impl<const N_CHANNELS: usize> SVF<N_CHANNELS> {
     pub fn set_cutoff(&mut self, value: f32) {
         self.coeffs.set_cutoff(value);
     }
-    /// Sets the quality factor to the given value in SVF.
+    /// Sets the quality factor to the given value.
     ///
     /// Valid range: [1e-6, 1e6].
     ///
@@ -503,7 +503,7 @@ impl<const N_CHANNELS: usize> SVFCoeffs<N_CHANNELS> {
     // pub fn update_coeffs_ctrl(&mut self) {
     //     todo!()
     // }
-    /// Triggers audio-rate update of coefficients in SVFCoeffs.
+    /// Triggers audio-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_audio(&mut self) {
         self.do_update_coeffs(false);

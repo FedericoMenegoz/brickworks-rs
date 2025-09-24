@@ -270,8 +270,7 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
     }
     /// Resets the given state to its initial values using the initial input value `x0`.
     ///
-    /// # Returns
-    /// The corresponding initial output value.
+    /// Returns the corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut PeakState, x0: f32) -> f32 {
         debug_assert!(x0.is_finite());

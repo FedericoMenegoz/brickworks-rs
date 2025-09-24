@@ -237,7 +237,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::{
         c_wrapper::{bw_hp1_coeffs, bw_hp1_state, hp1::HP1 as HP1Wrapper},
-        native::lp1::tests::assert_lp1_coeffs,
+        native::lp1::tests::{assert_lp1_coeffs, assert_lp1_state},
     };
 
     const N_CHANNELS: usize = 2;
@@ -470,7 +470,6 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn assert_hp1_state(rust_state: &HP1State, c_state: &bw_hp1_state) {
-        assert_eq!(rust_state.lp1_state.get_x_z1(), c_state.lp1_state.X_z1);
-        assert_eq!(rust_state.lp1_state.get_y_z1(), c_state.lp1_state.y_z1);
+        assert_lp1_state(&rust_state.lp1_state, &c_state.lp1_state);
     }
 }

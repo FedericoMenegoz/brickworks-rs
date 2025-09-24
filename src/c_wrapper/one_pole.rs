@@ -1,6 +1,6 @@
 //! **One-pole (6 dB/oct) lowpass filter** with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
 //!
-//! This is better suited to implement smoothing than lp1.
+//! This is better suited to implement smoothing than [crate::c_wrapper::lp1].
 //!
 //! # Example
 //! ```rust
@@ -12,33 +12,31 @@
 //! const N_SAMPLES: usize = 1;
 //! const SAMPLE_RATE: f32 = 48_000.0;
 //!
-//! fn main() {
-//!     // Create a new OnePole filter instance for N_CHANNELS
-//!     let mut one_pole = OnePole::<N_CHANNELS>::new();
+//! // Create a new OnePole filter instance for N_CHANNELS
+//! let mut one_pole = OnePole::<N_CHANNELS>::new();
 //!
-//!     // Input signal: one sample per channel
-//!     let x:[&[f32]; N_CHANNELS] = [&[1.0], &[0.0]];
+//! // Input signal: one sample per channel
+//! let x:[&[f32]; N_CHANNELS] = [&[1.0], &[0.0]];
 //!
-//!     // Output buffer, same shape as input
-//!     let mut y_ch1 = [0.0];
-//!     let mut y_ch2 = [0.0];
-//!     let mut y: [Option<&mut[f32]>; N_CHANNELS] = [Some(&mut y_ch1), Some(&mut y_ch2)];
+//! // Output buffer, same shape as input
+//! let mut y_ch1 = [0.0];
+//! let mut y_ch2 = [0.0];
+//! let mut y: [Option<&mut[f32]>; N_CHANNELS] = [Some(&mut y_ch1), Some(&mut y_ch2)];
 //!
-//!     // Configure the filter
-//!     one_pole.set_sample_rate(SAMPLE_RATE);
-//!     one_pole.set_cutoff(CUTOFF);
-//!     one_pole.set_sticky_mode(StickyMode::Rel);
-//!     one_pole.set_sticky_thresh(STICKY_THRESH);
+//! // Configure the filter
+//! one_pole.set_sample_rate(SAMPLE_RATE);
+//! one_pole.set_cutoff(CUTOFF);
+//! one_pole.set_sticky_mode(StickyMode::Rel);
+//! one_pole.set_sticky_thresh(STICKY_THRESH);
 //!
-//!     // Initialize the filter state for each channel
-//!     one_pole.reset(&[0.0,0.0], None);
+//! // Initialize the filter state for each channel
+//! one_pole.reset(&[0.0,0.0], None);
 //!
-//!     // Process one sample per channel
-//!     one_pole.process(&x, Some(&mut y), N_SAMPLES);
+//! // Process one sample per channel
+//! one_pole.process(&x, Some(&mut y), N_SAMPLES);
 //!
-//!     // Output the filtered result
-//!     println!("Filtered output: {:?}", y);
-//! }
+//! // Output the filtered result
+//! println!("Filtered output: {:?}", y);
 //!
 //! ```
 //!

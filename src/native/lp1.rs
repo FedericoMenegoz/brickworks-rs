@@ -1,19 +1,77 @@
-use core::f32;
+//! **First-order lowpass filter** (6 dB/oct) with unitary DC gain.
+//!
+//! This is better suited to filtering actual audio than [crate::native::one_pole].
+//!
+//! # Example
+//! ```rust
+//! use brickworks_rs::native::lp1::LP1;
+//!
+//! const N_CHANNELS: usize = 2;
+//! const N_SAMPLES: usize = 8;
+//! let mut filter = LP1::<N_CHANNELS>::new();
+//!
+//! // Set sample rate
+//! filter.set_sample_rate(44_100.0);
+//!
+//! // Set cutoff and prewarp
+//! filter.set_cutoff(1_000.0);
+//! filter.set_prewarp_at_cutoff(true);
+//!
+//! // Reset filter states
+//! filter.reset(0.0, None);
+//!
+//!
+//! // Example input: multi-channel array of samples
+//! let input: [&[f32]; N_CHANNELS] = [&[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!                                    &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]];
+//!
+//! let mut output_buffers: [&mut [f32]; N_CHANNELS] = [&mut [0.0; N_SAMPLES], &mut [0.0; N_SAMPLES]];
+//!
+//! // Process the samples
+//! filter.process(&input, &mut output_buffers, N_SAMPLES);
+//!
+//! println!("Filtered output: {:?}", output_buffers);
+//! ```
+//!
+//! # Notes
+//! This module provides a native Rust implementation of the filter, but the same interface is
+//! also available via bindings to the original C library at [crate::c_wrapper::lp1].
+//! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_lp1).
+//!
 
+#[cfg(debug_assertions)]
+use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 use crate::native::{
     math::{minf, rcpf, tanf},
     one_pole::{OnePoleCoeffs, OnePoleState},
 };
-
-#[cfg(debug_assertions)]
-use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
-
+use core::f32;
+/// First-order lowpass filter (6 dB/oct) with unitary DC gain.
+///
+/// This struct manages both the filter coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+/// It wraps:
+/// - [`LP1Coeffs`]
+/// - [`LP1State`]
+///
+/// # Usage
+/// ```rust
+/// use brickworks_rs::native::lp1::LP1;
+/// const N_CHANNELS: usize = 2;
+/// let mut lp1 = LP1::<N_CHANNELS>::new();
+/// lp1.set_sample_rate(48_000.0);
+/// lp1.set_cutoff(1_000.0);
+/// lp1.set_prewarp_at_cutoff(false);
+/// lp1.set_prewarp_freq(990.0);
+/// // process audio with lp1.process(...)
+/// ```
 pub struct LP1<const N_CHANNELS: usize> {
     coeffs: LP1Coeffs<N_CHANNELS>,
     states: [LP1State; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> LP1<N_CHANNELS> {
+    /// Creates a new instance with default parameters and zeroed state.
     #[inline(always)]
     pub fn new() -> Self {
         let coeffs = LP1Coeffs::new();
@@ -22,12 +80,14 @@ impl<const N_CHANNELS: usize> LP1<N_CHANNELS> {
             states: [LP1State::default(); N_CHANNELS],
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-
+    /// Resets the states and coeffs for all channels to the initial input `x0`,
+    /// or to 0 if `x0` is not provided.
+    /// If `y0` is provided, the resulting initial outputs are stored in it.
     #[inline(always)]
     pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
@@ -40,13 +100,19 @@ impl<const N_CHANNELS: usize> LP1<N_CHANNELS> {
             }),
         }
     }
-
+    /// Resets the state and coefficients for all channels using the provided initial
+    /// input values.
+    ///
+    /// Both the coefficients and all channel states are reset.
+    /// If `y0` is `Some`, the initial outputs are written into it.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
         self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and writes the
+    /// results to the first `n_samples` of the `N_CHANNELS` output buffers `y`,
+    /// while updating the shared coefficients and each channel's state (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -56,17 +122,31 @@ impl<const N_CHANNELS: usize> LP1<N_CHANNELS> {
     ) {
         self.coeffs.process_multi(&mut self.states, x, y, n_samples);
     }
-
+    /// Sets the cutoff frequency to the given value (Hz).
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         self.coeffs.set_cutoff(value);
     }
-
+    /// Sets whether bilinear transform prewarping frequency should match the cutoff
+    /// frequency (true) or not (false).
+    ///
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         self.coeffs.set_prewarp_at_cutoff(value);
     }
-
+    /// Sets the prewarping frequency value (Hz).
+    ///
+    /// Only used when the prewarp_at_cutoff parameter is off and however internally
+    /// limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_prewarp_freq(&mut self, value: f32) {
         self.coeffs.set_prewarp_freq(value);
@@ -79,6 +159,7 @@ impl<const N_CHANNELS: usize> Default for LP1<N_CHANNELS> {
     }
 }
 
+/// Coefficients and related.
 pub struct LP1Coeffs<const N_CHANNELS: usize> {
     // Sub-components
     pub(crate) smooth_coeffs: OnePoleCoeffs<N_CHANNELS>,
@@ -100,6 +181,7 @@ pub struct LP1Coeffs<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let mut smooth_coeffs = OnePoleCoeffs::<N_CHANNELS>::new();
@@ -123,7 +205,7 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
             prewarp_freq,
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
@@ -137,7 +219,7 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
 
         self.t_k = f32::consts::PI / sample_rate;
     }
-
+    /// Resets coefficients to assume their target values.
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
         self.smooth_coeffs
@@ -148,7 +230,9 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
         );
         self.do_update_coeffs(true);
     }
-
+    /// Resets the given state to its initial values using the initial input value `x0`.
+    ///
+    /// Returns the corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut LP1State, x0: f32) -> f32 {
         debug_assert!(x0.is_finite(), "value must be finite, got {}", x0);
@@ -161,7 +245,10 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Resets each of the `N_CHANNELS` states to its initial values using the
+    /// corresponding input values in `x0`.
+    ///
+    /// The output values are written into `y0` if it is not `None`.
     #[inline(always)]
     pub fn reset_state_multi(
         &mut self,
@@ -178,19 +265,21 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
             }),
         }
     }
-
     // Not implemented yet: C version only contained assertions
     // need to revisit which assertions from the C version make sense to keep in Rust
+    // /// Triggers control-rate update of coefficients.
     // #[inline(always)]
     // pub fn update_coeffs_ctrl(&mut self) {
     //     todo!()
     // }
-
+    /// Triggers audio-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_audio(&mut self) {
         self.do_update_coeffs(false);
     }
-
+    /// Processes one input sample `x`, while using and updating state.
+    ///
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut LP1State, x: f32) -> f32 {
         debug_assert!(x.is_finite());
@@ -204,7 +293,9 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes the first `n_samples` of the input buffer `x` and fills the first
+    /// `n_samples` of the output buffer `y`, while using and updating both coeffs
+    /// and state (control and audio rate).
     #[inline(always)]
     pub fn process(&mut self, state: &mut LP1State, x: &[f32], y: &mut [f32], n_samples: usize) {
         (0..n_samples).for_each(|sample| {
@@ -212,7 +303,9 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
             y[sample] = self.process1(state, x[sample]);
         });
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and writes the
+    /// results to the first `n_samples` of the `N_CHANNELS` output buffers `y`,
+    /// while updating the shared coefficients and each channel's state (control and audio rate).
     #[inline(always)]
     pub fn process_multi(
         &mut self,
@@ -228,7 +321,11 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
             });
         });
     }
-
+    /// Sets the cutoff frequency to the given value (Hz).
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -239,12 +336,22 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
         self.cutoff = value;
         print!("self.cutoff is {}", self.cutoff);
     }
-
+    /// Sets whether bilinear transform prewarping frequency should match the cutoff
+    /// frequency (true) or not (false).
+    ///
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         self.prewarp_k = if value { 1.0 } else { 0.0 };
     }
-
+    /// Sets the prewarping frequency value (Hz).
+    ///
+    /// Only used when the prewarp_at_cutoff parameter is off and however internally
+    /// limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_prewarp_freq(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -258,21 +365,28 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
 
         self.prewarp_freq = value;
     }
-
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether coeffs is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    /// # Notes
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn coeffs_is_valid(&mut self) -> bool {
         todo!()
     }
-
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether state is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    /// # Notes
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn state_is_valid(&mut self) -> bool {
         todo!()
     }
-
     // Private
     #[inline(always)]
     fn do_update_coeffs(&mut self, force: bool) {
@@ -309,20 +423,11 @@ impl<const N_CHANNELS: usize> Default for LP1Coeffs<N_CHANNELS> {
         Self::new()
     }
 }
+/// Internal state and related.
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct LP1State {
     y_z1: f32,
     x_z1: f32,
-}
-
-impl LP1State {
-    pub fn get_y_z1(&self) -> f32 {
-        self.y_z1
-    }
-
-    pub fn get_x_z1(&self) -> f32 {
-        self.x_z1
-    }
 }
 
 #[cfg(test)]
@@ -609,7 +714,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn assert_lp1_state(rust_state: &LP1State, c_state: &bw_lp1_state) {
-        assert_eq!(rust_state.get_x_z1(), c_state.X_z1);
-        assert_eq!(rust_state.get_y_z1(), c_state.y_z1);
+        assert_eq!(rust_state.x_z1, c_state.X_z1);
+        assert_eq!(rust_state.y_z1, c_state.y_z1);
     }
 }
