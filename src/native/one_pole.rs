@@ -49,7 +49,7 @@ use crate::native::math::{INVERSE_2_PI, NANO};
 ///
 /// ```
 ///
-///# Notes
+/// # Notes
 /// This module provides a native Rust implementation of the filter, but the same interface is
 /// also available via bindings to the original C library at [crate::c_wrapper::one_pole].
 /// Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
@@ -69,7 +69,7 @@ pub enum StickyMode {
 }
 
 impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
-    /// Creates a new `OnePole` filter with default parameters and zeroed state.
+    /// Creates a new instance with default parameters and zeroed state.
     #[inline(always)]
     pub fn new() -> Self {
         OnePole {
@@ -77,12 +77,12 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
             states: [OnePoleState { y_z1: 0.0 }; N_CHANNELS],
         }
     }
-    /// Sets the filter's sample rate (Hz).
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-    /// Resets the filter state and coeffs for all channels to the initial input `x0`, or to 0 if `x0` is not provided.
+    /// Resets the states and coeffs for all channels to the initial input `x0`, or to 0 if `x0` is not provided.
     /// If `y0` is provided, the resulting initial outputs are stored in it.
     #[inline(always)]
     pub fn reset(&mut self, x0: Option<f32>, y0: Option<&mut [f32; N_CHANNELS]>) {
@@ -100,7 +100,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
             }
         }
     }
-    /// Resets the filter state and coefficients for all channels using the provided initial input values.
+    /// Resets the state and coefficients for all channels using the provided initial input values.
     ///
     /// # Parameters
     /// - `x0`: array of initial input values for each channel.
@@ -113,7 +113,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         self.coeffs.reset_coeffs();
         self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
-    /// Processes a block of input samples using a one-pole filter per channel.
+    /// Processes a block of input samples using a one-pole per channel.
     ///
     /// This method applies a one-pole low-pass filter to `n_samples` of input per channel.
     /// It supports multiple filtering modes based on whether the filter is *asymmetric*
@@ -352,7 +352,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         self.do_update_coeffs_ctrl();
     }
     /// Resets the given state to its initial values using the initial input value `x0`.
-    /// 
+    ///
     /// # Returns
     /// The corresponding initial output value.
     #[inline(always)]
@@ -360,7 +360,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         debug_assert!(x0.is_finite());
         state.reset(x0)
     }
-    /// Resets each of the `N_CHANNELS` states to its initial values using the 
+    /// Resets each of the `N_CHANNELS` states to its initial values using the
     /// corresponding input values in `x0`.
     ///
     /// The output values are written into `y0` if it is not `None`.
@@ -398,7 +398,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     // }
 
     /// Processes a single input sample `x`, updating the provided `state`.
-    /// Assumes that the upgoing and downgoing cutoff/tau are equal, and the 
+    /// Assumes that the upgoing and downgoing cutoff/tau are equal, and the
     /// target-reach threshold is `0.0`.
     ///
     /// # Returns
@@ -410,7 +410,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         y
     }
     /// Processes a single input sample `x` with sticky absolute threshold behavior,
-    /// updating the provided `state`. 
+    /// updating the provided `state`.
     /// Assumes upgoing and downgoing cutoff/tau are equal, the target-reach
     /// threshold is not `0.0`, and sticky mode is absolute (`StickyMode::Abs`).
     ///
@@ -428,7 +428,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         y
     }
     /// Processes a single input sample `x` with sticky relative threshold behavior,
-    /// updating the provided `state`. 
+    /// updating the provided `state`.
     /// Assumes upgoing and downgoing cutoff/tau are equal, the target-reach
     /// threshold is not `0.0`, and sticky mode is relative (`StickyMode::Rel`).
     ///
@@ -461,7 +461,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         y
     }
     /// Processes a single input sample `x` with sticky absolute threshold,
-    /// updating the provided `state`. 
+    /// updating the provided `state`.
     /// Assumes upgoing and downgoing cutoff/tau may differ, the target-reach
     /// threshold is not `0.0`, and sticky mode is absolute (`StickyMode::Abs`).
     ///
@@ -482,7 +482,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         y
     }
     /// Processes a single input sample `x` with sticky relative threshold,
-    /// updating the provided `state`. 
+    /// updating the provided `state`.
     /// Assumes upgoing and downgoing cutoff/tau may differ, the target-reach
     /// threshold is not `0.0`, and sticky mode is relative (`StickyMode::Rel`).
     ///
@@ -502,8 +502,8 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
 
         y
     }
-    /// Processes the first `n_samples` of the input buffer `x` and writes the results 
-    /// to the first `n_samples` of the output buffer `y`, while updating both 
+    /// Processes the first `n_samples` of the input buffer `x` and writes the results
+    /// to the first `n_samples` of the output buffer `y`, while updating both
     /// coefficients and state (control and audio rate).
     ///
     #[inline(always)]
@@ -598,7 +598,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             }
         }
     }
-    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and writes the 
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and writes the
     /// results to the first `n_samples` of the `N_CHANNELS` output buffers `y`,
     /// while updating the shared coefficients and each channel's state (control and audio rate).
     ///
@@ -891,7 +891,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// - `value`: threshold value in the range `[0.0, 1e18]`.
     ///
     /// # Notes
-    /// When the difference between the output and input falls below this threshold 
+    /// When the difference between the output and input falls below this threshold
     /// according to the current sticky mode, the output is forced to equal the input.
     /// Default: `0.0`.
     #[inline(always)]

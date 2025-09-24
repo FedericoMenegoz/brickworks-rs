@@ -6,13 +6,52 @@ use crate::native::{
     math::{db2linf, pow2f, rcpf, sqrtf},
     mm2::{MM2Coeffs, MM2State},
 };
-
+/// Second-order peak filter with unitary gain at DC and asymptotically as
+/// frequency increases.
+///
+/// The quality factor of the underlying bandpass filter can be either directly
+/// controlled via the Q parameter or indirectly through the bandwidth parameter,
+/// which designates the distance in octaves between midpoint gain frequencies,
+/// i.e., frequencies with gain = peak gain / 2 in dB terms.
+/// The use_bandiwdth parameter allows you to choose which parameterization to use.
+///
+/// # Example
+/// ```rust
+/// use brickworks_rs::native::peak::*;
+///
+/// const N_CHANNELS: usize = 2;
+/// const N_SAMPLES: usize = 8;
+/// const SAMPLE_RATE: f32 = 44_100.0;
+/// const PULSE_INPUT: [&[f32]; N_CHANNELS] = [
+///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+/// ];
+/// fn main() {
+///     let mut peak = Peak::new();
+///     peak.set_sample_rate(SAMPLE_RATE);
+///     peak.set_q(1.4);
+///
+///     let x0 = [0.0, 0.0];
+///
+///     peak.reset_multi(&x0, None);
+///
+///     let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]];
+///     peak.process(&PULSE_INPUT, &mut y, N_SAMPLES);
+/// }
+/// ```
+///
+/// # Notes
+/// This module provides a native Rust implementation, but the same interface is
+/// also available via bindings to the original C library at [crate::c_wrapper::peak].
+/// Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_peak).
+///
 pub struct Peak<const N_CHANNELS: usize> {
     coeffs: PeakCoeffs<N_CHANNELS>,
     states: [PeakState; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
+    /// Creates a new instance with default parameters and zeroed state.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -20,12 +59,15 @@ impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
             states: [PeakState::default(); N_CHANNELS],
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if it is Some.
     #[inline(always)]
     pub fn reset(&mut self, x0: Option<f32>, y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
@@ -41,13 +83,18 @@ impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
             }),
         }
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if is Some.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
         self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the N_CHANNELS states (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -57,42 +104,90 @@ impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
     ) {
         self.coeffs.process_multi(&mut self.states, x, y, n_samples);
     }
-
+    /// Sets the input cutoff frequency value (Hz).
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         self.coeffs.set_cutoff(value);
     }
-
+    /// Sets the quality factor to the given value.
+    ///
+    /// Valid range: [1e-6, 1e6].
+    ///
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_q(&mut self, value: f32) {
         self.coeffs.set_q(value);
     }
-
+    /// Sets whether bilinear transform prewarping frequency should match the cutoff
+    /// frequency (true) or not (false).
+    ///
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         self.coeffs.set_prewarp_at_cutoff(value);
     }
-
+    /// Sets the prewarping frequency value (Hz).
+    ///
+    /// Only used when the prewarp_at_cutoff parameter is off and however internally
+    /// limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_prewarp_freq(&mut self, value: f32) {
         self.coeffs.set_prewarp_freq(value);
     }
-
+    /// Sets the peak gain parameter to the given value (linear gain) in coeffs.
+    ///
+    /// Valid range: [1e-30, 1e30].
+    ///
+    /// If actually using the bandwidth parameter to control q, by the time
+    /// reset_*(), update_coeffs_*(), or process*() is called,
+    /// sqrtf(pow2f(bandwidth) * peak_gain) * rcpf(pow2f(bandwidth) - 1.0)
+    /// must be in [1e-6, 1e6].
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_peak_gain_lin(&mut self, value: f32) {
         self.coeffs.set_peak_gain_lin(value);
     }
-
+    /// Sets the peak gain parameter to the given value (dB) in coeffs.
+    ///
+    /// Valid range: [-600.0, 600.0].
+    ///
+    /// If actually using the bandwidth parameter to control q, by the time
+    /// reset_*(), update_coeffs_*(), or process*() is called,
+    /// sqrtf(pow2f(bandwidth) * peak_gain) * rcpf(pow2f(bandwidth) - 1.0)
+    /// must be in [1e-6, 1e6].
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_peak_gain_db(&mut self, value: f32) {
         self.coeffs.set_peak_gain_db(value);
     }
-
+    /// Sets the bandwidth value (octaves) in coeffs.
+    ///
+    /// Valid range: [1e-6, 90.0].
+    ///
+    /// If actually using the bandwidth parameter to control q, by the time
+    /// reset_*(), update_coeffs_*(), or process*() is called,
+    /// sqrtf(pow2f(bandwidth) * peak_gain) * rcpf(pow2f(bandwidth) - 1.0)
+    /// must be in [1e-6, 1e6].
+    ///
+    /// Default value: 2.543_106_6.
     #[inline(always)]
     pub fn set_bandwidth(&mut self, value: f32) {
         self.coeffs.set_bandwidth(value);
     }
-
+    /// Sets whether the quality factor should be controlled via the bandwidth
+    /// parameter (true) or via the Q parameter (false).
+    ///
+    /// Default value: true (use bandwidth parameter).
     #[inline(always)]
     pub fn set_use_bandwidth(&mut self, value: bool) {
         self.coeffs.set_use_bandwidth(value);
@@ -104,6 +199,7 @@ impl<const N_CHANNELS: usize> Default for Peak<N_CHANNELS> {
         Self::new()
     }
 }
+/// Coefficients and related.
 pub struct PeakCoeffs<const N_CHANNELS: usize> {
     // Sub-components
     mm2_coeffs: MM2Coeffs<N_CHANNELS>,
@@ -120,28 +216,20 @@ pub struct PeakCoeffs<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
+    /// Creates a new instance with default parameters and zeroed state.
     #[inline(always)]
     pub fn new() -> Self {
-        let mm2_coeffs = MM2Coeffs::<N_CHANNELS>::new();
-
-        let q = 0.5;
-        let peak_gain = 1.0;
-        let bandwidth = 2.543_106_6/*06327224*/;
-        let use_bandwidth = true;
-
-        let param_changed = ParamChanged::all();
-
         Self {
-            mm2_coeffs,
+            mm2_coeffs: MM2Coeffs::<N_CHANNELS>::new(),
             bw_k: 0.0,
-            q,
-            peak_gain,
-            bandwidth,
-            use_bandwidth,
-            param_changed,
+            q: 0.5,
+            peak_gain: 1.0,
+            bandwidth: 2.543_106_6, /*06327224*/
+            use_bandwidth: true,
+            param_changed: ParamChanged::all(),
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
@@ -152,14 +240,17 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
 
         self.mm2_coeffs.set_sample_rate(sample_rate);
     }
-
+    /// Resets coefficients to assume their target values.
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
         self.param_changed = ParamChanged::all();
         self.update_mm2_params();
         self.mm2_coeffs.reset_coeffs();
     }
-
+    /// Resets the given state to its initial values using the initial input value `x0`.
+    ///
+    /// # Returns
+    /// The corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut PeakState, x0: f32) -> f32 {
         debug_assert!(x0.is_finite());
@@ -170,7 +261,10 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Resets each of the `N_CHANNELS` states to its initial values using the
+    /// corresponding input values in `x0`.
+    ///
+    /// The output values are written into `y0` if it is not `None`.
     #[inline(always)]
     pub fn reset_state_multi(
         &mut self,
@@ -187,18 +281,20 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
             }),
         }
     }
-
+    /// Triggers control-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_ctrl(&mut self) {
         self.update_mm2_params();
         self.mm2_coeffs.update_coeffs_ctrl();
     }
-
+    /// Triggers audio-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_audio(&mut self) {
         self.mm2_coeffs.update_coeffs_audio();
     }
-
+    /// Processes one input sample `x`, while using and updating the given state.
+    ///
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut PeakState, x: f32) -> f32 {
         debug_assert!(x.is_finite());
@@ -209,7 +305,9 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes the first `n_samples` of the input buffer `x` and fills the first
+    /// `n_samples` of the output buffer `y`, while using and updating both coeffs
+    /// and state (control and audio rate).
     #[inline(always)]
     pub fn process(&mut self, state: &mut PeakState, x: &[f32], y: &mut [f32], n_samples: usize) {
         self.update_coeffs_ctrl();
@@ -218,7 +316,9 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
             y[sample] = self.process1(state, x[sample]);
         });
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the N_CHANNELS states (control and audio rate).
     #[inline(always)]
     pub fn process_multi(
         &mut self,
@@ -235,7 +335,11 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
             });
         });
     }
-
+    /// Sets the input cutoff frequency value (Hz).
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -246,7 +350,11 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
 
         self.mm2_coeffs.set_cutoff(value);
     }
-
+    /// Sets the quality factor to the given value.
+    ///
+    /// Valid range: [1e-6, 1e6].
+    ///
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_q(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -260,12 +368,22 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
             self.param_changed |= ParamChanged::Q
         }
     }
-
+    /// Sets whether bilinear transform prewarping frequency should match the cutoff
+    /// frequency (true) or not (false).
+    ///
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         self.mm2_coeffs.set_prewarp_at_cutoff(value);
     }
-
+    /// Sets the prewarping frequency value (Hz).
+    ///
+    /// Only used when the prewarp_at_cutoff parameter is off and however internally
+    /// limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_prewarp_freq(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -275,7 +393,16 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
         }
         self.mm2_coeffs.set_prewarp_freq(value);
     }
-
+    /// Sets the peak gain parameter to the given value (linear gain) in coeffs.
+    ///
+    /// Valid range: [1e-30, 1e30].
+    ///
+    /// If actually using the bandwidth parameter to control Q, by the time
+    /// reset_*(), update_coeffs_*(), or process*() is called,
+    /// sqrtf(pow2f(bandwidth) * peak_gain) * rcpf(pow2f(bandwidth) - 1.0)
+    /// must be in [1e-6, 1e6].
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_peak_gain_lin(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -289,7 +416,16 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
             self.param_changed |= ParamChanged::PEAK_GAIN;
         }
     }
-
+    /// Sets the peak gain parameter to the given value (dB) in coeffs.
+    ///
+    /// Valid range: [-600.0, 600.0].
+    ///
+    /// If actually using the bandwidth parameter to control q, by the time
+    /// reset_*(), update_coeffs_*(), or process*() is called,
+    /// sqrtf(pow2f(bandwidth) * peak_gain) * rcpf(pow2f(bandwidth) - 1.0)
+    /// must be in [1e-6, 1e6].
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_peak_gain_db(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -299,7 +435,16 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
         }
         self.set_peak_gain_lin(db2linf(value));
     }
-
+    /// Sets the bandwidth value (octaves) in coeffs.
+    ///
+    /// Valid range: [1e-6, 90.0].
+    ///
+    /// If actually using the bandwidth parameter to control q, by the time
+    /// reset_*(), update_coeffs_*(), or process*() is called,
+    /// sqrtf(pow2f(bandwidth) * peak_gain) * rcpf(pow2f(bandwidth) - 1.0)
+    /// must be in [1e-6, 1e6].
+    ///
+    /// Default value: 2.543_106_6.
     #[inline(always)]
     pub fn set_bandwidth(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -313,7 +458,10 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
             self.param_changed |= ParamChanged::BANDWIDTH;
         }
     }
-
+    /// Sets whether the quality factor should be controlled via the bandwidth
+    /// parameter (true) or via the Q parameter (false).
+    ///
+    /// Default value: true (use bandwidth parameter).
     #[inline(always)]
     pub fn set_use_bandwidth(&mut self, value: bool) {
         if self.use_bandwidth != value {
@@ -324,6 +472,12 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
 
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether coeffs is valid and returns true if it seems to
+    /// be the case and `false` if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    ///
+    /// # Note
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn coeffs_is_valid(&mut self) -> bool {
         todo!()
@@ -331,6 +485,12 @@ impl<const N_CHANNELS: usize> PeakCoeffs<N_CHANNELS> {
 
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether state is valid and returns `true` if it seems to
+    /// be the case and `false` if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    ///
+    /// # Note
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn state_is_valid(&mut self) -> bool {
         todo!()
@@ -387,6 +547,7 @@ bitflags! {
     }
 }
 
+/// Internal state and related.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct PeakState {
     //Sub-components

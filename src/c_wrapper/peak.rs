@@ -1,13 +1,53 @@
 use std::ptr::null_mut;
 
 use super::*;
-
+/// Second-order peak filter with unitary gain at DC and asymptotically as
+/// frequency increases.
+///
+/// The quality factor of the underlying bandpass filter can be either directly
+/// controlled via the Q parameter or indirectly through the bandwidth parameter,
+/// which designates the distance in octaves between midpoint gain frequencies,
+/// i.e., frequencies with gain = peak gain / 2 in dB terms.
+/// The use_bandiwdth parameter allows you to choose which parameterization to use.
+///
+/// # Example
+/// ```rust
+/// use brickworks_rs::c_wrapper::peak::*;
+///
+/// const N_CHANNELS: usize = 2;
+/// const N_SAMPLES: usize = 8;
+/// const SAMPLE_RATE: f32 = 44_100.0;
+/// const PULSE_INPUT: [&[f32]; N_CHANNELS] = [
+///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+/// ];
+/// fn main() {
+///     let mut peak = Peak::new();
+///     peak.set_sample_rate(SAMPLE_RATE);
+///     peak.set_q(1.4);
+///
+///     let x0 = [0.0, 0.0];
+///
+///     peak.reset_multi(&x0, None);
+///
+///     let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]];
+///     peak.process(&PULSE_INPUT, &mut y, N_SAMPLES);
+/// }
+/// ```
+///
+/// # Notes
+/// This module provides Rust bindings to the original C implementation.
+/// For a fully native Rust implementation with the same interface,
+/// see [crate::native::peak].
+/// Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_peak).
+///
 pub struct Peak<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_peak_coeffs,
     pub(crate) states: [bw_peak_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
+    /// Creates a new instance with default parameters and zeroed state.
     #[inline(always)]
     pub fn new() -> Self {
         let mut coeffs = bw_peak_coeffs::default();
@@ -20,15 +60,17 @@ impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
             states: [bw_peak_state::default(); N_CHANNELS],
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         unsafe {
             bw_peak_set_sample_rate(&mut self.coeffs, sample_rate);
         }
     }
-
-    #[inline(always)]
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if it is Some.    #[inline(always)]
     pub fn reset(&mut self, x0: Option<f32>, y0: Option<&mut [f32; N_CHANNELS]>) {
         unsafe {
             bw_peak_reset_coeffs(&mut self.coeffs);
@@ -50,6 +92,10 @@ impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
             }
         }
     }
+    /// Resets the satur's coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if is Some.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         let y0_ptrs = match y0 {
@@ -69,6 +115,9 @@ impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
             );
         }
     }
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the N_CHANNELS states (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -91,19 +140,32 @@ impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
             );
         }
     }
-
+    /// Sets the input cutoff frequency value (Hz).
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         unsafe {
             bw_peak_set_cutoff(&mut self.coeffs, value);
         }
     }
+    /// Sets the quality factor to the given value.
+    ///
+    /// Valid range: [1e-6, 1e6].
+    ///
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_q(&mut self, value: f32) {
         unsafe {
             bw_peak_set_Q(&mut self.coeffs, value);
         }
     }
+    /// Sets whether bilinear transform prewarping frequency should match the cutoff
+    /// frequency (true) or not (false).
+    ///
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         unsafe {
@@ -111,29 +173,71 @@ impl<const N_CHANNELS: usize> Peak<N_CHANNELS> {
         }
     }
     #[inline(always)]
+    /// Sets the prewarping frequency value (Hz).
+    ///
+    /// Only used when the prewarp_at_cutoff parameter is off and however internally
+    /// limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     pub fn set_prewarp_freq(&mut self, value: f32) {
         unsafe {
             bw_peak_set_prewarp_freq(&mut self.coeffs, value);
         }
     }
+    /// Sets the peak gain parameter to the given value (linear gain) in coeffs.
+    ///
+    /// Valid range: [1e-30, 1e30].
+    ///
+    /// If actually using the bandwidth parameter to control Q, by the time
+    /// reset_*(), update_coeffs_*(), or process*() is called,
+    /// sqrtf(pow2f(bandwidth) * peak_gain) * rcpf(pow2f(bandwidth) - 1.0)
+    /// must be in [1e-6, 1e6].
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_peak_gain_lin(&mut self, value: f32) {
         unsafe {
             bw_peak_set_peak_gain_lin(&mut self.coeffs, value);
         }
     }
+    /// Sets the peak gain parameter to the given value (dB) in coeffs.
+    ///
+    /// Valid range: [-600.0, 600.0].
+    ///
+    /// If actually using the bandwidth parameter to control q, by the time
+    /// reset_*(), update_coeffs_*(), or process*() is called,
+    /// sqrtf(pow2f(bandwidth) * peak_gain) * rcpf(pow2f(bandwidth) - 1.0)
+    /// must be in [1e-6, 1e6].
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_peak_gain_db(&mut self, value: f32) {
         unsafe {
             bw_peak_set_peak_gain_dB(&mut self.coeffs, value);
         }
     }
+    /// Sets the bandwidth value (octaves) in coeffs.
+    ///
+    /// Valid range: [1e-6, 90.0].
+    ///
+    /// If actually using the bandwidth parameter to control q, by the time
+    /// reset_*(), update_coeffs_*(), or process*() is called,
+    /// sqrtf(pow2f(bandwidth) * peak_gain) * rcpf(pow2f(bandwidth) - 1.0)
+    /// must be in [1e-6, 1e6].
+    ///
+    /// Default value: 2.543_106_6.
     #[inline(always)]
     pub fn set_bandwidth(&mut self, value: f32) {
         unsafe {
             bw_peak_set_bandwidth(&mut self.coeffs, value);
         }
     }
+    /// Sets whether the quality factor should be controlled via the bandwidth
+    /// parameter (true) or via the Q parameter (false).
+    ///
+    /// Default value: true (use bandwidth parameter).
     #[inline(always)]
     pub fn set_use_bandwidth(&mut self, value: bool) {
         unsafe {
