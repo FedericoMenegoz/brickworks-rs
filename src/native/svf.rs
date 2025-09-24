@@ -1,3 +1,53 @@
+//! State variable filter (2nd order, 12 dB/oct) model with separated lowpass,
+//! bandpass, and highpass outputs.
+//!
+//! # Example
+//! ```rust
+//! use brickworks_rs::native::svf::*;
+//!
+//! const SAMPLE_RATE: f32 = 48_000.0;
+//! const N_CHANNELS: usize = 2;
+//!
+//! fn main() {
+//!     let mut svf = SVF::new();
+//!     svf.set_sample_rate(SAMPLE_RATE);
+//!     let cutoff = 185.0;
+//!     let q = 0.707;
+//!     let prewarpfreq = 185.0;
+//!     let n_samples = 2;
+//!
+//!     let x_ch0 = [1.0, 0.0];
+//!     let x_ch1 = [1.0, 0.0];
+//!     let x: [&[f32]; 2] = [&x_ch0, &x_ch1];
+//!
+//!     let mut y_lp_ch0 = [0.0, 0.0];
+//!     let mut y_lp_ch1 = [0.0, 0.0];
+//!     let mut y_lp: [Option<&mut [f32]>; N_CHANNELS] =
+//!         [Some(&mut y_lp_ch0), Some(&mut y_lp_ch1)];
+//!
+//!     svf.set_sample_rate(SAMPLE_RATE);
+//!     svf.set_cutoff(cutoff);
+//!     svf.set_prewarp_at_cutoff(true);
+//!     svf.set_q(q);
+//!     svf.set_prewarp_freq(prewarpfreq);
+//!     svf.reset(0.0, None, None, None);
+//!
+//!
+//!     svf.process(
+//!         &x,
+//!         Some(&mut y_lp),
+//!         None,
+//!         None,
+//!         n_samples,
+//!     );
+//! }
+//! ```
+//! # Notes
+//! This module provides a native Rust implementation of the SVF Filter, but
+//! the same interface is also available via bindings to the original C library
+//! at [crate::c_wrapper::svf].
+//! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_svf).
+//!
 use crate::native::{
     math::{minf, rcpf, tanf},
     one_pole::{OnePoleCoeffs, OnePoleState},
@@ -6,56 +56,29 @@ use std::f32::consts::PI;
 
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_positive, debug_assert_range};
-/// State variable filter (2nd order, 12 dB/oct) model with separated lowpass,
-/// bandpass, and highpass outputs.
+/// State Variable Filter (SVF) with multiple channels.
 ///
-/// # Example
-/// ```rust
-/// use brickworks_rs::native::svf::*;
+/// The SVF provides lowpass, bandpass, and highpass outputs for each channel.
+/// Filter parameters are shared across channels, while each channel maintains
+/// its own state.
+/// 
+/// This struct manages both the filter coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+/// It wraps:
+/// - [`SVFCoeffs`] 
+/// - [`SVFState`] 
 ///
-/// const SAMPLE_RATE: f32 = 48_000.0;
+///
+/// # Usage
+/// ```rust 
+/// use brickworks_rs::native::svf::SVF;
 /// const N_CHANNELS: usize = 2;
-///
-/// fn main() {
-///     let mut svf = SVF::new();
-///     svf.set_sample_rate(SAMPLE_RATE);
-///     let cutoff = 185.0;
-///     let q = 0.707;
-///     let prewarpfreq = 185.0;
-///     let n_samples = 2;
-///
-///     let x_ch0 = [1.0, 0.0];
-///     let x_ch1 = [1.0, 0.0];
-///     let x: [&[f32]; 2] = [&x_ch0, &x_ch1];
-///
-///     let mut y_lp_ch0 = [0.0, 0.0];
-///     let mut y_lp_ch1 = [0.0, 0.0];
-///     let mut y_lp: [Option<&mut [f32]>; N_CHANNELS] =
-///         [Some(&mut y_lp_ch0), Some(&mut y_lp_ch1)];
-///
-///     svf.set_sample_rate(SAMPLE_RATE);
-///     svf.set_cutoff(cutoff);
-///     svf.set_prewarp_at_cutoff(true);
-///     svf.set_q(q);
-///     svf.set_prewarp_freq(prewarpfreq);
-///     svf.reset(0.0, None, None, None);
-///
-///
-///     svf.process(
-///         &x,
-///         Some(&mut y_lp),
-///         None,
-///         None,
-///         n_samples,
-///     );
-/// }
+/// let mut svf = SVF::<N_CHANNELS>::new();
+/// svf.set_sample_rate(48_000.0);
+/// svf.set_cutoff(1_000.0);
+/// svf.set_q(0.707);
+/// // process audio with svf.process(...)
 /// ```
-/// # Notes
-/// This module provides a native Rust implementation of the SVF Filter, but
-/// the same interface is also available via bindings to the original C library
-/// at [crate::c_wrapper::svf].
-/// Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_svf).
-///
 #[derive(Debug)]
 pub struct SVF<const N_CHANNELS: usize> {
     coeffs: SVFCoeffs<N_CHANNELS>,

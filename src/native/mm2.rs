@@ -1,3 +1,53 @@
+//!
+//! ## Example
+//!
+//! ```rust
+//! use brickworks_rs::native::mm2::MM2;
+//!
+//! const N_CHANNELS: usize = 2;
+//! const N_SAMPLES: usize = 8;
+//!
+//! fn main() {
+//!     // Create a stereo MM2 filter
+//!     let mut mm2 = MM2::<N_CHANNELS>::new();
+//!
+//!     // Configure sample rate
+//!     mm2.set_sample_rate(44_100.0);
+//!
+//!     // Set filter parameters
+//!     mm2.set_cutoff(2_000.0);   // cutoff frequency in Hz
+//!     mm2.set_q(0.707);          // resonance (Q factor)
+//!
+//!     // Mix coefficients: here we take mostly low–pass and some dry input
+//!     mm2.set_coeff_lp(0.9);
+//!     mm2.set_coeff_x(0.3);
+//!
+//!     // Reset states with initial input = silence
+//!     mm2.reset(0.0, None);
+//!
+//!     // Example input: stereo pulse at first sample
+//!     let input: [&[f32]; N_CHANNELS] = [
+//!         &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!         &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!     ];
+//!
+//!     // Output buffers
+//!     let mut output_l = [0.0; N_SAMPLES];
+//!     let mut output_r = [0.0; N_SAMPLES];
+//!     let mut outputs: [&mut [f32]; N_CHANNELS] = [&mut output_l, &mut output_r];
+//!
+//!     // Process audio block
+//!     mm2.process(&input, &mut outputs, N_SAMPLES);
+//!
+//!     println!("Left channel:  {:?}", outputs[0]);
+//!     println!("Right channel: {:?}", outputs[1]);
+//! }
+//! ```
+//! ## Notes
+//! This module provides a native Rust implementation, but the same interface is
+//! also available via bindings to the original C library at [crate::c_wrapper::mm2].
+//! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_mm2).
+
 use crate::native::{
     gain::GainCoeffs,
     svf::{SVFCoeffs, SVFState},
@@ -5,7 +55,28 @@ use crate::native::{
 
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_positive, debug_assert_range};
-
+/// Multi–Mode 2–pole filter (`MM2`) with per–channel state and coefficients.
+///
+/// Manages both the filter coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+/// It wraps:
+/// - [`MM2Coeffs`] 
+/// - [`MM2State`] 
+///
+///
+/// # Usage
+///
+/// ```rust
+/// use brickworks_rs::native::mm2::MM2;
+///
+/// // Stereo filter
+/// let mut mm2 = MM2::<2>::new();
+///
+/// mm2.set_sample_rate(44_100.0);
+/// mm2.set_cutoff(2_000.0);
+/// mm2.set_q(0.707);
+/// mm2.reset(0.0, None);
+/// ```
 pub struct MM2<const N_CHANNELS: usize> {
     pub(crate) coeffs: MM2Coeffs<N_CHANNELS>,
     pub(crate) states: [MM2State; N_CHANNELS],

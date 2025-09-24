@@ -1,48 +1,76 @@
+//! Antialiased tanh-based saturation with parametric bias and gain (compensation) and
+//! output bias removal.
+//!
+//! In other words this implements (approximately):
+//!
+//! ```text
+//! y(n) = tanh(gain * x(n) + bias) - tanh(bias)
+//! ```
+//!
+//! with antialiasing and optionally dividing the output by gain.
+//!
+//! As a side effect, antialiasing causes attenuation at higher frequencies (about
+//! 3 dB at 0.5 × Nyquist frequency and rapidly increasing at higher frequencies).
+//!
+//! # Examples
+//! ```rust
+//! use brickworks_rs::native::satur::*;
+//!
+//! const N_CHANNELS: usize = 2;
+//! const SAMPLE_RATE: f32 = 44_100.0;
+//! const PULSE_INPUT: [&[f32]; N_CHANNELS] = [
+//!     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//! ];
+//! const N_SAMPLES: usize = 8;
+//!
+//! fn main() {
+//!     let mut satur = Satur::new();
+//!     satur.set_sample_rate(SAMPLE_RATE);
+//!
+//!     let x0 = [0.0, 0.0];
+//!
+//!     satur.reset_multi(&x0, None);
+//!
+//!     let mut y: [&mut [f32]; 2] = [
+//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 
+//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+//!     ];
+//!     satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
+//! }
+//! ```
+//!
+//! # Notes
+//!
+//! The antialiasing technique used here is described in:
+//!
+//! J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of Nonlinear
+//! Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl. Conf. Digital
+//! Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic, September 2016.
+//!
+//! This module provides Rust bindings to the original C implementation.
+//! For a fully native Rust implementation with the same interface,
+//! see [crate::native::satur].
+//! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_satur).
 use super::*;
 use std::ptr::null_mut;
 /// Antialiased tanh-based saturation with parametric bias and gain (compensation) and
 /// output bias removal.
 ///
-/// In other words this implements (approximately)
+/// This struct manages both the filter coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
 ///
-/// > y(n) = tanh(gain * x(n) + bias) - tanh(bias)
-///
-/// with antialiasing and optionally dividing the output by gain.
-///
-/// As a side effect, antialiasing causes attenuation at higher frequencies (about
-/// 3 dB at 0.5 × Nyquist frequency and rapidly increasing at higher frequencies).
-/// # Example
-/// ```rust
-/// use brickworks_rs::c_wrapper::satur::*;
+/// # Usage
+/// ```rust 
+/// use brickworks_rs::c_wrapper::satur::Satur;
 /// const N_CHANNELS: usize = 2;
-/// const SAMPLE_RATE: f32 = 44_100.0;
-///
-/// const PULSE_INPUT: [&[f32]; N_CHANNELS] = [
-///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-/// ];
-/// const N_SAMPLES: usize = 8;
-/// fn main() {
-///     let mut satur = Satur::new();
-///     satur.set_sample_rate(SAMPLE_RATE);
-///     let x0 = [0.0, 0.0];
-///
-///     satur.reset_multi(&x0, None);
-///
-///     let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]];
-///     satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-/// }
+/// let mut satur = Satur::<N_CHANNELS>::new();
+/// satur.set_sample_rate(48_000.0);
+/// satur.set_bias(1.0);
+/// satur.set_gain(0.8);
+/// satur.set_gain_compensation(true);
+/// // process audio with satur.process(...)
 /// ```
-/// # Notes
-/// The antialiasing technique used here is described in:
-/// J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of Nonlinear
-/// Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl. Conf. Digital
-/// Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic, September 2016.
-///
-/// This module provides Rust bindings to the original C implementation.
-/// For a fully native Rust implementation with the same interface,
-/// see [crate::native::satur].
-/// Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_satur).
 pub struct Satur<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_satur_coeffs,
     pub(crate) states: [bw_satur_state; N_CHANNELS],

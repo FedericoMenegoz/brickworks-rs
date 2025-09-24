@@ -1,3 +1,42 @@
+//! Second-order peak filter with unitary gain at DC and asymptotically as
+//! frequency increases.
+//!
+//! The quality factor of the underlying bandpass filter can be either directly
+//! controlled via the Q parameter or indirectly through the bandwidth parameter,
+//! which designates the distance in octaves between midpoint gain frequencies,
+//! i.e., frequencies with gain = peak gain / 2 in dB terms.
+//! The use_bandiwdth parameter allows you to choose which parameterization to use.
+//!
+//! # Example
+//! ```rust
+//! use brickworks_rs::native::peak::*;
+//!
+//! const N_CHANNELS: usize = 2;
+//! const N_SAMPLES: usize = 8;
+//! const SAMPLE_RATE: f32 = 44_100.0;
+//! const PULSE_INPUT: [&[f32]; N_CHANNELS] = [
+//!     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//! ];
+//! fn main() {
+//!     let mut peak = Peak::new();
+//!     peak.set_sample_rate(SAMPLE_RATE);
+//!     peak.set_q(1.4);
+//!
+//!     let x0 = [0.0, 0.0];
+//!
+//!     peak.reset_multi(&x0, None);
+//!
+//!     let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]];
+//!     peak.process(&PULSE_INPUT, &mut y, N_SAMPLES);
+//! }
+//! ```
+//!
+//! # Notes
+//! This module provides a native Rust implementation, but the same interface is
+//! also available via bindings to the original C library at [crate::c_wrapper::peak].
+//! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_peak).
+//!
 use bitflags::bitflags;
 
 #[cfg(debug_assertions)]
@@ -6,45 +45,27 @@ use crate::native::{
     math::{db2linf, pow2f, rcpf, sqrtf},
     mm2::{MM2Coeffs, MM2State},
 };
-/// Second-order peak filter with unitary gain at DC and asymptotically as
-/// frequency increases.
-///
-/// The quality factor of the underlying bandpass filter can be either directly
-/// controlled via the Q parameter or indirectly through the bandwidth parameter,
-/// which designates the distance in octaves between midpoint gain frequencies,
-/// i.e., frequencies with gain = peak gain / 2 in dB terms.
-/// The use_bandiwdth parameter allows you to choose which parameterization to use.
-///
-/// # Example
-/// ```rust
-/// use brickworks_rs::native::peak::*;
-///
+/// Second-order peak filter with unitary gain at DC and asymptotically 
+/// as frequency increases.
+/// 
+/// This struct manages both the filter coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+/// It wraps:
+/// - [`PeakCoeffs`] 
+/// - [`PeakState`] 
+/// 
+/// # Usage
+/// ```rust 
+/// use brickworks_rs::native::peak::Peak;
 /// const N_CHANNELS: usize = 2;
-/// const N_SAMPLES: usize = 8;
-/// const SAMPLE_RATE: f32 = 44_100.0;
-/// const PULSE_INPUT: [&[f32]; N_CHANNELS] = [
-///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-///     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-/// ];
-/// fn main() {
-///     let mut peak = Peak::new();
-///     peak.set_sample_rate(SAMPLE_RATE);
-///     peak.set_q(1.4);
-///
-///     let x0 = [0.0, 0.0];
-///
-///     peak.reset_multi(&x0, None);
-///
-///     let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]];
-///     peak.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-/// }
+/// let mut peak = Peak::<N_CHANNELS>::new();
+/// peak.set_sample_rate(48_000.0);
+/// peak.set_cutoff(1_000.0);
+/// peak.set_q(0.707);
+/// peak.set_prewarp_at_cutoff(true);
+/// peak.reset(None, None);
+/// // process audio with svf.process(...)
 /// ```
-///
-/// # Notes
-/// This module provides a native Rust implementation, but the same interface is
-/// also available via bindings to the original C library at [crate::c_wrapper::peak].
-/// Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_peak).
-///
 pub struct Peak<const N_CHANNELS: usize> {
     coeffs: PeakCoeffs<N_CHANNELS>,
     states: [PeakState; N_CHANNELS],

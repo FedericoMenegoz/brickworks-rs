@@ -1,59 +1,75 @@
+//! One-pole (6 dB/oct) lowpass filter with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
+//!
+//! This is better suited to implement smoothing than lp1.
+//!
+//! # Example
+//! ```rust
+//! use brickworks_rs::native::one_pole::*;
+//!
+//! const CUTOFF: f32 = 100_000.0;
+//! const STICKY_THRESH: f32 = 0.9;
+//! const N_CHANNELS: usize = 2;
+//! const N_SAMPLES: usize = 1;
+//! const SAMPLE_RATE: f32 = 48_000.0;
+//!
+//! fn main() {
+//!     // Create a new OnePole filter instance for N_CHANNELS
+//!     let mut one_pole = OnePole::<N_CHANNELS>::new();
+//!
+//!     // Input signal: one sample per channel
+//!     let x:[&[f32]; N_CHANNELS] = [&[1.0], &[0.0]];
+//!
+//!     // Output buffer, same shape as input
+//!     let mut y_ch1 = [0.0];
+//!     let mut y_ch2 = [0.0];
+//!     let mut y: [Option<&mut[f32]>; N_CHANNELS] = [Some(&mut y_ch1), Some(&mut y_ch2)];
+//!
+//!     // Configure the filter
+//!     one_pole.set_sample_rate(SAMPLE_RATE);
+//!     one_pole.set_cutoff(CUTOFF);
+//!     one_pole.set_sticky_mode(StickyMode::Rel);
+//!     one_pole.set_sticky_thresh(STICKY_THRESH);
+//!
+//!     // Initialize the filter state for each channel
+//!     one_pole.reset(None, None);
+//!
+//!     // Process one sample per channel
+//!     one_pole.process(&x, Some(&mut y), N_SAMPLES);
+//!
+//!     // Output the filtered result
+//!     println!("Filtered output: {:?}", y);
+//! }
+//!
+//! ```
+//!
+//! # Notes
+//! This module provides a native Rust implementation of the filter, but the same interface is
+//! also available via bindings to the original C library at [crate::c_wrapper::one_pole].
+//! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
+//!
 use bitflags::bitflags;
-
 use super::math::rcpf;
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 use crate::native::math::{INVERSE_2_PI, NANO};
-
 /// One-pole (6 dB/oct) lowpass filter with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
-///
-/// This is better suited to implement smoothing than lp1.
-///
-/// # Example
-/// ```rust
-/// use brickworks_rs::native::one_pole::*;
-///
-/// const CUTOFF: f32 = 100_000.0;
-/// const STICKY_THRESH: f32 = 0.9;
+/// This struct manages both the filter coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+/// It wraps:
+/// - [`OnePoleCoeffs`] 
+/// - [`OnePoleState`] 
+/// 
+/// # Usage
+/// ```rust 
+/// use brickworks_rs::native::one_pole::{OnePole, StickyMode};
 /// const N_CHANNELS: usize = 2;
-/// const N_SAMPLES: usize = 1;
-/// const SAMPLE_RATE: f32 = 48_000.0;
-///
-/// fn main() {
-///     // Create a new OnePole filter instance for N_CHANNELS
-///     let mut one_pole = OnePole::<N_CHANNELS>::new();
-///
-///     // Input signal: one sample per channel
-///     let x:[&[f32]; N_CHANNELS] = [&[1.0], &[0.0]];
-///
-///     // Output buffer, same shape as input
-///     let mut y_ch1 = [0.0];
-///     let mut y_ch2 = [0.0];
-///     let mut y: [Option<&mut[f32]>; N_CHANNELS] = [Some(&mut y_ch1), Some(&mut y_ch2)];
-///
-///     // Configure the filter
-///     one_pole.set_sample_rate(SAMPLE_RATE);
-///     one_pole.set_cutoff(CUTOFF);
-///     one_pole.set_sticky_mode(StickyMode::Rel);
-///     one_pole.set_sticky_thresh(STICKY_THRESH);
-///
-///     // Initialize the filter state for each channel
-///     one_pole.reset(None, None);
-///
-///     // Process one sample per channel
-///     one_pole.process(&x, Some(&mut y), N_SAMPLES);
-///
-///     // Output the filtered result
-///     println!("Filtered output: {:?}", y);
-/// }
-///
+/// let mut op = OnePole::<N_CHANNELS>::new();
+/// op.set_sample_rate(48_000.0);
+/// op.set_cutoff(1_000.0);
+/// op.set_sticky_mode(StickyMode::Rel);
+/// op.set_sticky_thresh(0.1);
+/// // process audio with op.process(...)
 /// ```
-///
-/// # Notes
-/// This module provides a native Rust implementation of the filter, but the same interface is
-/// also available via bindings to the original C library at [crate::c_wrapper::one_pole].
-/// Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
-///
 #[derive(Debug)]
 pub struct OnePole<const N_CHANNELS: usize> {
     coeffs: OnePoleCoeffs<N_CHANNELS>,
@@ -1005,7 +1021,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::c_wrapper::{
         one_pole::OnePole as OnePoleWrapper,
-        one_pole::OnePoleStickyMode as OnePoleStikyModeWrapper, *,
+        one_pole::StickyMode as StikyModeWrapper, *,
     };
 
     const N_CHANNELS: usize = 2;
@@ -1200,7 +1216,7 @@ pub(crate) mod tests {
 
     #[test]
     fn set_sticky_mode_abs() {
-        let c_mode = OnePoleStikyModeWrapper::Abs;
+        let c_mode = StikyModeWrapper::Abs;
         let rust_mode = StickyMode::Abs;
         let mut c_one_pole = OnePoleWrapperT::new();
         let mut rust_one_pole = OnePoleT::new();
@@ -1217,7 +1233,7 @@ pub(crate) mod tests {
 
     #[test]
     fn set_sticky_mode_rel() {
-        let c_mode = OnePoleStikyModeWrapper::Rel;
+        let c_mode = StikyModeWrapper::Rel;
         let rust_mode = StickyMode::Rel;
         let mut c_one_pole = OnePoleWrapperT::new();
         let mut rust_one_pole = OnePoleT::new();
@@ -1337,7 +1353,7 @@ pub(crate) mod tests {
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Abs);
+        c_one_pole.set_sticky_mode(StikyModeWrapper::Abs);
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -1376,7 +1392,7 @@ pub(crate) mod tests {
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Rel);
+        c_one_pole.set_sticky_mode(StikyModeWrapper::Rel);
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -1458,7 +1474,7 @@ pub(crate) mod tests {
         c_one_pole.set_cutoff_up(CUTOFF_UP);
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Abs);
+        c_one_pole.set_sticky_mode(StikyModeWrapper::Abs);
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -1500,7 +1516,7 @@ pub(crate) mod tests {
         c_one_pole.set_cutoff_up(CUTOFF_UP);
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Rel);
+        c_one_pole.set_sticky_mode(StikyModeWrapper::Rel);
         c_one_pole.reset(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
@@ -1581,7 +1597,7 @@ pub(crate) mod tests {
 
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
-        c_one_pole.set_sticky_mode(OnePoleStikyModeWrapper::Rel);
+        c_one_pole.set_sticky_mode(StikyModeWrapper::Rel);
         c_one_pole.reset(&x0, None);
 
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
