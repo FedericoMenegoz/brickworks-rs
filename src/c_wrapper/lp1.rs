@@ -43,9 +43,6 @@ use std::ptr::null_mut;
 ///
 /// This struct manages both the filter coefficients and the runtime states
 /// for a given number of channels (`N_CHANNELS`).  
-/// It wraps:
-/// - [`LP1Coeffs`]
-/// - [`LP1State`]
 ///
 /// # Usage
 /// ```rust

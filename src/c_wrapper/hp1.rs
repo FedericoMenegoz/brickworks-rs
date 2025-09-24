@@ -1,13 +1,67 @@
-use std::ptr::null_mut;
-
+//! **First-order highpass filter** (6 dB/oct) with gain asymptotically approaching unity as frequency increases.
+//!
+//! # Example
+//! ```rust
+//! use brickworks_rs::c_wrapper::hp1::HP1;
+//!
+//! const N_CHANNELS: usize = 2;
+//! const N_SAMPLES: usize = 8;
+//! let mut filter = HP1::<N_CHANNELS>::new();
+//!
+//! // Set sample rate
+//! filter.set_sample_rate(44_100.0);
+//!
+//! // Set cutoff and prewarp
+//! filter.set_cutoff(1_000.0);
+//! filter.set_prewarp_at_cutoff(true);
+//!
+//! // Reset filter states
+//! filter.reset(0.0, None);
+//!
+//!
+//! // Example input: multi-channel array of samples
+//! let input: [&[f32]; N_CHANNELS] = [&[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!                                    &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]];
+//!
+//! let mut output_buffers: [&mut [f32]; N_CHANNELS] = [&mut [0.0; N_SAMPLES], &mut [0.0; N_SAMPLES]];
+//!
+//! // Process the samples
+//! filter.process(&input, &mut output_buffers, N_SAMPLES);
+//!
+//! println!("Filtered output: {:?}", output_buffers);
+//! ```
+//!
+//! # Notes
+//! This module provides Rust bindings to the original C implementation.
+//! For a fully native Rust implementation with the same interface,
+//! see [crate::c_wrapper::hp1].
+//! Original C library by [Orastron](https://www.orastron.com/algorithms/bw_hp1).
 use super::*;
-
+use std::ptr::null_mut;
+/// First-order lowpass filter (6 dB/oct) with gain asymptotically approaching unity
+/// as frequency increases.
+///
+/// This struct manages both the filter coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+///
+/// # Usage
+/// ```rust
+/// use brickworks_rs::c_wrapper::hp1::HP1;
+/// const N_CHANNELS: usize = 2;
+/// let mut hp1 = HP1::<N_CHANNELS>::new();
+/// hp1.set_sample_rate(48_000.0);
+/// hp1.set_cutoff(1_000.0);
+/// hp1.set_prewarp_at_cutoff(false);
+/// hp1.set_prewarp_freq(990.0);
+/// // process audio with hp1.process(...)
+/// ```
 pub struct HP1<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_hp1_coeffs,
     pub(crate) states: [bw_hp1_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> HP1<N_CHANNELS> {
+    /// Creates a new instance with default parameters and zeroed state.
     #[inline(always)]
     pub fn new() -> Self {
         let mut coeffs = bw_hp1_coeffs::default();
@@ -20,14 +74,16 @@ impl<const N_CHANNELS: usize> HP1<N_CHANNELS> {
             states: [bw_hp1_state::default(); N_CHANNELS],
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         unsafe {
             bw_hp1_set_sample_rate(&mut self.coeffs, sample_rate);
         }
     }
-
+    /// Resets the states and coeffs for all channels to the initial input `x0`,
+    /// or to 0 if `x0` is not provided.
+    /// If `y0` is provided, the resulting initial outputs are stored in it.
     #[inline(always)]
     pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
         unsafe {
@@ -43,7 +99,11 @@ impl<const N_CHANNELS: usize> HP1<N_CHANNELS> {
             }
         }
     }
-
+    /// Resets the state and coefficients for all channels using the provided initial
+    /// input values.
+    ///
+    /// Both the coefficients and all channel states are reset.
+    /// If `y0` is `Some`, the initial outputs are written into it.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32], y0: Option<&mut [f32; N_CHANNELS]>) {
         let y0_ptrs = match y0 {
@@ -63,7 +123,9 @@ impl<const N_CHANNELS: usize> HP1<N_CHANNELS> {
             );
         }
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and writes the
+    /// results to the first `n_samples` of the `N_CHANNELS` output buffers `y`,
+    /// while updating the shared coefficients and each channel's state (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -86,21 +148,35 @@ impl<const N_CHANNELS: usize> HP1<N_CHANNELS> {
             );
         }
     }
-
+    /// Sets the cutoff frequency to the given value (Hz).
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         unsafe {
             bw_hp1_set_cutoff(&mut self.coeffs, value);
         }
     }
-
+    /// Sets whether bilinear transform prewarping frequency should match the cutoff
+    /// frequency (true) or not (false).
+    ///
+    /// Default value: true (on).
     #[inline(always)]
     pub fn set_prewarp_at_cutoff(&mut self, value: bool) {
         unsafe {
             bw_hp1_set_prewarp_at_cutoff(&mut self.coeffs, if value { 1 } else { 0 });
         }
     }
-
+    /// Sets the prewarping frequency value (Hz).
+    ///
+    /// Only used when the prewarp_at_cutoff parameter is off and however internally
+    /// limited to avoid instability.
+    ///
+    /// Valid range: [1e-6, 1e12].
+    ///
+    /// Default value: 1e3.
     #[inline(always)]
     pub fn set_prewarp_freq(&mut self, value: f32) {
         unsafe {

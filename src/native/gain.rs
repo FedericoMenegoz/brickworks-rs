@@ -1,10 +1,9 @@
+#[cfg(debug_assertions)]
+use super::common::{debug_assert_positive, debug_assert_range};
 use crate::native::{
     math::db2linf,
     one_pole::{OnePoleCoeffs, OnePoleState, StickyMode},
 };
-
-#[cfg(debug_assertions)]
-use super::common::{debug_assert_positive, debug_assert_range};
 
 pub struct Gain<const N_CHANNELS: usize> {
     coeffs: GainCoeffs<N_CHANNELS>,
