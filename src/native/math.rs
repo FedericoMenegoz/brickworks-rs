@@ -1,13 +1,28 @@
-use core::f32::{self, consts::PI};
+//! A collection of mathematical routines that strive to be better suited to DSP.
 
-pub const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
-pub const NANO: f32 = 1e-9;
-pub const PI_OVER_2: f32 = PI / 2.0;
+use core::f32::{self, consts::PI};
+pub(crate) const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
+pub(crate) const NANO: f32 = 1e-9;
+pub(crate) const PI_OVER_2: f32 = PI / 2.0;
 
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_range};
 
-//  Newton-Raphson reciprocal approsimation
+/// Returns the reciprocal of `x` (i.e., `1.0 / x`).
+///
+/// |x| must be in `[8.077935669463161e-28, 1.237940039285380e+27]`.  
+/// Relative error `< 0.0013%`.
+///
+/// # Example
+/// ```
+/// use brickworks_rs::native::math::rcpf;
+///
+/// let x0 = 4.0f32;
+/// let x1 = 5.12f32;
+///
+/// assert!((rcpf(x0) - 0.25).abs() < 1e-5);
+/// assert!((rcpf(x1) - (1.0 / 5.12)).abs() < 1e-5);
+/// ```
 #[inline(always)]
 pub fn rcpf(x: f32) -> f32 {
     #[cfg(debug_assertions)]
@@ -72,13 +87,19 @@ pub fn clipf(x: f32, m_small: f32, m_big: f32) -> f32 {
     debug_assert!(!y.is_nan());
     y
 }
-/// Returns an approximation of the tangent of `x`, where `x` is given in
-/// radians.
+/// Returns `x` unless it is smaller than `m_small`, in which case it returns `m_small`,
+/// or bigger than `m_big`, in which case it returns `m_big`.
 ///
-/// `x` must be finite and in [-pi/2 + 1e-3f, pi/2 - 1e-3f] + k * pi, where k
-/// is any integer number.
+/// `m_big` must be greater than or equal to `m_small`.
 ///
-/// Absolute error < 0.06 or relative error < 0.8%, whatever is worse.
+/// # Example
+/// ```
+/// use brickworks_rs::native::math::clipf;
+///
+/// assert_eq!(clipf(5.0, 0.0, 10.0), 5.0);   // inside range
+/// assert_eq!(clipf(-3.0, 0.0, 10.0), 0.0);  // below lower bound
+/// assert_eq!(clipf(42.0, 0.0, 10.0), 10.0); // above upper bound
+/// ```
 #[inline(always)]
 pub fn tanf(mut x: f32) -> f32 {
     debug_assert!(x.is_finite());
@@ -93,30 +114,59 @@ pub fn tanf(mut x: f32) -> f32 {
     debug_assert!(y.is_finite());
     y
 }
-/// Returns an approximation of the sine of 2 * pi * `x`, where `x` is given
-/// in radians.
+/// Returns an approximation of the sine of `2 * pi * x`, where `x` is given
+/// in **cycles** (not radians).
 ///
 /// `x` must be finite.
 ///
-/// Absolute error < 0.011 or relative error < 1.7%, whatever is worse.
+/// Absolute error < `0.011` or relative error < `1.7%`, whichever is worse.
+///
+/// # Example
+/// ```
+/// use brickworks_rs::native::math::sin2pif;
+///
+/// let y0 = sin2pif(0.0);   // ≈ sin(0) = 0.0
+/// let y1 = sin2pif(0.25);  // ≈ sin(π/2) = 1.0
+/// let y2 = sin2pif(0.5);   // ≈ sin(π) = 0.0
+/// let y3 = sin2pif(0.75);  // ≈ sin(3π/2) = -1.0
+///
+/// assert!((y0 - 0.0).abs() < 0.011);
+/// assert!((y1 - 1.0).abs() < 0.011);
+/// assert!((y2 - 0.0).abs() < 0.011);
+/// assert!((y3 + 1.0).abs() < 0.011);
+/// ```
 #[inline(always)]
-pub fn sin2pif(mut x: f32) -> f32 {
+pub fn sin2pif(x: f32) -> f32 {
     debug_assert!(x.is_finite());
-    x = x - x.floor();
-    let xp1 = x + x - 1.0;
+    let val = x - x.floor();
+    let xp1 = val + val - 1.0;
     let xp2 = xp1.abs();
     let xp = PI_OVER_2 - PI_OVER_2 * (xp2 + xp2 - 1.0).abs();
     let y = -1.0_f32.copysign(xp1) * (xp + xp * xp * (-0.05738534 - 0.11073982 * xp));
     debug_assert!(y.is_finite());
     y
 }
-///
-/// Returns an approximation of the cosine of 2 * pi * `x`, where `x` is given
-/// in radians.
+/// Returns an approximation of the cosine of `2 * pi * x`, where `x` is given
+/// in **cycles** (not radians).
 ///
 /// `x` must be finite.
 ///
-/// Absolute error < 0.011 or relative error < 1.7%, whatever is worse.
+/// Absolute error < `0.011` or relative error < `1.7%`, whichever is worse.
+///
+/// # Example
+/// ```
+/// use brickworks_rs::native::math::cos2pif;
+///
+/// let y0 = cos2pif(0.0);   // ≈ cos(0) = 1.0
+/// let y1 = cos2pif(0.25);  // ≈ cos(π/2) = 0.0
+/// let y2 = cos2pif(0.5);   // ≈ cos(π) = -1.0
+/// let y3 = cos2pif(0.75);  // ≈ cos(3π/2) = 0.0
+///
+/// assert!((y0 - 1.0).abs() < 0.011);
+/// assert!((y1 - 0.0).abs() < 0.011);
+/// assert!((y2 + 1.0).abs() < 0.011);
+/// assert!((y3 - 0.0).abs() < 0.011);
+/// ```
 #[inline(always)]
 pub fn cos2pif(x: f32) -> f32 {
     debug_assert!(x.is_finite());
@@ -124,13 +174,25 @@ pub fn cos2pif(x: f32) -> f32 {
     debug_assert!(y.is_finite());
     y
 }
-/// Returns an approximation of 10 raised to the power of `x` / 20 (dB to
-/// linear ratio conversion). For `x < -758.5955890732315f` it just returns
-/// `0.f`.
+/// Returns an approximation of `10^(x/20)` (dB to linear ratio conversion).  
+/// For `x < -758.5955890732315f` it returns `0.0`.
 ///
-/// `x` must be less than or equal to `770.630f`.
+/// `x` must be less than or equal to `770.630`.
 ///
-/// Relative error < 0.062%.
+/// Relative error < 0.062%
+///
+/// # Example
+/// ```
+/// use brickworks_rs::native::math::db2linf;
+///
+/// let lin0 = db2linf(0.0);       // 0 dB -> 1.0
+/// let lin1 = db2linf(6.0);       // 6 dB -> ≈ 1.995
+/// let lin2 = db2linf(-6.0);      // -6 dB -> ≈ 0.501
+///
+/// assert!((lin0 - 1.0).abs() / 1.0 < 0.00062);
+/// assert!((lin1 - 1.995262).abs() / 1.995262 < 0.00062);
+/// assert!((lin2 - 0.501187).abs() / 0.501187 < 0.00062);
+/// ```
 #[inline(always)]
 pub fn db2linf(x: f32) -> f32 {
     debug_assert!(!x.is_nan());
@@ -145,12 +207,26 @@ pub fn db2linf(x: f32) -> f32 {
     debug_assert!(y.is_finite());
     y
 }
-
 /// Returns an approximation of the square root of `x`.
 ///
 /// `x` must be finite and non-negative.
 ///
-/// Absolute error < 1.09e-19 or relative error < 0.0007%, whatever is worse.
+/// Absolute error < 1.09e-19 or relative error < 0.0007%, whichever is worse.
+///
+/// # Example
+/// ```
+/// use brickworks_rs::native::math::sqrtf;
+///
+/// let y0 = sqrtf(0.0);       // ≈ 0.0
+/// let y1 = sqrtf(1.0);       // ≈ 1.0
+/// let y2 = sqrtf(4.0);       // ≈ 2.0
+/// let y3 = sqrtf(2.0);       // ≈ 1.4142135
+///
+/// assert!((y0 - 0.0).abs() < 1.09e-19);
+/// assert!((y1 - 1.0).abs() < 0.000007);
+/// assert!((y2 - 2.0).abs() / 2.0 < 0.000007);
+/// assert!((y3 - 1.4142135).abs() / 1.4142135 < 0.000007);
+/// ```
 #[inline(always)]
 pub fn sqrtf(x: f32) -> f32 {
     debug_assert!(x.is_finite(), "value must be finite, got {}", x);
@@ -183,13 +259,27 @@ pub fn sqrtf(x: f32) -> f32 {
 
     v
 }
-/// Returns an approximation of 2 raised to the power of `x`. For `x < -126.f`
-/// it just returns `0.f`.
+/// Returns an approximation of 2 raised to the power of `x`. For `x < -126.0`
+/// it returns `0.0`.
 ///
-/// `x` must be less than or equal to `127.999f`.
+/// `x` must be less than or equal to `127.999`.
 ///
-/// Relative error < 0.062%.
+/// Relative error < 0.062%
 ///
+/// # Example
+/// ```
+/// use brickworks_rs::native::math::pow2f;
+///
+/// let y0 = pow2f(0.0);       // 2^0 = 1.0
+/// let y1 = pow2f(1.0);       // 2^1 = 2.0
+/// let y2 = pow2f(2.0);       // 2^2 = 4.0
+/// let y3 = pow2f(-1.0);      // 2^-1 ≈ 0.5
+///
+/// assert!((y0 - 1.0).abs() / 1.0 < 0.00062);
+/// assert!((y1 - 2.0).abs() / 2.0 < 0.00062);
+/// assert!((y2 - 4.0).abs() / 4.0 < 0.00062);
+/// assert!((y3 - 0.5).abs() / 0.5 < 0.00062);
+/// ```
 #[inline(always)]
 pub fn pow2f(x: f32) -> f32 {
     debug_assert!(!x.is_nan());
@@ -340,11 +430,12 @@ mod tests {
 
     #[test]
     fn sqrtf_valid() {
-        let ns = [23.0, 0.00004, 65.1, 123559.0, 1.1e-38];
+        let ns = [23.0, 0.00004, 65.1, 123559.0, 1.1e-38, 1.0];
 
         unsafe {
             for val in ns {
                 assert_eq!(sqrtf(val), bw_sqrtf(val));
+                println!("{} {}", sqrtf(val), bw_sqrtf(val))
             }
         }
     }
