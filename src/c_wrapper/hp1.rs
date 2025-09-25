@@ -38,7 +38,7 @@
 //! Original C library by [Orastron](https://www.orastron.com/algorithms/bw_hp1).
 use super::*;
 use std::ptr::null_mut;
-/// First-order lowpass filter (6 dB/oct) with gain asymptotically approaching unity
+/// First-order highpass filter (6 dB/oct) with gain asymptotically approaching unity
 /// as frequency increases.
 ///
 /// This struct manages both the filter coefficients and the runtime states

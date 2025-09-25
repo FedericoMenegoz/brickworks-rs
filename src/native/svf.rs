@@ -8,39 +8,37 @@
 //! const SAMPLE_RATE: f32 = 48_000.0;
 //! const N_CHANNELS: usize = 2;
 //!
-//! fn main() {
-//!     let mut svf = SVF::new();
-//!     svf.set_sample_rate(SAMPLE_RATE);
-//!     let cutoff = 185.0;
-//!     let q = 0.707;
-//!     let prewarpfreq = 185.0;
-//!     let n_samples = 2;
+//! let mut svf = SVF::new();
+//! svf.set_sample_rate(SAMPLE_RATE);
+//! let cutoff = 185.0;
+//! let q = 0.707;
+//! let prewarpfreq = 185.0;
+//! let n_samples = 2;
 //!
-//!     let x_ch0 = [1.0, 0.0];
-//!     let x_ch1 = [1.0, 0.0];
-//!     let x: [&[f32]; 2] = [&x_ch0, &x_ch1];
+//! let x_ch0 = [1.0, 0.0];
+//! let x_ch1 = [1.0, 0.0];
+//! let x: [&[f32]; 2] = [&x_ch0, &x_ch1];
 //!
-//!     let mut y_lp_ch0 = [0.0, 0.0];
-//!     let mut y_lp_ch1 = [0.0, 0.0];
-//!     let mut y_lp: [Option<&mut [f32]>; N_CHANNELS] =
-//!         [Some(&mut y_lp_ch0), Some(&mut y_lp_ch1)];
+//! let mut y_lp_ch0 = [0.0, 0.0];
+//! let mut y_lp_ch1 = [0.0, 0.0];
+//! let mut y_lp: [Option<&mut [f32]>; N_CHANNELS] =
+//!     [Some(&mut y_lp_ch0), Some(&mut y_lp_ch1)];
 //!
-//!     svf.set_sample_rate(SAMPLE_RATE);
-//!     svf.set_cutoff(cutoff);
-//!     svf.set_prewarp_at_cutoff(true);
-//!     svf.set_q(q);
-//!     svf.set_prewarp_freq(prewarpfreq);
-//!     svf.reset(0.0, None, None, None);
+//! svf.set_sample_rate(SAMPLE_RATE);
+//! svf.set_cutoff(cutoff);
+//! svf.set_prewarp_at_cutoff(true);
+//! svf.set_q(q);
+//! svf.set_prewarp_freq(prewarpfreq);
+//! svf.reset(0.0, None, None, None);
 //!
 //!
-//!     svf.process(
-//!         &x,
-//!         Some(&mut y_lp),
-//!         None,
-//!         None,
-//!         n_samples,
-//!     );
-//! }
+//! svf.process(
+//!     &x,
+//!     Some(&mut y_lp),
+//!     None,
+//!     None,
+//!     n_samples,
+//! );
 //! ```
 //! # Notes
 //! This module provides a native Rust implementation of the SVF Filter, but

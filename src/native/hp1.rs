@@ -39,7 +39,7 @@
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 use crate::native::lp1::{LP1Coeffs, LP1State};
-/// First-order lowpass filter (6 dB/oct) with gain asymptotically approaching
+/// First-order highpass filter (6 dB/oct) with gain asymptotically approaching
 /// unity as frequency increases.
 ///
 /// This struct manages both the filter coefficients and the runtime states

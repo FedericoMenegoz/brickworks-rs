@@ -4,8 +4,9 @@
 //! The quality factor of the underlying bandpass filter can be either directly
 //! controlled via the Q parameter or indirectly through the bandwidth parameter,
 //! which designates the distance in octaves between midpoint gain frequencies,
-//! i.e., frequencies with gain = peak gain / 2 in dB terms.
-//! The use_bandiwdth parameter allows you to choose which parameterization to use.
+//! i.e., frequencies with: `gain = peak gain / 2` in dB terms.
+//!
+//! The [Peak::set_use_bandwidth()] function allows you to choose which parameterization to use.
 //!
 //! # Example
 //! ```rust

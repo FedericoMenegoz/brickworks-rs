@@ -12,12 +12,9 @@
 //! frequencies).
 //!
 //! The antialiasing technique used here is described in
-//! ```text
-//! J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of
-//! Nonlinear Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl.
-//! Conf. Digital Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic,
-//! September 2016.
-//! ```
+//!
+//! > J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of Nonlinear Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl. Conf. Digital Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic, September 2016.
+//!
 //!
 //! # Example
 //! ```

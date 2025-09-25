@@ -1,6 +1,7 @@
 //! Rust porting of the C library [Orastron](https://www.orastron.com/algorithms)
 pub mod clip;
 #[allow(dead_code)] // will use it when deep asserting and then remove this
+#[doc(hidden)]
 pub mod common;
 pub mod dist;
 pub mod gain;

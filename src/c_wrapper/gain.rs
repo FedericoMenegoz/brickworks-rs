@@ -38,9 +38,6 @@ use crate::c_wrapper::one_pole::StickyMode;
 /// This struct manages the gain coefficients for a given number of channels
 /// (`N_CHANNELS`).  
 ///
-/// It wraps:
-/// - [`GainCoeffs`]
-///
 /// # Usage
 /// ```rust
 /// use brickworks_rs::c_wrapper::gain::Gain;

@@ -15,41 +15,39 @@
 //! const N_CHANNELS: usize = 2;
 //! const N_SAMPLES: usize = 8;
 //!
-//! fn main() {
-//!     // Create a stereo MM2 filter
-//!     let mut mm2 = MM2::<N_CHANNELS>::new();
+//! // Create a stereo MM2 filter
+//! let mut mm2 = MM2::<N_CHANNELS>::new();
 //!
-//!     // Configure sample rate
-//!     mm2.set_sample_rate(44_100.0);
+//! // Configure sample rate
+//! mm2.set_sample_rate(44_100.0);
 //!
-//!     // Set filter parameters
-//!     mm2.set_cutoff(2_000.0);   // cutoff frequency in Hz
-//!     mm2.set_q(0.707);          // Q factor
+//! // Set filter parameters
+//! mm2.set_cutoff(2_000.0);   // cutoff frequency in Hz
+//! mm2.set_q(0.707);          // Q factor
 //!
-//!     // Mix coefficients
-//!     mm2.set_coeff_lp(0.9);
-//!     mm2.set_coeff_x(0.3);
+//! // Mix coefficients
+//! mm2.set_coeff_lp(0.9);
+//! mm2.set_coeff_x(0.3);
 //!
-//!     // Reset states with initial input = silence
-//!     mm2.reset(0.0, None);
+//! // Reset states with initial input = silence
+//! mm2.reset(0.0, None);
 //!
-//!     // Example input: stereo pulse at first sample
-//!     let input: [&[f32]; N_CHANNELS] = [
-//!         &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-//!         &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-//!     ];
+//! // Example input: stereo pulse at first sample
+//! let input: [&[f32]; N_CHANNELS] = [
+//!     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!     &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//! ];
 //!
-//!     // Output buffers
-//!     let mut output_l = [0.0; N_SAMPLES];
-//!     let mut output_r = [0.0; N_SAMPLES];
-//!     let mut outputs: [&mut [f32]; N_CHANNELS] = [&mut output_l, &mut output_r];
+//! // Output buffers
+//! let mut output_l = [0.0; N_SAMPLES];
+//! let mut output_r = [0.0; N_SAMPLES];
+//! let mut outputs: [&mut [f32]; N_CHANNELS] = [&mut output_l, &mut output_r];
 //!
-//!     // Process audio block
-//!     mm2.process(&input, &mut outputs, N_SAMPLES);
+//! // Process audio block
+//! mm2.process(&input, &mut outputs, N_SAMPLES);
 //!
-//!     println!("Left channel:  {:?}", outputs[0]);
-//!     println!("Right channel: {:?}", outputs[1]);
-//! }
+//! println!("Left channel:  {:?}", outputs[0]);
+//! println!("Right channel: {:?}", outputs[1]);
 //! ```
 //! # Notes
 //! This module provides Rust bindings to the original C implementation.

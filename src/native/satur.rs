@@ -24,29 +24,25 @@
 //! ];
 //! const N_SAMPLES: usize = 8;
 //!
-//! fn main() {
-//!     let mut satur = Satur::new();
-//!     satur.set_sample_rate(SAMPLE_RATE);
+//! let mut satur = Satur::new();
+//! satur.set_sample_rate(SAMPLE_RATE);
 //!
-//!     let x0 = [0.0, 0.0];
+//! let x0 = [0.0, 0.0];
 //!
-//!     satur.reset_multi(&x0, None);
+//! satur.reset_multi(&x0, None);
 //!
-//!     let mut y: [&mut [f32]; 2] = [
-//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-//!     ];
-//!     satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-//! }
+//! let mut y: [&mut [f32]; 2] = [
+//!     &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!     &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+//! ];
+//! satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
 //! ```
 //!
 //! # Notes
 //!
 //! The antialiasing technique used here is described in:
 //!
-//! J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of Nonlinear
-//! Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl. Conf. Digital
-//! Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic, September 2016.
+//! > J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of Nonlinear Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl. Conf. Digital Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic, September 2016.
 //!
 //! This module provides a native Rust implementation, but the same interface is
 //! also available via bindings to the original C library at [`crate::c_wrapper::satur`].
@@ -119,7 +115,7 @@ impl<const N_CHANNELS: usize> Satur<N_CHANNELS> {
             }
         }
     }
-    /// Resets the satur's coeffs and each of the `N_CHANNELS` states to its initial values
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
     /// using the corresponding initial input value in the x0 array.
     ///
     /// The corresponding initial output values are written into the y0 array, if is Some.
@@ -232,7 +228,7 @@ impl<const N_CHANNELS: usize> SaturCoeffs<N_CHANNELS> {
             .reset_state(&mut self.smooth_gain_state, self.gain);
         self.do_update_coeffs(true);
     }
-    /// Resets the given state to its initial values using the initial input value x0.
+    /// Resets the given state to its initial values using the initial input value `x0`.
     ///
     /// Returns the corresponding initial output value.
     #[inline(always)]

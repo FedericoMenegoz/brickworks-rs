@@ -14,7 +14,7 @@
 //!
 //! # Examples
 //! ```rust
-//! use brickworks_rs::native::satur::*;
+//! use brickworks_rs::c_wrapper::satur::Satur;
 //!
 //! const N_CHANNELS: usize = 2;
 //! const SAMPLE_RATE: f32 = 44_100.0;
@@ -24,29 +24,25 @@
 //! ];
 //! const N_SAMPLES: usize = 8;
 //!
-//! fn main() {
-//!     let mut satur = Satur::new();
-//!     satur.set_sample_rate(SAMPLE_RATE);
+//! let mut satur = Satur::new();
+//! satur.set_sample_rate(SAMPLE_RATE);
 //!
-//!     let x0 = [0.0, 0.0];
+//! let x0 = [0.0, 0.0];
 //!
-//!     satur.reset_multi(&x0, None);
+//! satur.reset_multi(&x0, None);
 //!
-//!     let mut y: [&mut [f32]; 2] = [
-//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-//!         &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-//!     ];
-//!     satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-//! }
+//! let mut y: [&mut [f32]; 2] = [
+//!     &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+//!     &mut [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+//! ];
+//! satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
 //! ```
 //!
 //! # Notes
 //!
 //! The antialiasing technique used here is described in:
 //!
-//! J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of Nonlinear
-//! Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl. Conf. Digital
-//! Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic, September 2016.
+//! > J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of Nonlinear Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl. Conf. Digital Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic, September 2016.
 //!
 //! This module provides Rust bindings to the original C implementation.
 //! For a fully native Rust implementation with the same interface,

@@ -230,7 +230,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// Sets the target-reach threshold specified by value in `OnePole<N_CHANNELS>`.
     ///
     /// When the difference between the output and the input would fall under such threshold according
-    /// to the current distance metric (see [OnePoleStickyMode]), the output is forcefully set to be equal to the input value.
+    /// to the current distance metric (see [StickyMode]), the output is forcefully set to be equal to the input value.
     ///
     ///
     /// ### Parameters
@@ -244,8 +244,8 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     /// Sets the current distance metric for sticky behavior to value in `OnePole<N_CHANNELS>`.
     ///
     /// ### Parameters
-    /// - `value`: sticky mode, default is [OnePoleStickyMode::Abs]
-    /// - `value`: sticky mode, default is [OnePoleStickyMode::Abs]
+    /// - `value`: sticky mode, default is [StickyMode::Abs]
+    /// - `value`: sticky mode, default is [StickyMode::Abs]
     ///
     #[inline(always)]
     pub fn set_sticky_mode(&mut self, value: StickyMode) {
