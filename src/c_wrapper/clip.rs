@@ -57,7 +57,26 @@ use std::ptr::null_mut;
 
 use super::*;
 use crate::c_wrapper::utils::make_array;
-
+/// Antialiased hard clipper with parametric bias and gain (compensation) and output bias removal.
+///
+/// Manages both the clipper coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+///
+/// # Usage
+///
+/// ```rust
+/// use brickworks_rs::c_wrapper::clip::Clip;
+///
+/// // Stereo filter
+/// const N_CHANNELS: usize = 2;
+/// let mut clip = Clip::<N_CHANNELS>::new();
+///
+/// clip.set_sample_rate(44_100.0);
+/// clip.set_bias(0.3);
+/// clip.set_gain(0.8);
+/// clip.reset(0.0, None);
+/// // dist.process(...)
+/// ```
 #[derive(Debug)]
 pub struct Clip<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_clip_coeffs,
@@ -65,6 +84,7 @@ pub struct Clip<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     pub fn new() -> Self {
         let mut clip = Clip {
             coeffs: bw_clip_coeffs::default(),
@@ -77,13 +97,16 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
         println!("{:?}", clip);
         clip
     }
-
+    /// Sets the sample rate (Hz).
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         unsafe {
             bw_clip_set_sample_rate(&mut self.coeffs, sample_rate);
         }
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if it is Some.
     pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
         unsafe {
             bw_clip_reset_coeffs(&mut self.coeffs);
@@ -99,6 +122,10 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
             }
         }
     }
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if is Some.
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         let y0_ptrs = match y0 {
             Some(y) => y.as_mut_ptr(),
@@ -117,7 +144,9 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
             );
         }
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     pub fn process(
         &mut self,
         x: &[&[f32]; N_CHANNELS],
@@ -139,19 +168,29 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
             );
         }
     }
-
+    /// Sets the input bias `value`.
+    ///
+    /// Valid range: [-1e12, 1e12].
+    ///
+    /// Default value: 0.0.
     pub fn set_bias(&mut self, value: f32) {
         unsafe {
             bw_clip_set_bias(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the gain `value`.
+    ///
+    /// Valid range: [1e-12, 1e12].
+    ///
+    /// Default value: 1.0.
     pub fn set_gain(&mut self, value: f32) {
         unsafe {
             bw_clip_set_gain(&mut self.coeffs, value);
         }
     }
-
+    /// Sets whether the output should be divided by gain (true) or not (false).
+    ///
+    /// Default value: false (off).
     pub fn set_gain_compensation(&mut self, value: bool) {
         unsafe {
             bw_clip_set_gain_compensation(&mut self.coeffs, value as i8);

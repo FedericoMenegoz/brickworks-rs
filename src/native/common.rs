@@ -1,3 +1,4 @@
+//! Common
 #[cfg(debug_assertions)]
 #[inline(always)]
 pub(crate) fn has_inf(x: &[f32]) -> bool {

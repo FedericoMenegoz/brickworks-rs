@@ -56,13 +56,35 @@
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 use crate::native::math::{clipf, rcpf};
 use crate::native::one_pole::{OnePoleCoeffs, OnePoleState};
-
+/// Antialiased hard clipper with parametric bias and gain (compensation) and output bias removal.
+///
+/// Manages both the clipper coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+/// It wraps:
+/// - [`ClipCoeffs`]
+/// - [`ClipState`]
+/// # Usage
+///
+/// ```rust
+/// use brickworks_rs::native::clip::Clip;
+///
+/// // Stereo filter
+/// const N_CHANNELS: usize = 2;
+/// let mut clip = Clip::<N_CHANNELS>::new();
+///
+/// clip.set_sample_rate(44_100.0);
+/// clip.set_bias(0.3);
+/// clip.set_gain(0.8);
+/// clip.reset(0.0, None);
+/// // dist.process(...)
+/// ```
 pub struct Clip<const N_CHANNELS: usize> {
     coeffs: ClipCoeffs<N_CHANNELS>,
     states: [ClipState; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         Clip {
@@ -70,12 +92,15 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
             states: [ClipState::default(); N_CHANNELS],
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, value: f32) {
         self.coeffs.set_sample_rate(value);
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if it is Some.
     #[inline(always)]
     pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
@@ -92,13 +117,18 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
             }
         }
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if is Some.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
         self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -108,17 +138,27 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
     ) {
         self.coeffs.process_multi(&mut self.states, x, y, n_samples);
     }
-
+    /// Sets the input bias `value`.
+    ///
+    /// Valid range: [-1e12, 1e12].
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_bias(&mut self, value: f32) {
         self.coeffs.set_bias(value);
     }
-
+    /// Sets the gain `value`.
+    ///
+    /// Valid range: [1e-12, 1e12].
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_gain(&mut self, value: f32) {
         self.coeffs.set_gain(value);
     }
-
+    /// Sets whether the output should be divided by gain (true) or not (false).
+    ///
+    /// Default value: false (off).
     #[inline(always)]
     pub fn set_gain_compensation(&mut self, value: bool) {
         self.coeffs.set_gain_compensation(value);
@@ -130,16 +170,15 @@ impl<const N_CHANNELS: usize> Default for Clip<N_CHANNELS> {
         Self::new()
     }
 }
+/// Coefficients and related.
 pub struct ClipCoeffs<const N_CHANNELS: usize> {
     // Sub-components
     smooth_coeffs: OnePoleCoeffs<N_CHANNELS>,
     smooth_bias_state: OnePoleState,
     smooth_gain_state: OnePoleState,
-
     // Coefficients
     bias_dc: f32,
     inv_gain: f32,
-
     // Parameters
     bias: f32,
     gain: f32,
@@ -147,6 +186,7 @@ pub struct ClipCoeffs<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let mut coeffs = ClipCoeffs {
@@ -164,7 +204,7 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
 
         coeffs
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -175,7 +215,7 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
         self.smooth_coeffs.set_sample_rate(value);
         self.smooth_coeffs.reset_coeffs();
     }
-
+    /// Resets coefficients to assume their target values.
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
         self.smooth_coeffs
@@ -184,7 +224,10 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
             .reset_state(&mut self.smooth_gain_state, self.gain);
         self.do_update_coeffs(true);
     }
-
+    /// Resets the given state to its initial values using the initial
+    /// input value `x0`.
+    ///
+    /// Returns the corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut ClipState, x0: f32) -> f32 {
         debug_assert!(x0.is_finite());
@@ -205,7 +248,11 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Resets each of the `N_CHANNELS` states to its initial values using
+    /// the corresponding initial input value in the `x0` array.
+    ///
+    /// The corresponding initial output values are written into the `y0` array,
+    /// if not None.
     #[inline(always)]
     pub fn reset_state_multi(
         &mut self,
@@ -226,16 +273,22 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
 
     // Not implemented yet: C version only contained assertions
     // need to revisit which assertions from the C version make sense to keep in Rust
+    // /// Triggers control-rate update of coefficients.
     // #[inline(always)]
     // pub fn update_coeffs_ctrl(&mut self) {
     //     todo!()
     // }
 
+    /// Triggers audio-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_audio(&mut self) {
         self.do_update_coeffs(false);
     }
-
+    /// Processes one input sample `x`, while using and updating state.
+    ///
+    /// Assumes that gain compensation is disabled.
+    ///
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut ClipState, mut x: f32) -> f32 {
         debug_assert!(x.is_finite());
@@ -256,7 +309,11 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
         debug_assert!(y.is_finite());
         y
     }
-
+    /// Processes one input sample `x`, while using and updating state.
+    ///
+    /// Assumes that gain compensation is enabled.
+    ///
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_comp(&mut self, state: &mut ClipState, x: f32) -> f32 {
         debug_assert!(x.is_finite());
@@ -266,7 +323,9 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
         debug_assert!(y.is_finite());
         y
     }
-
+    /// Processes the first `n_samples` of the input buffer `x` and fills the first
+    /// `n_samples` of the output buffer `y`, while using and updating both coeffs
+    /// and state (control and audio rate).
     #[inline(always)]
     pub fn process(&mut self, state: &mut ClipState, x: &[f32], y: &mut [f32], n_samples: usize) {
         if self.gain_compensation {
@@ -281,7 +340,9 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
             });
         }
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     #[inline(always)]
     pub fn process_multi(
         &mut self,
@@ -307,7 +368,11 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
             });
         }
     }
-
+    /// Sets the input bias `value`.
+    ///
+    /// Valid range: [-1e12, 1e12].
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_bias(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -318,7 +383,11 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
 
         self.bias = value;
     }
-
+    /// Sets the gain `value`.
+    ///
+    /// Valid range: [1e-12, 1e12].
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_gain(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -329,7 +398,9 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
 
         self.gain = value;
     }
-
+    /// Sets whether the output should be divided by gain (true) or not (false).
+    ///
+    /// Default value: false (off).
     #[inline(always)]
     pub fn set_gain_compensation(&mut self, value: bool) {
         self.gain_compensation = value;
@@ -337,6 +408,11 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
 
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether coeffs is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    /// # Notes
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn coeffs_is_valid(&mut self) -> bool {
         todo!()
@@ -344,6 +420,11 @@ impl<const N_CHANNELS: usize> ClipCoeffs<N_CHANNELS> {
 
     // Not implemented yet:
     // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether state is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    /// # Notes
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn state_is_valid(&mut self) -> bool {
         todo!()
@@ -373,6 +454,7 @@ impl<const N_CHANNELS: usize> Default for ClipCoeffs<N_CHANNELS> {
         Self::new()
     }
 }
+/// Internal state and related.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ClipState {
     x_z1: f32,

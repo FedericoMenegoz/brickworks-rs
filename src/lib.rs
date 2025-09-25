@@ -15,7 +15,5 @@
 // Silence clippy warnings for the wrapper
 #[allow(clippy::all)]
 // Silence clippy warnings for the wrapper
-#[warn(missing_docs)]
 pub mod c_wrapper;
-#[warn(missing_docs)]
 pub mod native;

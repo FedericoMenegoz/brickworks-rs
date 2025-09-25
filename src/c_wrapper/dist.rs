@@ -114,7 +114,7 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
             }
         }
     }
-    /// Resets the satur's coeffs and each of the `N_CHANNELS` states to its initial values
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
     /// using the corresponding initial input value in the x0 array.
     ///
     /// The corresponding initial output values are written into the y0 array, if is Some.
