@@ -43,7 +43,6 @@
 //! This module provides a native Rust implementation of the filter, but the same interface is
 //! also available via bindings to the original C library at [crate::c_wrapper::one_pole].
 //! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
-//!
 use super::math::rcpf;
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};

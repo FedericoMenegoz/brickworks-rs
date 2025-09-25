@@ -1,24 +1,24 @@
 #[cfg(debug_assertions)]
 #[inline(always)]
-pub fn has_inf(x: &[f32]) -> bool {
+pub(crate) fn has_inf(x: &[f32]) -> bool {
     x.iter().any(|val| val.is_infinite())
 }
 
 #[cfg(debug_assertions)]
 #[inline(always)]
-pub fn has_nan(x: &[f32]) -> bool {
+pub(crate) fn has_nan(x: &[f32]) -> bool {
     x.iter().any(|val| val.is_nan())
 }
 
 #[cfg(debug_assertions)]
 #[inline(always)]
-pub fn has_only_finite(x: &[f32]) -> bool {
+pub(crate) fn has_only_finite(x: &[f32]) -> bool {
     x.iter().all(|val| val.is_finite())
 }
 
 #[cfg(debug_assertions)]
 #[inline(always)]
-pub fn hash_sdbm(s: &str) -> u32 {
+pub(crate) fn hash_sdbm(s: &str) -> u32 {
     let mut hash: u32 = 0;
 
     for ch in s.encode_utf16() {

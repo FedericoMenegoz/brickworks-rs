@@ -34,7 +34,7 @@
 //! # Notes
 //! This module provides Rust bindings to the original C implementation.
 //! For a fully native Rust implementation with the same interface,
-//! see [crate::c_wrapper::hp1].
+//! see [crate::native::hp1].
 //! Original C library by [Orastron](https://www.orastron.com/algorithms/bw_hp1).
 use super::*;
 use std::ptr::null_mut;

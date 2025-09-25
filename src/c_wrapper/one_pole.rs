@@ -29,10 +29,8 @@
 //! one_pole.set_sticky_mode(StickyMode::Rel);
 //! one_pole.set_sticky_thresh(STICKY_THRESH);
 //!
-//! // Initialize the filter state for each channel
+//! // Initialize and process
 //! one_pole.reset(&[0.0,0.0], None);
-//!
-//! // Process one sample per channel
 //! one_pole.process(&x, Some(&mut y), N_SAMPLES);
 //!
 //! // Output the filtered result
@@ -277,13 +275,13 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
 }
 
 impl StickyMode {
-    fn to_bw(&self) -> bw_one_pole_sticky_mode {
+    pub(crate) fn to_bw(&self) -> bw_one_pole_sticky_mode {
         match self {
             StickyMode::Abs => bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs,
             StickyMode::Rel => bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel,
         }
     }
-    fn from_bw(bw_sticky_mode: bw_one_pole_sticky_mode) -> Self {
+    pub(crate) fn from_bw(bw_sticky_mode: bw_one_pole_sticky_mode) -> Self {
         match bw_sticky_mode {
             bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs => StickyMode::Abs,
             bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_rel => StickyMode::Rel,

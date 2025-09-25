@@ -1,9 +1,62 @@
+//! **Smoothed gain** module with optional sticky gain-reach threshold.
+//!
+//! # Example
+//! ```rust
+//! use brickworks_rs::c_wrapper::gain::Gain;
+//! use brickworks_rs::c_wrapper::one_pole::StickyMode;
+//! const N_CHANNELS: usize = 2;
+//! const N_SAMPLES: usize = 4;
+//! const PULSE_INPUT: [&[f32]; N_CHANNELS] = [
+//!         &[1.0, 0.0, 0.0, 0.0],
+//!         &[1.0, 0.0, 0.0, 0.0]
+//!     ];
+//! let mut y: [&mut[f32]; N_CHANNELS] = [
+//!         &mut [0.0, 0.0, 0.0, 0.0],
+//!         &mut [0.0, 0.0, 0.0, 0.0],
+//!     ];
+//! let mut gain = Gain::<N_CHANNELS>::new();
+//! gain.set_sample_rate(44_100.0);
+//! gain.set_gain_lin(0.9);
+//! gain.set_smooth_tau(0.2);
+//! gain.set_sticky_thresh(1.2);
+//! gain.set_sticky_mode(StickyMode::Abs);
+//!
+//! gain.reset();
+//! gain.process(&PULSE_INPUT, &mut y, N_SAMPLES);
+//!
+//! println!("Output: {:?}", y);
+//! ```
+//!
+//! # Notes
+//! This module provides Rust bindings to the original C implementation.
+//! For a fully native Rust implementation with the same interface,
+//! see [crate::native::gain].
+//! Original C library by [Orastron](https://www.orastron.com/algorithms/bw_gain).
 use super::*;
+use crate::c_wrapper::one_pole::StickyMode;
+/// **Smoothed gain** module with optional sticky gain-reach threshold.
+/// This struct manages the gain coefficients for a given number of channels
+/// (`N_CHANNELS`).  
+///
+/// It wraps:
+/// - [`GainCoeffs`]
+///
+/// # Usage
+/// ```rust
+/// use brickworks_rs::c_wrapper::gain::Gain;
+/// const N_CHANNELS: usize = 2;
+/// let mut gain = Gain::<N_CHANNELS>::new();
+/// gain.set_sample_rate(48_000.0);
+/// gain.set_gain_db(40.0);
+/// gain.reset();
+/// // process audio with gain.process(...)
+/// ```
 pub struct Gain<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_gain_coeffs,
 }
 
 impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let mut coeffs = bw_gain_coeffs::default();
@@ -12,21 +65,23 @@ impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
         }
         Self { coeffs }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         unsafe {
             bw_gain_set_sample_rate(&mut self.coeffs, sample_rate);
         }
     }
-
+    /// Resets coefficients to assume their target values.
     #[inline(always)]
     pub fn reset(&mut self) {
         unsafe {
             bw_gain_reset_coeffs(&mut self.coeffs);
         }
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and
+    /// writes the results to the first `n_samples` of the `N_CHANNELS` output
+    /// buffers `y`, while updating the shared coefficients (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -46,47 +101,77 @@ impl<const N_CHANNELS: usize> Gain<N_CHANNELS> {
             );
         }
     }
-
+    /// Sets the gain parameter to the given value (linear gain) in coeffs.
+    ///
+    /// `value` must be finite.
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_gain_lin(&mut self, value: f32) {
         unsafe {
             bw_gain_set_gain_lin(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the gain parameter to the given value (dB) in coeffs.
+    ///
+    /// `value` must be less than or equal to 770.630.
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_gain_db(&mut self, value: f32) {
         unsafe {
             bw_gain_set_gain_dB(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the smoothing time constant value (s) in coeffs.
+    ///
+    /// `value` must be non-negative.
+    ///
+    /// Default value: 0.05.
     #[inline(always)]
     pub fn set_smooth_tau(&mut self, value: f32) {
         unsafe {
             bw_gain_set_smooth_tau(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the gain-reach threshold specified by value in coeffs.
+    ///
+    /// When the difference between the current and the target gain would
+    /// fall under such threshold according to the current distance metric
+    /// (see [Gain::set_sticky_mode()]), the current gain is forcefully
+    /// set to be equal to the target gain value.
+    ///
+    /// Valid range: [0.0, 1e18].
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_sticky_thresh(&mut self, value: f32) {
         unsafe {
             bw_gain_set_sticky_thresh(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the current distance metric for sticky behavior to value in coeffs.
+    ///
+    /// *   [StickyMode::Abs]: absolute gain difference (|current - target|, with
+    ///     current and target linear);
+    /// *   [StickyMode::Rel]: relative gain difference with respect to target gain
+    ///     (|current - target| / |target|, with current and target linear).
+    ///
+    /// Default value: [StickyMode::Abs].
     #[inline(always)]
-    pub fn set_sticky_mode(&mut self, value: bw_gain_sticky_mode) {
+    pub fn set_sticky_mode(&mut self, value: StickyMode) {
         unsafe {
-            bw_gain_set_sticky_mode(&mut self.coeffs, value);
+            bw_gain_set_sticky_mode(&mut self.coeffs, value.to_bw());
         }
     }
-
+    /// Returns the current gain parameter value (linear gain) in coeffs.
     #[inline(always)]
     pub fn get_gain_lin(&self) -> f32 {
         unsafe { bw_gain_get_gain_lin(&self.coeffs) }
     }
-
+    /// Returns the actual current gain coefficient (linear gain) in coeffs.
+    ///
+    /// coeffs must be at least in the "reset" state.
     #[inline(always)]
     pub fn get_gain_cur(&self) -> f32 {
         unsafe { bw_gain_get_gain_cur(&self.coeffs) }
@@ -104,10 +189,9 @@ mod tests {
     use crate::{
         c_wrapper::{
             bw_dB2linf, bw_gain_coeffs, bw_gain_init, bw_gain_process1, bw_gain_reset_coeffs,
-            bw_gain_set_sample_rate, bw_gain_set_sticky_thresh,
-            bw_gain_sticky_mode_bw_gain_sticky_mode_abs, bw_gain_update_coeffs_audio,
+            bw_gain_set_sample_rate, bw_gain_set_sticky_thresh, bw_gain_update_coeffs_audio,
             bw_gain_update_coeffs_ctrl, bw_one_pole_sticky_mode_bw_one_pole_sticky_mode_abs,
-            bw_rcpf, gain::Gain,
+            bw_rcpf, gain::Gain, one_pole::StickyMode,
         },
         native::math::INVERSE_2_PI,
     };
@@ -267,9 +351,7 @@ mod tests {
         let mut gain = GainT::new();
         gain.set_sample_rate(SAMPLE_RATE);
 
-        let gain_sticky_mode = bw_gain_sticky_mode_bw_gain_sticky_mode_abs;
-
-        gain.set_sticky_mode(gain_sticky_mode);
+        gain.set_sticky_mode(StickyMode::Abs);
 
         assert_eq!(
             gain.coeffs.smooth_coeffs.sticky_mode,
