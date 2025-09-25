@@ -1,17 +1,74 @@
-use std::ptr::null_mut;
-
+//! **Distortion Effect**
+//!
+//! Loosely inspired to the "rodent" distortion pedal.
+//!
+//! # Example
+//! ```
+//! use brickworks_rs::c_wrapper::dist::Dist;
+//!
+//! // Create a stereo (2-channel) distortion processor
+//! let mut dist = Dist::<2>::new();
+//!
+//! // Configure processor
+//! dist.set_sample_rate(48_000.0);
+//! dist.set_distortion(0.8);
+//! dist.set_tone(0.5);
+//! dist.set_volume(0.9);
+//!
+//! // Prepare input and output buffers
+//! let input_left: Vec<f32> = vec![0.0; 512];
+//! let input_right: Vec<f32> = vec![0.0; 512];
+//! let mut output_left: Vec<f32> = vec![0.0; 512];
+//! let mut output_right: Vec<f32> = vec![0.0; 512];
+//!
+//! // Build channel slices
+//! let inputs = [&input_left[..], &input_right[..]];
+//! let mut outputs = [&mut output_left[..], &mut output_right[..]];
+//!
+//! // Reset state before processing
+//! dist.reset(None, None);
+//! // Process 512 samples
+//! dist.process(&inputs, &mut outputs, 512);
+//! ```
+//! # Notes
+//! This module provides Rust bindings to the original C implementation.
+//! For a fully native Rust implementation with the same interface,
+//! see [crate::native::dist].
+//! Original C library by [Orastron](https://www.orastron.com/algorithms/bw_dist).
 use crate::c_wrapper::{
     bw_dist_coeffs, bw_dist_init, bw_dist_process_multi, bw_dist_reset_coeffs, bw_dist_reset_state,
     bw_dist_reset_state_multi, bw_dist_set_distortion, bw_dist_set_sample_rate, bw_dist_set_tone,
     bw_dist_set_volume, bw_dist_state,
 };
-
+use std::ptr::null_mut;
+/// Distortion effect.
+///
+/// Manages both the distortion coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+///
+/// # Usage
+///
+/// ```rust
+/// use brickworks_rs::c_wrapper::dist::Dist;
+///
+/// // Stereo filter
+/// const N_CHANNELS: usize = 2;
+/// let mut dist = Dist::<N_CHANNELS>::new();
+///
+/// dist.set_sample_rate(44_100.0);
+/// dist.set_distortion(0.3);
+/// dist.set_tone(0.8);
+/// dist.set_volume(0.5);
+/// dist.reset(None, None);
+/// // dist.process(...)
+/// ```
 pub struct Dist<const N_CHANNELS: usize> {
     pub(crate) coeffs: bw_dist_coeffs,
     pub(crate) states: [bw_dist_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let mut coeffs = bw_dist_coeffs::default();
@@ -24,14 +81,17 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
             }
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         unsafe {
             bw_dist_set_sample_rate(&mut self.coeffs, sample_rate);
         }
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if it is Some.
     #[inline(always)]
     pub fn reset(&mut self, x0: Option<f32>, y0: Option<&mut [f32; N_CHANNELS]>) {
         unsafe {
@@ -54,7 +114,10 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
             }
         }
     }
-
+    /// Resets the satur's coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if is Some.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         let y0_ptrs = match y0 {
@@ -74,7 +137,9 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
             );
         }
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -97,21 +162,33 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
             );
         }
     }
-
+    /// Sets the distortion (input gain, approximately) to the given `value`.
+    ///
+    /// Valid range: [0.0 (low distortion), 1.0 (high distortion)].
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_distortion(&mut self, value: f32) {
         unsafe {
             bw_dist_set_distortion(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the tone (filter) to the given `value`.
+    ///
+    /// Valid range: [0.0 (low cutoff), 1.0 (high cutoff)].
+    ///
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_tone(&mut self, value: f32) {
         unsafe {
             bw_dist_set_tone(&mut self.coeffs, value);
         }
     }
-
+    /// Sets the volume (output gain) to the given `value`.
+    ///
+    /// Valid range: [0.0 (silence), 1.0 (max volume)].
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_volume(&mut self, value: f32) {
         unsafe {

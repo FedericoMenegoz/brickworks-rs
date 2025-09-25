@@ -1,3 +1,41 @@
+//! **Distortion Effect**
+//!
+//! Loosely inspired to the "rodent" distortion pedal.
+//!
+//! # Example
+//! ```
+//! use brickworks_rs::native::dist::Dist;
+//!
+//! // Create a stereo (2-channel) distortion processor
+//! let mut dist = Dist::<2>::new();
+//!
+//! // Configure processor
+//! dist.set_sample_rate(48_000.0);
+//! dist.set_distortion(0.8);
+//! dist.set_tone(0.5);
+//! dist.set_volume(0.9);
+//!
+//! // Prepare input and output buffers
+//! let input_left: Vec<f32> = vec![0.0; 512];
+//! let input_right: Vec<f32> = vec![0.0; 512];
+//! let mut output_left: Vec<f32> = vec![0.0; 512];
+//! let mut output_right: Vec<f32> = vec![0.0; 512];
+//!
+//! // Build channel slices
+//! let inputs = [&input_left[..], &input_right[..]];
+//! let mut outputs = [&mut output_left[..], &mut output_right[..]];
+//!
+//! // Reset state before processing
+//! dist.reset(None, None);
+//! // Process 512 samples
+//! dist.process(&inputs, &mut outputs, 512);
+//! ```
+//! ## Notes
+//! This module provides a native Rust implementation, but the same interface is
+//! also available via bindings to the original C library at [crate::c_wrapper::dist].
+//! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_dist).
+#[cfg(debug_assertions)]
+use super::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 use crate::native::{
     clip::{ClipCoeffs, ClipState},
     gain::GainCoeffs,
@@ -6,16 +44,37 @@ use crate::native::{
     peak::{PeakCoeffs, PeakState},
     satur::{SaturCoeffs, SaturState},
 };
-
-#[cfg(debug_assertions)]
-use super::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
-
+/// Distortion effect.
+///
+/// Manages both the distortion coefficients and the runtime states
+/// for a given number of channels (`N_CHANNELS`).  
+/// It wraps:
+/// - [`DistCoeffs`]
+/// - [`DistState`]
+///
+/// # Usage
+///
+/// ```rust
+/// use brickworks_rs::native::dist::Dist;
+///
+/// // Stereo filter
+/// const N_CHANNELS: usize = 2;
+/// let mut dist = Dist::<N_CHANNELS>::new();
+///
+/// dist.set_sample_rate(44_100.0);
+/// dist.set_distortion(0.3);
+/// dist.set_tone(0.8);
+/// dist.set_volume(0.5);
+/// dist.reset(None, None);
+/// // dist.process(...)
+/// ```
 pub struct Dist<const N_CHANNELS: usize> {
     coeffs: DistCoeffs<N_CHANNELS>,
     states: [DistState; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -23,12 +82,15 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
             states: [DistState::default(); N_CHANNELS],
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.coeffs.set_sample_rate(sample_rate);
     }
-
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if it is Some.
     #[inline(always)]
     pub fn reset(&mut self, x0: Option<f32>, y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
@@ -44,13 +106,18 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
             }),
         }
     }
-
+    /// Resets the satur's coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if is Some.
     #[inline(always)]
     pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
         self.coeffs.reset_coeffs();
         self.coeffs.reset_state_multi(&mut self.states, x0, y0);
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     #[inline(always)]
     pub fn process(
         &mut self,
@@ -60,17 +127,29 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
     ) {
         self.coeffs.process_multi(&mut self.states, x, y, n_samples);
     }
-
+    /// Sets the distortion (input gain, approximately) to the given `value`.
+    ///
+    /// Valid range: [0.0 (low distortion), 1.0 (high distortion)].
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_distortion(&mut self, value: f32) {
         self.coeffs.set_distortion(value);
     }
-
+    /// Sets the tone (filter) to the given `value`.
+    ///
+    /// Valid range: [0.0 (low cutoff), 1.0 (high cutoff)].
+    ///
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_tone(&mut self, value: f32) {
         self.coeffs.set_tone(value);
     }
-
+    /// Sets the volume (output gain) to the given `value`.
+    ///
+    /// Valid range: [0.0 (silence), 1.0 (max volume)].
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_volume(&mut self, value: f32) {
         self.coeffs.set_volume(value);
@@ -82,7 +161,7 @@ impl<const N_CHANNELS: usize> Default for Dist<N_CHANNELS> {
         Self::new()
     }
 }
-
+/// Coefficients and related.
 pub struct DistCoeffs<const N_CHANNELS: usize> {
     hp1_coeffs: HP1Coeffs<N_CHANNELS>,
     peak_coeffs: PeakCoeffs<N_CHANNELS>,
@@ -93,6 +172,7 @@ pub struct DistCoeffs<const N_CHANNELS: usize> {
 }
 
 impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
+    /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
         let mut hp1_coeffs = HP1Coeffs::new();
@@ -123,7 +203,7 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
             gain_coeffs,
         }
     }
-
+    /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
@@ -141,14 +221,17 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
         self.clip_coeffs.reset_coeffs();
         self.satur_coeffs.reset_coeffs();
     }
-
+    /// Resets coefficients to assume their target values.
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
         self.peak_coeffs.reset_coeffs();
         self.lp1_coeffs.reset_coeffs();
         self.gain_coeffs.reset_coeffs();
     }
-
+    /// Resets the given state to its initial values using the initial
+    /// input value `x0`.
+    ///
+    /// Returns the corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut DistState, x0: f32) -> f32 {
         debug_assert!(x0.is_finite());
@@ -164,7 +247,11 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Resets each of the `N_CHANNELS` states to its initial values using
+    /// the corresponding initial input value in the `x0` array.
+    ///
+    /// The corresponding initial output values are written into the `y0` array,
+    /// if not None.
     #[inline(always)]
     pub fn reset_state_multi(
         &mut self,
@@ -181,7 +268,7 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
             }),
         }
     }
-
+    /// Triggers control-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_ctrl(&mut self) {
         self.peak_coeffs.update_coeffs_ctrl();
@@ -192,14 +279,15 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
 
         self.gain_coeffs.update_coeffs_ctrl();
     }
-
+    /// Triggers audio-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_audio(&mut self) {
         self.peak_coeffs.update_coeffs_audio();
         self.lp1_coeffs.update_coeffs_audio();
         self.gain_coeffs.update_coeffs_audio();
     }
-
+    /// Processes one input sample `x`, while using and updating state.
+    /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut DistState, x: f32) -> f32 {
         debug_assert!(x.is_finite());
@@ -215,7 +303,9 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
 
         y
     }
-
+    /// Processes the first `n_samples` of the input buffer `x` and fills the first
+    /// `n_samples` of the output buffer `y`, while using and updating both coeffs
+    /// and state (control and audio rate).
     #[inline(always)]
     pub fn process(&mut self, state: &mut DistState, x: &[f32], y: &mut [f32], n_sample: usize) {
         self.update_coeffs_ctrl();
@@ -224,7 +314,9 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
             y[sample] = self.process1(state, x[sample])
         });
     }
-
+    /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and fills the
+    /// first `n_samples` of the `N_CHANNELS` output buffers `y`, while using and updating
+    /// both the common coeffs and each of the `N_CHANNELS` states (control and audio rate).
     #[inline(always)]
     pub fn process_multi(
         &mut self,
@@ -241,7 +333,11 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
             });
         });
     }
-
+    /// Sets the distortion (input gain, approximately) to the given `value`.
+    ///
+    /// Valid range: [0.0 (low distortion), 1.0 (high distortion)].
+    ///
+    /// Default value: 0.0.
     #[inline(always)]
     pub fn set_distortion(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -252,7 +348,11 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
 
         self.peak_coeffs.set_peak_gain_db(60.0 * value);
     }
-
+    /// Sets the tone (filter) to the given `value`.
+    ///
+    /// Valid range: [0.0 (low cutoff), 1.0 (high cutoff)].
+    ///
+    /// Default value: 0.5.
     #[inline(always)]
     pub fn set_tone(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -264,7 +364,11 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
         self.lp1_coeffs
             .set_cutoff(475.0 + (20e3 - 475.0) * value * value * value);
     }
-
+    /// Sets the volume (output gain) to the given `value`.
+    ///
+    /// Valid range: [0.0 (silence), 1.0 (max volume)].
+    ///
+    /// Default value: 1.0.
     #[inline(always)]
     pub fn set_volume(&mut self, value: f32) {
         #[cfg(debug_assertions)]
@@ -275,12 +379,24 @@ impl<const N_CHANNELS: usize> DistCoeffs<N_CHANNELS> {
 
         self.gain_coeffs.set_gain_lin(value * value * value);
     }
-
+    // Not implemented yet:
+    // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether coeffs is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    /// # Notes
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn coeffs_is_valid(&mut self) -> bool {
         todo!()
     }
-
+    // Not implemented yet:
+    // need to revisit which assertions from the C version make sense to keep in Rust
+    /// Tries to determine whether state is valid and returns true if it seems to
+    /// be the case and false if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    /// # Notes
+    /// <div class="warning">Not implemented yet!</div>
     #[inline(always)]
     pub fn state_is_valid(&mut self) -> bool {
         todo!()
@@ -292,7 +408,7 @@ impl<const N_CHANNELS: usize> Default for DistCoeffs<N_CHANNELS> {
         Self::new()
     }
 }
-
+/// Internal state and related.
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub struct DistState {
     hp1_state: HP1State,

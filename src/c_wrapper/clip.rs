@@ -1,3 +1,60 @@
+//! **Antialiased hard clipper** with parametric bias and gain (compensation) and output bias removal.
+//!
+//! In other words this implements (approximately)
+//! ```text
+//! y(n) = clip(gain * x(n) + bias, -1, 1) - clip(bias, -1, 1)
+//! ```
+//!
+//! with antialiasing and optionally dividing the output by gain.
+//!
+//! As a side effect, antialiasing causes attenuation at higher frequencies
+//! (about 3 dB at 0.5 × Nyquist frequency and rapidly increasing at higher
+//! frequencies).
+//!
+//! The antialiasing technique used here is described in
+//! ```text
+//! J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of
+//! Nonlinear Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl.
+//! Conf. Digital Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic,
+//! September 2016.
+//! ```
+//! # Example
+//! ```
+//! use brickworks_rs::c_wrapper::clip::Clip;
+//!
+//! // Create a stereo (2-channel) distortion processor
+//! const N_CHANNELS: usize = 2;
+//! let mut clip = Clip::<N_CHANNELS>::new();
+//!
+//! // Configure processor
+//! clip.set_sample_rate(48_000.0);
+//! clip.set_bias(11.0);
+//! clip.set_gain(0.5);
+//! clip.set_gain_compensation(true);
+//!
+//! // Prepare input and output buffers
+//! let input_left: Vec<f32> = vec![0.0; 512];
+//! let input_right: Vec<f32> = vec![0.0; 512];
+//! let mut output_left: Vec<f32> = vec![0.0; 512];
+//! let mut output_right: Vec<f32> = vec![0.0; 512];
+//!
+//! // Build channel slices
+//! let inputs = [&input_left[..], &input_right[..]];
+//! let mut outputs = [&mut output_left[..], &mut output_right[..]];
+//!
+//! // Reset before processing
+//! clip.reset(0.0, None);
+//! // Process 512 samples
+//! clip.process(&inputs, &mut outputs, 512);
+//! ```
+//!
+//! # Notes
+//! This module provides Rust bindings to the original C implementation.
+//! For a fully native Rust implementation with the same interface,
+//! see [crate::native::clip].
+//! Original C library by [Orastron](https://www.orastron.com/algorithms/bw_clip).
+use std::ptr::null_mut;
+
 use super::*;
 use crate::c_wrapper::utils::make_array;
 
@@ -27,24 +84,40 @@ impl<const N_CHANNELS: usize> Clip<N_CHANNELS> {
         }
     }
 
-    pub fn reset(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
+    pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
         unsafe {
             bw_clip_reset_coeffs(&mut self.coeffs);
             if let Some(out) = y0 {
                 (0..N_CHANNELS).for_each(|channel| {
-                    out[channel] = bw_clip_reset_state(
-                        &mut self.coeffs,
-                        &mut self.states[channel],
-                        x0[channel],
-                    );
+                    out[channel] =
+                        bw_clip_reset_state(&mut self.coeffs, &mut self.states[channel], x0);
                 });
             } else {
                 (0..N_CHANNELS).for_each(|channel| {
-                    bw_clip_reset_state(&mut self.coeffs, &mut self.states[channel], x0[channel]);
+                    bw_clip_reset_state(&mut self.coeffs, &mut self.states[channel], x0);
                 });
             }
         }
     }
+    pub fn reset_multi(&mut self, x0: &[f32; N_CHANNELS], y0: Option<&mut [f32; N_CHANNELS]>) {
+        let y0_ptrs = match y0 {
+            Some(y) => y.as_mut_ptr(),
+            None => null_mut(),
+        };
+        let states_ptrs: [*mut bw_clip_state; N_CHANNELS] =
+            std::array::from_fn(|i| &mut self.states[i] as *mut _);
+        unsafe {
+            bw_clip_reset_coeffs(&mut self.coeffs);
+            bw_clip_reset_state_multi(
+                &mut self.coeffs,
+                states_ptrs.as_ptr(),
+                x0.as_ptr(),
+                y0_ptrs,
+                N_CHANNELS,
+            );
+        }
+    }
+
     pub fn process(
         &mut self,
         x: &[&[f32]; N_CHANNELS],
@@ -203,7 +276,7 @@ mod tests {
 
         clip.set_sample_rate(SAMPLE_RATE);
         clip.set_gain_compensation(true);
-        clip.reset(&x0, Some(&mut out));
+        clip.reset_multi(&x0, Some(&mut out));
 
         let inv_gain;
         let bias_dc;
@@ -245,7 +318,7 @@ mod tests {
         let mut y: [&mut [f32]; 2] = [&mut out_0, &mut out_1];
 
         clip.set_gain_compensation(true);
-        clip.reset(&x0, None);
+        clip.reset_multi(&x0, None);
         clip.process(&PULSE_INPUT, &mut y, N_SAMPLES);
 
         assert!(clip.coeffs.state >= bw_clip_coeffs_state_bw_clip_coeffs_state_reset_coeffs);

@@ -1,3 +1,57 @@
+//! **Antialiased hard clipper** with parametric bias and gain (compensation) and output bias removal.
+//!
+//! In other words this implements (approximately)
+//! ```text
+//! y(n) = clip(gain * x(n) + bias, -1, 1) - clip(bias, -1, 1)
+//! ```
+//!
+//! with antialiasing and optionally dividing the output by gain.
+//!
+//! As a side effect, antialiasing causes attenuation at higher frequencies
+//! (about 3 dB at 0.5 × Nyquist frequency and rapidly increasing at higher
+//! frequencies).
+//!
+//! The antialiasing technique used here is described in
+//! ```text
+//! J. D. Parker, V. Zavalishin, and E. Le Bivic, "Reducing the Aliasing of
+//! Nonlinear Waveshaping Using Continuous-Time Convolution", Proc. 19th Intl.
+//! Conf. Digital Audio Effects (DAFx-16), pp. 137-144, Brno, Czech Republic,
+//! September 2016.
+//! ```
+//!
+//! # Example
+//! ```
+//! use brickworks_rs::native::clip::Clip;
+//!
+//! // Create a stereo (2-channel) distortion processor
+//! const N_CHANNELS: usize = 2;
+//! let mut clip = Clip::<N_CHANNELS>::new();
+//!
+//! // Configure processor
+//! clip.set_sample_rate(48_000.0);
+//! clip.set_bias(11.0);
+//! clip.set_gain(0.5);
+//! clip.set_gain_compensation(true);
+//!
+//! // Prepare input and output buffers
+//! let input_left: Vec<f32> = vec![0.0; 512];
+//! let input_right: Vec<f32> = vec![0.0; 512];
+//! let mut output_left: Vec<f32> = vec![0.0; 512];
+//! let mut output_right: Vec<f32> = vec![0.0; 512];
+//!
+//! // Build channel slices
+//! let inputs = [&input_left[..], &input_right[..]];
+//! let mut outputs = [&mut output_left[..], &mut output_right[..]];
+//!
+//! // Reset before processing
+//! clip.reset(0.0, None);
+//! // Process 512 samples
+//! clip.process(&inputs, &mut outputs, 512);
+//! ```
+//! ## Notes
+//! This module provides a native Rust implementation, but the same interface is
+//! also available via bindings to the original C library at [crate::c_wrapper::clip].
+//! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_clip).
 #[cfg(debug_assertions)]
 use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
 use crate::native::math::{clipf, rcpf};
@@ -404,7 +458,7 @@ pub(crate) mod tests {
 
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
-        c_clip.reset(&x0, None);
+        c_clip.reset_multi(&x0, None);
 
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
@@ -428,7 +482,7 @@ pub(crate) mod tests {
 
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
-        c_clip.reset(&x0, Some(&mut c_y0));
+        c_clip.reset_multi(&x0, Some(&mut c_y0));
 
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
@@ -455,7 +509,7 @@ pub(crate) mod tests {
 
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
-        c_clip.reset(&x, None);
+        c_clip.reset_multi(&x, None);
 
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
@@ -492,7 +546,7 @@ pub(crate) mod tests {
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
         c_clip.set_gain_compensation(true);
-        c_clip.reset(&x, None);
+        c_clip.reset_multi(&x, None);
 
         rust_clip.set_bias(bias);
         rust_clip.set_gain(gain);
@@ -541,7 +595,7 @@ pub(crate) mod tests {
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
         c_clip.set_gain_compensation(true);
-        c_clip.reset(&[0.0; N_CHANNELS], None);
+        c_clip.reset_multi(&[0.0; N_CHANNELS], None);
 
         rust_clip.process(&x, &mut rust_y, n_samples);
         c_clip.process(&x, &mut c_y, n_samples);
@@ -583,7 +637,7 @@ pub(crate) mod tests {
         c_clip.set_bias(bias);
         c_clip.set_gain(gain);
         c_clip.set_gain_compensation(false); // it is default, but to be clear
-        c_clip.reset(&[0.0; N_CHANNELS], None);
+        c_clip.reset_multi(&[0.0; N_CHANNELS], None);
 
         rust_clip.process(&x, &mut rust_y, n_samples);
         c_clip.process(&x, &mut c_y, n_samples);
