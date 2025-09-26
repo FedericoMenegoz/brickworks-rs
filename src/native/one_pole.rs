@@ -1312,8 +1312,8 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             return false;
         }
 
-        if self.state >= CoeffsState::SetSampleRate && (!self.fs_2pi.is_finite()
-            || self.fs_2pi <= 0.0)
+        if self.state >= CoeffsState::SetSampleRate
+            && (!self.fs_2pi.is_finite() || self.fs_2pi <= 0.0)
         {
             return false;
         }
@@ -1390,14 +1390,11 @@ impl<const N_CHANNELS: usize> Default for OnePoleCoeffs<N_CHANNELS> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::f32;
-    #[cfg(debug_assertions)]
-    use std::panic;
-
     use super::*;
     use crate::c_wrapper::{
         one_pole::OnePole as OnePoleWrapper, one_pole::StickyMode as StikyModeWrapper, *,
     };
+    use std::f32;
 
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
@@ -2010,20 +2007,22 @@ pub(crate) mod tests {
     #[test]
     #[should_panic(expected = "encountered NaN value")]
     fn set_cutoff_to_nan() {
-        let result = panic::catch_unwind(|| {
-            let mut one_pole_coeffs = OnePoleCoeffsT::default();
-            one_pole_coeffs.set_cutoff_down(f32::NAN);
-        });
-        assert!(result.is_err());
-
-        let result = panic::catch_unwind(|| {
-            let mut one_pole_coeffs = OnePoleCoeffsT::default();
-            one_pole_coeffs.set_cutoff_up(f32::NAN);
-        });
-        assert!(result.is_err());
-
         let mut one_pole_coeffs = OnePoleCoeffsT::default();
         one_pole_coeffs.set_cutoff(f32::NAN);
+    }
+
+    #[test]
+    #[should_panic(expected = "encountered NaN value")]
+    fn set_cutoff_down_to_nan() {
+        let mut one_pole_coeffs = OnePoleCoeffsT::default();
+        one_pole_coeffs.set_cutoff_down(f32::NAN);
+    }
+
+    #[test]
+    #[should_panic(expected = "encountered NaN value")]
+    fn set_cutoff_up_to_nan() {
+        let mut one_pole_coeffs = OnePoleCoeffsT::default();
+        one_pole_coeffs.set_cutoff_up(f32::NAN);
     }
 
     #[test]
