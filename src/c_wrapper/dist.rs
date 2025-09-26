@@ -215,34 +215,36 @@ pub(crate) mod tests {
     #[test]
     fn new() {
         let dist = DistT::new();
-        assert_eq!(
-            dist.coeffs.state,
-            bw_dist_coeffs_state_bw_dist_coeffs_state_init
-        );
-        assert_eq!(
-            dist.coeffs.hp1_coeffs.state,
-            bw_hp1_coeffs_state_bw_hp1_coeffs_state_init
-        );
-        assert_eq!(
-            dist.coeffs.peak_coeffs.state,
-            bw_peak_coeffs_state_bw_peak_coeffs_state_init
-        );
-        assert_eq!(
-            dist.coeffs.clip_coeffs.state,
-            bw_clip_coeffs_state_bw_clip_coeffs_state_init
-        );
-        assert_eq!(
-            dist.coeffs.satur_coeffs.state,
-            bw_satur_coeffs_state_bw_satur_coeffs_state_init
-        );
-        assert_eq!(
-            dist.coeffs.lp1_coeffs.state,
-            bw_lp1_coeffs_state_bw_lp1_coeffs_state_init
-        );
-        assert_eq!(
-            dist.coeffs.gain_coeffs.state,
-            bw_gain_coeffs_state_bw_gain_coeffs_state_init
-        );
+        #[cfg(debug_assertions)] {
+            assert_eq!(
+                dist.coeffs.state,
+                bw_dist_coeffs_state_bw_dist_coeffs_state_init
+            );
+            assert_eq!(
+                dist.coeffs.hp1_coeffs.state,
+                bw_hp1_coeffs_state_bw_hp1_coeffs_state_init
+            );
+            assert_eq!(
+                dist.coeffs.peak_coeffs.state,
+                bw_peak_coeffs_state_bw_peak_coeffs_state_init
+            );
+            assert_eq!(
+                dist.coeffs.clip_coeffs.state,
+                bw_clip_coeffs_state_bw_clip_coeffs_state_init
+            );
+            assert_eq!(
+                dist.coeffs.satur_coeffs.state,
+                bw_satur_coeffs_state_bw_satur_coeffs_state_init
+            );
+            assert_eq!(
+                dist.coeffs.lp1_coeffs.state,
+                bw_lp1_coeffs_state_bw_lp1_coeffs_state_init
+            );
+            assert_eq!(
+                dist.coeffs.gain_coeffs.state,
+                bw_gain_coeffs_state_bw_gain_coeffs_state_init
+            );
+        }
 
         assert_eq!(dist.coeffs.hp1_coeffs.lp1_coeffs.cutoff, 7.0);
 
@@ -286,10 +288,12 @@ pub(crate) mod tests {
         assert_eq!(dist.coeffs.lp1_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
         assert_eq!(dist.coeffs.gain_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
 
-        assert_eq!(
-            dist.coeffs.state,
-            bw_dist_coeffs_state_bw_dist_coeffs_state_set_sample_rate
-        );
+        #[cfg(debug_assertions)] {
+            assert_eq!(
+                dist.coeffs.state,
+                bw_dist_coeffs_state_bw_dist_coeffs_state_set_sample_rate
+            );
+        }
     }
 
     #[test]
@@ -299,22 +303,24 @@ pub(crate) mod tests {
 
         dist.reset(None, None);
 
-        assert_eq!(
-            dist.coeffs.state,
-            bw_dist_coeffs_state_bw_dist_coeffs_state_reset_coeffs
-        );
-        assert_eq!(
-            dist.coeffs.peak_coeffs.state,
-            bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
-        );
-        assert_eq!(
-            dist.coeffs.lp1_coeffs.state,
-            bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
-        );
-        assert_eq!(
-            dist.coeffs.gain_coeffs.state,
-            bw_gain_coeffs_state_bw_gain_coeffs_state_reset_coeffs
-        );
+        #[cfg(debug_assertions)] {
+            assert_eq!(
+                dist.coeffs.state,
+                bw_dist_coeffs_state_bw_dist_coeffs_state_reset_coeffs
+            );
+            assert_eq!(
+                dist.coeffs.peak_coeffs.state,
+                bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
+            );
+            assert_eq!(
+                dist.coeffs.lp1_coeffs.state,
+                bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
+            );
+            assert_eq!(
+                dist.coeffs.gain_coeffs.state,
+                bw_gain_coeffs_state_bw_gain_coeffs_state_reset_coeffs
+            );
+        }
     }
 
     #[test]
@@ -326,31 +332,31 @@ pub(crate) mod tests {
 
         dist.reset_multi(&x0, Some(&mut y0));
 
-        assert_eq!(
-            dist.coeffs.state,
-            bw_dist_coeffs_state_bw_dist_coeffs_state_reset_coeffs
-        );
-        assert_eq!(
-            dist.coeffs.peak_coeffs.state,
-            bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
-        );
-        assert_eq!(
-            dist.coeffs.lp1_coeffs.state,
-            bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
-        );
-        assert_eq!(
-            dist.coeffs.gain_coeffs.state,
-            bw_gain_coeffs_state_bw_gain_coeffs_state_reset_coeffs
-        );
-
-        unsafe {
+        #[cfg(debug_assertions)]{
             assert_eq!(
-                dist.states[0].hash,
-                bw_hash_sdbm("bw_dist_state".as_ptr() as *const i8)
+                dist.coeffs.state,
+                bw_dist_coeffs_state_bw_dist_coeffs_state_reset_coeffs
             );
+            assert_eq!(
+                dist.coeffs.peak_coeffs.state,
+                bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
+            );
+            assert_eq!(
+                dist.coeffs.lp1_coeffs.state,
+                bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
+            );
+            assert_eq!(
+                dist.coeffs.gain_coeffs.state,
+                bw_gain_coeffs_state_bw_gain_coeffs_state_reset_coeffs
+            );
+            unsafe {
+                assert_eq!(
+                    dist.states[0].hash,
+                    bw_hash_sdbm("bw_dist_state".as_ptr() as *const i8)
+                );
+            }
+            assert_eq!(dist.states[1].coeffs_reset_id, dist.coeffs.reset_id);
         }
-
-        assert_eq!(dist.states[1].coeffs_reset_id, dist.coeffs.reset_id);
     }
 
     #[test]
@@ -365,8 +371,11 @@ pub(crate) mod tests {
 
         let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
         dist.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-        assert!(dist.coeffs.state >= bw_dist_coeffs_state_bw_dist_coeffs_state_reset_coeffs);
-        assert_eq!(dist.coeffs.reset_id, dist.states[0].coeffs_reset_id);
+
+        #[cfg(debug_assertions)]{
+            assert!(dist.coeffs.state >= bw_dist_coeffs_state_bw_dist_coeffs_state_reset_coeffs);
+            assert_eq!(dist.coeffs.reset_id, dist.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]

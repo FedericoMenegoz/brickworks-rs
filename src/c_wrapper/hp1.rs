@@ -222,10 +222,12 @@ mod tests {
             hp1.coeffs.lp1_coeffs.smooth_coeffs.sticky_thresh,
             sticky_tresh_default
         );
-        assert_eq!(
-            hp1.coeffs.state,
-            bw_hp1_coeffs_state_bw_hp1_coeffs_state_init
-        );
+        #[cfg(debug_assertions)]{
+            assert_eq!(
+                hp1.coeffs.state,
+                bw_hp1_coeffs_state_bw_hp1_coeffs_state_init
+            );
+        }
     }
 
     #[test]
@@ -238,10 +240,12 @@ mod tests {
             INVERSE_2_PI * SAMPLE_RATE
         );
         assert_eq!(hp1.coeffs.lp1_coeffs.t_k, PI / SAMPLE_RATE);
-        assert_eq!(
-            hp1.coeffs.state,
-            bw_hp1_coeffs_state_bw_hp1_coeffs_state_set_sample_rate
-        );
+        #[cfg(debug_assertions)]{
+            assert_eq!(
+                hp1.coeffs.state,
+                bw_hp1_coeffs_state_bw_hp1_coeffs_state_set_sample_rate
+            );
+        }
     }
 
     #[test]
@@ -252,10 +256,12 @@ mod tests {
         let x0 = 0.0;
         hp1.reset(x0, None);
 
-        assert_eq!(
-            hp1.coeffs.state,
-            bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs
-        )
+        #[cfg(debug_assertions)]{
+            assert_eq!(
+                hp1.coeffs.state,
+                bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs
+            )
+        }
     }
 
     #[test]
@@ -267,10 +273,12 @@ mod tests {
         let mut y0 = [3.0, 4.0];
         hp1.reset(x0, Some(&mut y0));
 
-        assert_eq!(
-            hp1.coeffs.state,
-            bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs
-        );
+        #[cfg(debug_assertions)] {
+            assert_eq!(
+                hp1.coeffs.state,
+                bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs
+            );
+        }
 
         (0..N_CHANNELS).for_each(|channel| {
             assert_eq!(y0[channel], 0.0);
@@ -289,10 +297,12 @@ mod tests {
         hp1.reset_multi(&x0, Some(&mut y0));
 
         assert_eq!(y0, [0.0, 0.0]);
-        assert_eq!(
-            hp1.coeffs.state,
-            bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs
-        );
+        #[cfg(debug_assertions)] {
+            assert_eq!(
+                hp1.coeffs.state,
+                bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs
+            );
+        }
         (0..N_CHANNELS).for_each(|channel| {
             assert_eq!(hp1.states[channel].lp1_state.X_z1, 0.0);
             assert_eq!(hp1.states[channel].lp1_state.y_z1, x0[channel]);
@@ -310,8 +320,10 @@ mod tests {
 
         let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
         hp1.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-        assert!(hp1.coeffs.state >= bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs);
-        assert_eq!(hp1.coeffs.reset_id, hp1.states[0].coeffs_reset_id);
+        #[cfg(debug_assertions)] {
+            assert!(hp1.coeffs.state >= bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs);
+            assert_eq!(hp1.coeffs.reset_id, hp1.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]

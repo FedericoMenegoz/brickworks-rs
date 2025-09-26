@@ -254,10 +254,12 @@ mod tests {
         assert_eq!(lp1.coeffs.smooth_coeffs.cutoff_up, cutoff);
         assert_eq!(lp1.coeffs.smooth_coeffs.cutoff_down, cutoff);
         assert_eq!(lp1.coeffs.smooth_coeffs.sticky_thresh, sticky_tresh_default);
-        assert_eq!(
-            lp1.coeffs.state,
-            bw_lp1_coeffs_state_bw_lp1_coeffs_state_init
-        );
+        #[cfg(debug_assertions)]{
+            assert_eq!(
+                lp1.coeffs.state,
+                bw_lp1_coeffs_state_bw_lp1_coeffs_state_init
+            );
+        }
     }
 
     #[test]
@@ -267,10 +269,12 @@ mod tests {
 
         assert_eq!(lp1.coeffs.smooth_coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE);
         assert_eq!(lp1.coeffs.t_k, PI / SAMPLE_RATE);
-        assert_eq!(
-            lp1.coeffs.state,
-            bw_lp1_coeffs_state_bw_lp1_coeffs_state_set_sample_rate
-        );
+        #[cfg(debug_assertions)]{
+            assert_eq!(
+                lp1.coeffs.state,
+                bw_lp1_coeffs_state_bw_lp1_coeffs_state_set_sample_rate
+            );
+        }
     }
 
     #[test]
@@ -281,10 +285,12 @@ mod tests {
         let x0 = 0.0;
         lp1.reset(x0, None);
 
-        assert_eq!(
-            lp1.coeffs.state,
-            bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
-        )
+        #[cfg(debug_assertions)]{
+            assert_eq!(
+                lp1.coeffs.state,
+                bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
+            )
+        }
     }
 
     #[test]
@@ -296,10 +302,12 @@ mod tests {
         let mut y0 = [0.0, 0.0];
         lp1.reset(x0, Some(&mut y0));
 
-        assert_eq!(
-            lp1.coeffs.state,
-            bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
-        );
+        #[cfg(debug_assertions)] {
+            assert_eq!(
+                lp1.coeffs.state,
+                bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
+            );
+        }
 
         (0..N_CHANNELS).for_each(|channel| {
             assert_eq!(y0[channel], x0);
@@ -318,10 +326,12 @@ mod tests {
         lp1.reset_multi(&x0, Some(&mut y0));
 
         assert_eq!(y0, x0);
-        assert_eq!(
-            lp1.coeffs.state,
-            bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
-        );
+        #[cfg(debug_assertions)] {
+            assert_eq!(
+                lp1.coeffs.state,
+                bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs
+            );
+        }
         (0..N_CHANNELS).for_each(|channel| {
             assert_eq!(lp1.states[channel].X_z1, 0.0);
             assert_eq!(lp1.states[channel].y_z1, x0[channel]);
@@ -339,8 +349,10 @@ mod tests {
 
         let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
         lp1.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-        assert!(lp1.coeffs.state >= bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs);
-        assert_eq!(lp1.coeffs.reset_id, lp1.states[0].coeffs_reset_id);
+        #[cfg(debug_assertions)]{
+            assert!(lp1.coeffs.state >= bw_lp1_coeffs_state_bw_lp1_coeffs_state_reset_coeffs);
+            assert_eq!(lp1.coeffs.reset_id, lp1.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]

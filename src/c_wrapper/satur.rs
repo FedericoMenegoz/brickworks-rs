@@ -218,10 +218,13 @@ mod tests {
         assert_eq!(satur.coeffs.bias, 0.0);
         assert_eq!(satur.coeffs.gain, 1.0);
         assert_eq!(satur.coeffs.gain_compensation, 0);
-        assert_eq!(
-            satur.coeffs.state,
-            bw_satur_coeffs_state_bw_satur_coeffs_state_init
-        );
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                satur.coeffs.state,
+                bw_satur_coeffs_state_bw_satur_coeffs_state_init
+            );
+        }
     }
 
     #[test]
@@ -233,10 +236,13 @@ mod tests {
             satur.coeffs.smooth_coeffs.fs_2pi,
             INVERSE_2_PI * SAMPLE_RATE
         );
-        assert_eq!(
-            satur.coeffs.state,
-            bw_satur_coeffs_state_bw_satur_coeffs_state_set_sample_rate
-        );
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                satur.coeffs.state,
+                bw_satur_coeffs_state_bw_satur_coeffs_state_set_sample_rate
+            );
+        }
     }
 
     #[test]
@@ -245,11 +251,14 @@ mod tests {
         satur.set_sample_rate(SAMPLE_RATE);
         let x0 = 0.0;
         satur.reset(x0, None);
-        assert_eq!(
-            satur.coeffs.state,
-            bw_satur_coeffs_state_bw_satur_coeffs_state_reset_coeffs
-        );
-        assert_eq!(satur.coeffs.reset_id, satur.states[0].coeffs_reset_id);
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                satur.coeffs.state,
+                bw_satur_coeffs_state_bw_satur_coeffs_state_reset_coeffs
+            );
+            assert_eq!(satur.coeffs.reset_id, satur.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -261,11 +270,14 @@ mod tests {
         let mut y0 = [0.0, 0.0];
 
         satur.reset(x0, Some(&mut y0));
-        assert_eq!(
-            satur.coeffs.state,
-            bw_satur_coeffs_state_bw_satur_coeffs_state_reset_coeffs
-        );
-        assert_eq!(satur.coeffs.reset_id, satur.states[0].coeffs_reset_id);
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                satur.coeffs.state,
+                bw_satur_coeffs_state_bw_satur_coeffs_state_reset_coeffs
+            );
+            assert_eq!(satur.coeffs.reset_id, satur.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -277,11 +289,14 @@ mod tests {
         let mut y0 = [0.0, 0.0];
 
         satur.reset_multi(&x0, Some(&mut y0));
-        assert_eq!(
-            satur.coeffs.state,
-            bw_satur_coeffs_state_bw_satur_coeffs_state_reset_coeffs
-        );
-        assert_eq!(satur.coeffs.reset_id, satur.states[1].coeffs_reset_id);
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                satur.coeffs.state,
+                bw_satur_coeffs_state_bw_satur_coeffs_state_reset_coeffs
+            );
+            assert_eq!(satur.coeffs.reset_id, satur.states[1].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -294,8 +309,11 @@ mod tests {
 
         let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
         satur.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-        assert!(satur.coeffs.state >= bw_satur_coeffs_state_bw_satur_coeffs_state_reset_coeffs);
-        assert_eq!(satur.coeffs.reset_id, satur.states[0].coeffs_reset_id);
+        #[cfg(debug_assertions)]
+        {
+            assert!(satur.coeffs.state >= bw_satur_coeffs_state_bw_satur_coeffs_state_reset_coeffs);
+            assert_eq!(satur.coeffs.reset_id, satur.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]

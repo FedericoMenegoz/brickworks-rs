@@ -294,10 +294,12 @@ mod tests {
         assert_eq!(mm2.coeffs.gain_lp_coeffs.gain, 0.);
         assert_eq!(mm2.coeffs.gain_bp_coeffs.gain, 0.);
         assert_eq!(mm2.coeffs.gain_hp_coeffs.gain, 0.);
-        assert_eq!(
-            mm2.coeffs.state,
-            bw_mm2_coeffs_state_bw_mm2_coeffs_state_init
-        );
+        #[cfg(debug_assertions)] {
+            assert_eq!(
+                mm2.coeffs.state,
+                bw_mm2_coeffs_state_bw_mm2_coeffs_state_init
+            );
+        }
     }
 
     #[test]
@@ -311,10 +313,13 @@ mod tests {
         assert_eq!(mm2.coeffs.gain_lp_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
         assert_eq!(mm2.coeffs.gain_bp_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
         assert_eq!(mm2.coeffs.gain_hp_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
-        assert_eq!(
-            mm2.coeffs.state,
-            bw_mm2_coeffs_state_bw_mm2_coeffs_state_set_sample_rate
-        );
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                mm2.coeffs.state,
+                bw_mm2_coeffs_state_bw_mm2_coeffs_state_set_sample_rate
+            );
+        }
     }
 
     #[test]
@@ -323,11 +328,14 @@ mod tests {
         mm2.set_sample_rate(SAMPLE_RATE);
         let x0 = 0.0;
         mm2.reset(x0, None);
-        assert_eq!(
-            mm2.coeffs.state,
-            bw_mm2_coeffs_state_bw_mm2_coeffs_state_reset_coeffs
-        );
-        assert_eq!(mm2.coeffs.reset_id, mm2.states[0].coeffs_reset_id);
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                mm2.coeffs.state,
+                bw_mm2_coeffs_state_bw_mm2_coeffs_state_reset_coeffs
+            );
+            assert_eq!(mm2.coeffs.reset_id, mm2.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -339,11 +347,14 @@ mod tests {
         let mut y0 = [0.0, 0.0];
 
         mm2.reset(x0, Some(&mut y0));
-        assert_eq!(
-            mm2.coeffs.state,
-            bw_mm2_coeffs_state_bw_mm2_coeffs_state_reset_coeffs
-        );
-        assert_eq!(mm2.coeffs.reset_id, mm2.states[0].coeffs_reset_id);
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                mm2.coeffs.state,
+                bw_mm2_coeffs_state_bw_mm2_coeffs_state_reset_coeffs
+            );
+            assert_eq!(mm2.coeffs.reset_id, mm2.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -355,11 +366,14 @@ mod tests {
         let mut y0 = [0.0, 0.0];
 
         mm2.reset_multi(&x0, Some(&mut y0));
-        assert_eq!(
-            mm2.coeffs.state,
-            bw_mm2_coeffs_state_bw_mm2_coeffs_state_reset_coeffs
-        );
-        assert_eq!(mm2.coeffs.reset_id, mm2.states[1].coeffs_reset_id);
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                mm2.coeffs.state,
+                bw_mm2_coeffs_state_bw_mm2_coeffs_state_reset_coeffs
+            );
+            assert_eq!(mm2.coeffs.reset_id, mm2.states[1].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -373,8 +387,11 @@ mod tests {
 
         let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
         mm2.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-        assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_reset_coeffs);
-        assert_eq!(mm2.coeffs.reset_id, mm2.states[0].coeffs_reset_id);
+        #[cfg(debug_assertions)]
+        {
+            assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_reset_coeffs);
+            assert_eq!(mm2.coeffs.reset_id, mm2.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -383,9 +400,11 @@ mod tests {
         mm2.set_sample_rate(SAMPLE_RATE);
         let cutoff = 41.20;
         mm2.set_cutoff(cutoff);
-
         assert_eq!(mm2.coeffs.svf_coeffs.cutoff, cutoff);
-        assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        #[cfg(debug_assertions)]
+        {
+            assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -395,9 +414,12 @@ mod tests {
 
         let q = 1.4;
         mm2.set_q(q);
-
         assert_eq!(mm2.coeffs.svf_coeffs.Q, q);
-        assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+
+        #[cfg(debug_assertions)]
+        {
+            assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -411,7 +433,10 @@ mod tests {
         mm2.set_prewarp_at_cutoff(false);
         assert_eq!(mm2.coeffs.svf_coeffs.prewarp_k, 0.0);
 
-        assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        #[cfg(debug_assertions)]
+        {
+            assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -426,7 +451,10 @@ mod tests {
         mm2.set_prewarp_at_cutoff(false);
         assert_eq!(mm2.coeffs.svf_coeffs.prewarp_k, 0.0);
 
-        assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        #[cfg(debug_assertions)]
+        {
+            assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -438,7 +466,10 @@ mod tests {
         mm2.set_coeff_x(gain);
 
         assert_eq!(mm2.coeffs.gain_x_coeffs.gain, gain);
-        assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        #[cfg(debug_assertions)]
+        {
+            assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -450,7 +481,10 @@ mod tests {
         mm2.set_coeff_lp(gain);
 
         assert_eq!(mm2.coeffs.gain_lp_coeffs.gain, gain);
-        assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        #[cfg(debug_assertions)]
+        {
+            assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -462,7 +496,10 @@ mod tests {
         mm2.set_coeff_bp(gain);
 
         assert_eq!(mm2.coeffs.gain_bp_coeffs.gain, gain);
-        assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        #[cfg(debug_assertions)]
+        {
+            assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -474,6 +511,10 @@ mod tests {
         mm2.set_coeff_hp(gain);
 
         assert_eq!(mm2.coeffs.gain_hp_coeffs.gain, gain);
-        assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+
+        #[cfg(debug_assertions)]
+        {
+            assert!(mm2.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 }

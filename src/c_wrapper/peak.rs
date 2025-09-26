@@ -294,10 +294,13 @@ mod tests {
         assert_eq!(peak.coeffs.bandwidth, bandwidth_default);
         assert!(peak.coeffs.use_bandwidth != 0);
         assert_eq!(peak.coeffs.param_changed, !0);
-        assert_eq!(
-            peak.coeffs.state,
-            bw_peak_coeffs_state_bw_peak_coeffs_state_init
-        );
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                peak.coeffs.state,
+                bw_peak_coeffs_state_bw_peak_coeffs_state_init
+            );
+        }
     }
 
     #[test]
@@ -327,10 +330,13 @@ mod tests {
             peak.coeffs.mm2_coeffs.gain_hp_coeffs.smooth_coeffs.fs_2pi,
             fs_2pi
         );
-        assert_eq!(
-            peak.coeffs.state,
-            bw_peak_coeffs_state_bw_peak_coeffs_state_set_sample_rate
-        );
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                peak.coeffs.state,
+                bw_peak_coeffs_state_bw_peak_coeffs_state_set_sample_rate
+            );
+        }
     }
 
     #[test]
@@ -340,11 +346,14 @@ mod tests {
 
         peak.reset(None, None);
 
-        assert_eq!(
-            peak.coeffs.state,
-            bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
-        );
-        assert_eq!(peak.coeffs.reset_id, peak.states[0].coeffs_reset_id);
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                peak.coeffs.state,
+                bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
+            );
+            assert_eq!(peak.coeffs.reset_id, peak.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -355,13 +364,15 @@ mod tests {
         let x0 = 4.0;
         let mut y0 = [0.0, 0.0];
         peak.reset(Some(x0), Some(&mut y0));
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                peak.coeffs.state,
+                bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
+            );
 
-        assert_eq!(
-            peak.coeffs.state,
-            bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
-        );
-
-        assert_eq!(peak.coeffs.reset_id, peak.states[0].coeffs_reset_id);
+            assert_eq!(peak.coeffs.reset_id, peak.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -374,11 +385,15 @@ mod tests {
         peak.reset_multi(&x0, Some(&mut y0));
 
         assert_eq!(y0, x0);
-        assert_eq!(
-            peak.coeffs.state,
-            bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
-        );
-        assert_eq!(peak.coeffs.reset_id, peak.states[1].coeffs_reset_id);
+
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                peak.coeffs.state,
+                bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs
+            );
+            assert_eq!(peak.coeffs.reset_id, peak.states[1].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -392,8 +407,12 @@ mod tests {
 
         let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
         peak.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-        assert!(peak.coeffs.state >= bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs);
-        assert_eq!(peak.coeffs.reset_id, peak.states[0].coeffs_reset_id);
+
+        #[cfg(debug_assertions)]
+        {
+            assert!(peak.coeffs.state >= bw_peak_coeffs_state_bw_peak_coeffs_state_reset_coeffs);
+            assert_eq!(peak.coeffs.reset_id, peak.states[0].coeffs_reset_id);
+        }
     }
 
     #[test]
@@ -404,9 +423,11 @@ mod tests {
         let cutoff = 493.883;
 
         peak.set_cutoff(cutoff);
-
         assert_eq!(peak.coeffs.mm2_coeffs.svf_coeffs.cutoff, cutoff);
-        assert!(peak.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        #[cfg(debug_assertions)]
+        {
+            assert!(peak.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -416,9 +437,12 @@ mod tests {
 
         let q = 1.4;
         peak.set_q(q);
-
         assert_eq!(peak.coeffs.Q, q);
-        assert!(peak.coeffs.state >= bw_peak_coeffs_state_bw_peak_coeffs_state_init);
+
+        #[cfg(debug_assertions)]
+        {
+            assert!(peak.coeffs.state >= bw_peak_coeffs_state_bw_peak_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -432,7 +456,10 @@ mod tests {
         peak.set_prewarp_at_cutoff(false);
         assert_eq!(peak.coeffs.mm2_coeffs.svf_coeffs.prewarp_k, 0.0);
 
-        assert!(peak.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        #[cfg(debug_assertions)]
+        {
+            assert!(peak.coeffs.state >= bw_mm2_coeffs_state_bw_mm2_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -446,8 +473,10 @@ mod tests {
 
         peak.set_prewarp_at_cutoff(false);
         assert_eq!(peak.coeffs.mm2_coeffs.svf_coeffs.prewarp_k, 0.0);
-
-        assert!(peak.coeffs.state >= bw_peak_coeffs_state_bw_peak_coeffs_state_init);
+        #[cfg(debug_assertions)]
+        {
+            assert!(peak.coeffs.state >= bw_peak_coeffs_state_bw_peak_coeffs_state_init);
+        }
     }
 
     #[test]
@@ -458,7 +487,11 @@ mod tests {
         peak.set_peak_gain_lin(peak_gain);
 
         assert_eq!(peak.coeffs.peak_gain, peak_gain);
-        assert!(peak.coeffs.param_changed as u32 & BW_PEAK_PARAM_PEAK_GAIN != 0);
+
+        #[cfg(debug_assertions)]
+        {
+            assert!(peak.coeffs.param_changed as u32 & BW_PEAK_PARAM_PEAK_GAIN != 0);
+        }
     }
 
     #[test]
