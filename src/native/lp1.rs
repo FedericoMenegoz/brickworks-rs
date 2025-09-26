@@ -334,7 +334,6 @@ impl<const N_CHANNELS: usize> LP1Coeffs<N_CHANNELS> {
             debug_assert_range(1e-6..=1e12, value);
         }
         self.cutoff = value;
-        print!("self.cutoff is {}", self.cutoff);
     }
     /// Sets whether bilinear transform prewarping frequency should match the cutoff
     /// frequency (true) or not (false).
