@@ -1312,10 +1312,10 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             return false;
         }
 
-        if self.state >= CoeffsState::SetSampleRate {
-            if !self.fs_2pi.is_finite() || self.fs_2pi <= 0.0 {
-                return false;
-            }
+        if self.state >= CoeffsState::SetSampleRate && (!self.fs_2pi.is_finite()
+            || self.fs_2pi <= 0.0)
+        {
+            return false;
         }
 
         if self.state >= CoeffsState::ResetCoeffs {
@@ -1401,6 +1401,9 @@ pub(crate) mod tests {
 
     const N_CHANNELS: usize = 2;
     const SAMPLE_RATE: f32 = 48_000.0;
+
+    const PULSE_INPUT: [&[f32]; N_CHANNELS] = [&[1.0, 1.0], &[0.0, 0.0]];
+    const N_SAMPLES: usize = 2;
 
     type OnePoleT = OnePole<N_CHANNELS>;
     type OnePoleCoeffsT = OnePoleCoeffs<N_CHANNELS>;
@@ -2004,9 +2007,6 @@ pub(crate) mod tests {
         }
     }
 
-    // Do we need c sanity checks??
-    // By design I can not insert a non valid value
-    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "encountered NaN value")]
     fn set_cutoff_to_nan() {
@@ -2026,7 +2026,6 @@ pub(crate) mod tests {
         one_pole_coeffs.set_cutoff(f32::NAN);
     }
 
-    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "value must be in range [0.0, 1e18], got inf")]
     fn set_sticky_thresh_to_infinite() {
@@ -2035,7 +2034,6 @@ pub(crate) mod tests {
         one_pole_coeffs.set_sticky_thresh(f32::INFINITY);
     }
 
-    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "value must be finite, got inf")]
     fn set_sample_rate_must_be_finite() {
@@ -2045,11 +2043,32 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "value must be non negative, got -1")]
-    fn set_sample_rate_must_be_positive() {
+    #[should_panic(expected = "assertion failed: self.state >= CoeffsState::SetSampleRate")]
+    fn reset_before_set_sample_rate_should_panic() {
         let mut rust_one_pole = OnePoleT::new();
 
-        rust_one_pole.set_sample_rate(-1.);
+        rust_one_pole.reset(None, None);
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: self.state >= CoeffsState::ResetCoeffs")]
+    fn process_before_set_sample_rate_should_panic() {
+        let mut rust_one_pole = OnePoleT::new();
+        let mut y_ch0 = [0.0, 0.0];
+        let mut y_ch1 = [0.0, 0.0];
+        let mut y: [Option<&mut [f32]>; 2] = [Some(&mut y_ch0), Some(&mut y_ch1)];
+        rust_one_pole.process(&PULSE_INPUT, Some(&mut y), N_SAMPLES);
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: self.state >= CoeffsState::ResetCoeffs")]
+    fn process_before_reset_should_panic() {
+        let mut rust_one_pole = OnePoleT::new();
+        rust_one_pole.set_sample_rate(SAMPLE_RATE);
+        let mut y_ch0 = [0.0, 0.0];
+        let mut y_ch1 = [0.0, 0.0];
+        let mut y: [Option<&mut [f32]>; 2] = [Some(&mut y_ch0), Some(&mut y_ch1)];
+        rust_one_pole.process(&PULSE_INPUT, Some(&mut y), N_SAMPLES);
     }
 
     pub(crate) fn assert_one_pole_coeffs<const N_CHANNELS: usize>(
