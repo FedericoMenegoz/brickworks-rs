@@ -7,10 +7,19 @@ edition = "2024"
 license = "GPL-3.0-only"
 
 [build-dependencies]
-bindgen = "0.71.1"
+bindgen = "0.72.1"
 
 [dependencies]
 bitflags = "2.9.1"
+rand = "*"
 
 [profile.release]
-lto = "thin"
+lto = "fat"
+codegen-units = 1
+
+[dev-dependencies]
+criterion = "0.7"
+
+[[bench]]
+name = "distortion_benchmark"
+harness = false

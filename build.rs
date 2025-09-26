@@ -55,7 +55,15 @@ fn main() {
         builder = builder.clang_arg("-DBW_DEBUG_DEEP");
         // Define BW_DEBUG_DEEP for clang compilation
         clang_cmd.arg("-D").arg("BW_DEBUG_DEEP");
+    } 
+    // To define BW_NO_DEBUG when in release
+    else {
+        // Define BW_NO_DEBUG for bindgen
+        builder = builder.clang_arg("-DBW_NO_DEBUG");
+        // Define BW_NO_DEBUG for clang compilation
+        clang_cmd.arg("-D").arg("BW_NO_DEBUG");
     }
+
 
     let bindings = builder.generate().expect("Unable to generate bindings");
 
