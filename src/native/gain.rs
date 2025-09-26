@@ -213,10 +213,10 @@ impl<const N_CHANNELS: usize> GainCoeffs<N_CHANNELS> {
     /// Assumes that the gain-reach threshold is 0.0.
     #[inline(always)]
     pub fn update_coeffs_audio(&mut self) {
-        // OnePole::update_coeffs_audio() is not implemented yet:
-        // C version only contained assertions need to revisit
-        // which assertions from the C version make sense to keep in Rust
-        // self.smooth_coeffs.update_coeffs_audio();
+        #[cfg(debug_assertions)]
+        {
+            self.smooth_coeffs.update_coeffs_audio();
+        }
 
         self.smooth_coeffs
             .process1(&mut self.smooth_state, self.gain);
@@ -227,10 +227,10 @@ impl<const N_CHANNELS: usize> GainCoeffs<N_CHANNELS> {
     /// metric for sticky behavior is set to StickyMode::Abs.
     #[inline(always)]
     pub fn update_coeffs_audio_sticky_abs(&mut self) {
-        // OnePole::update_coeffs_audio() is not implemented yet:
-        // C version only contained assertions need to revisit
-        // which assertions from the C version make sense to keep in Rust
-        // self.smooth_coeffs.update_coeffs_audio();
+        #[cfg(debug_assertions)]
+        {
+            self.smooth_coeffs.update_coeffs_audio();
+        }
 
         self.smooth_coeffs
             .process1_sticky_abs(&mut self.smooth_state, self.gain);
@@ -241,10 +241,10 @@ impl<const N_CHANNELS: usize> GainCoeffs<N_CHANNELS> {
     /// metric for sticky behavior is set to StickyMode::Rel.
     #[inline(always)]
     pub fn update_coeffs_audio_sticky_rel(&mut self) {
-        // OnePole::update_coeffs_audio() is not implemented yet:
-        // C version only contained assertions need to revisit
-        // which assertions from the C version make sense to keep in Rust
-        // self.smooth_coeffs.update_coeffs_audio();
+        #[cfg(debug_assertions)]
+        {
+            self.smooth_coeffs.update_coeffs_audio();
+        }
 
         self.smooth_coeffs
             .process1_sticky_rel(&mut self.smooth_state, self.gain);

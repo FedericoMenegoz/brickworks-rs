@@ -45,7 +45,7 @@
 //! Original implementation by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
 use super::math::rcpf;
 #[cfg(debug_assertions)]
-use crate::native::common::{debug_assert_is_finite, debug_assert_positive, debug_assert_range};
+use crate::native::common::{CoeffsState, has_only_finite};
 use crate::native::math::{INVERSE_2_PI, NANO};
 use bitflags::bitflags;
 /// One-pole (6 dB/oct) lowpass filter with unitary DC gain, separate attack and decay time constants, and sticky target-reach threshold.
@@ -85,7 +85,7 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
     pub fn new() -> Self {
         OnePole {
             coeffs: OnePoleCoeffs::new(),
-            states: [OnePoleState { y_z1: 0.0 }; N_CHANNELS],
+            states: [OnePoleState::new(); N_CHANNELS],
         }
     }
     /// Sets the sample rate (Hz).
@@ -102,12 +102,15 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
         match y0 {
             Some(out) => {
                 (0..N_CHANNELS).for_each(|channel| {
-                    out[channel] = self.states[channel].reset(x0.unwrap_or(0.));
+                    out[channel] = self
+                        .coeffs
+                        .reset_state(&mut self.states[channel], x0.unwrap_or(0.));
                 });
             }
             None => {
                 (0..N_CHANNELS).for_each(|channel| {
-                    self.states[channel].reset(x0.unwrap_or(0.));
+                    self.coeffs
+                        .reset_state(&mut self.states[channel], x0.unwrap_or(0.));
                 });
             }
         }
@@ -276,15 +279,25 @@ impl<const N_CHANNELS: usize> Default for OnePole<N_CHANNELS> {
 /// Coefficients and related.
 #[derive(Clone, Debug, Copy)]
 pub struct OnePoleCoeffs<const N_CHANNELS: usize> {
+    // Coefficients
     fs_2pi: f32,
+
     m_a1u: f32,
     m_a1d: f32,
     st2: f32,
+
+    // Parameters
     cutoff_up: f32,
     cutoff_down: f32,
     sticky_thresh: f32,
     sticky_mode: StickyMode,
     param_changed: ParamChanged,
+
+    // Coefficients State Debug
+    #[cfg(debug_assertions)]
+    state: CoeffsState,
+    #[cfg(debug_assertions)]
+    reset_id: u32,
 }
 
 bitflags! {
@@ -302,19 +315,27 @@ bitflags! {
 /// Internal state and related.
 #[derive(Debug, Clone, Copy)]
 pub struct OnePoleState {
+    // States
     y_z1: f32,
+    // States Debug
+    #[cfg(debug_assertions)]
+    coeffs_reset_id: u32,
 }
 impl OnePoleState {
     #[inline(always)]
     pub(crate) fn new() -> Self {
-        Self { y_z1: 0.0 }
+        Self {
+            y_z1: 0.0,
+            #[cfg(debug_assertions)]
+            coeffs_reset_id: 0,
+        }
     }
 
-    #[inline(always)]
-    pub(crate) fn reset(&mut self, x0: f32) -> f32 {
-        self.y_z1 = x0;
-        x0
-    }
+    // #[inline(always)]
+    // pub(crate) fn reset(&mut self, x0: f32) -> f32 {
+    //     self.y_z1 = x0;
+    //     x0
+    // }
 
     #[inline(always)]
     pub(crate) fn get_y_z1(&self) -> f32 {
@@ -332,7 +353,7 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Creates a new instance with all fields initialized.
     #[inline(always)]
     pub fn new() -> Self {
-        Self {
+        let coeffs = Self {
             fs_2pi: Default::default(),
             m_a1u: Default::default(),
             m_a1d: Default::default(),
@@ -342,31 +363,92 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             sticky_thresh: 0.0,
             sticky_mode: StickyMode::Abs,
             param_changed: ParamChanged::all(),
+
+            #[cfg(debug_assertions)]
+            state: CoeffsState::Init,
+            #[cfg(debug_assertions)]
+            reset_id: 0,
+        };
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(coeffs.coeffs_is_valid());
+            debug_assert!(coeffs.state == CoeffsState::Init);
         }
+        coeffs
     }
     /// Sets the sample rate (Hz).
     #[inline(always)]
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         #[cfg(debug_assertions)]
         {
-            debug_assert_positive(sample_rate);
-            debug_assert_is_finite(sample_rate);
+            debug_assert!(
+                sample_rate > 0.0,
+                "value must be non negative, got {}",
+                sample_rate
+            );
+            debug_assert!(
+                sample_rate.is_finite(),
+                "value must be finite, got {}",
+                sample_rate
+            );
+            debug_assert!(
+                self.state >= CoeffsState::Init,
+                "coeffs should be initiated, got {:?}",
+                self.state
+            );
         }
+
         self.fs_2pi = INVERSE_2_PI * sample_rate;
+
+        #[cfg(debug_assertions)]
+        {
+            self.state = CoeffsState::SetSampleRate;
+            debug_assert!(self.coeffs_is_valid());
+        }
     }
     /// Resets coefficients to assume their target values.
     #[inline(always)]
     pub fn reset_coeffs(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::SetSampleRate);
+        }
+
         self.param_changed = ParamChanged::all();
         self.do_update_coeffs_ctrl();
+
+        #[cfg(debug_assertions)]
+        {
+            self.state = CoeffsState::ResetCoeffs;
+            self.reset_id += 1;
+            debug_assert!(self.coeffs_is_valid());
+        }
     }
     /// Resets the given state to its initial values using the initial input value `x0`.
     ///
     /// Returns the corresponding initial output value.
     #[inline(always)]
     pub fn reset_state(&mut self, state: &mut OnePoleState, x0: f32) -> f32 {
-        debug_assert!(x0.is_finite());
-        state.reset(x0)
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(x0.is_finite());
+        }
+
+        state.y_z1 = x0;
+
+        #[cfg(debug_assertions)]
+        {
+            state.coeffs_reset_id = self.reset_id;
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(x0.is_finite());
+        }
+
+        x0
     }
     /// Resets each of the `N_CHANNELS` states to its initial values using the
     /// corresponding input values in `x0`.
@@ -377,33 +459,56 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         &mut self,
         states: &mut [OnePoleState],
         x0: &[f32; N_CHANNELS],
-        y0: Option<&mut [f32; N_CHANNELS]>,
+        mut y0: Option<&mut [f32; N_CHANNELS]>,
     ) {
-        // No need to check states are in different addresses cause it is
-        // enforced by design
-        if let Some(out) = y0 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+        }
+
+        if let Some(out) = &mut y0 {
             (0..N_CHANNELS).for_each(|channel| {
-                out[channel] = states[channel].reset(x0[channel]);
+                out[channel] = self.reset_state(&mut states[channel], x0[channel]);
             });
         } else {
             (0..N_CHANNELS).for_each(|channel| {
-                states[channel].reset(x0[channel]);
+                self.reset_state(&mut states[channel], x0[channel]);
             });
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(y0.is_none_or(|y| has_only_finite(y)));
         }
     }
     /// Triggers control-rate update of coefficients.
     #[inline(always)]
     pub fn update_coeffs_ctrl(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+        }
+
         self.do_update_coeffs_ctrl();
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+        }
     }
 
-    // Not implemented yet: C version only contained assertions
-    // need to revisit which assertions from the C version make sense to keep in Rust
-    // /// Triggers audio-rate update of coefficients.
-    // #[inline(always)]
-    // fn update_coeffs_audio(&self) {
-    //     todo!()
-    // }
+    /// Triggers audio-rate update of coefficients.
+    #[cfg(debug_assertions)]
+    #[inline(always)]
+    pub fn update_coeffs_audio(&self) {
+        debug_assert!(self.coeffs_is_valid());
+        debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+    }
 
     /// Processes a single input sample `x`, updating the provided `state`.
     /// Assumes that the upgoing and downgoing cutoff/tau are equal, and the
@@ -412,8 +517,25 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(x.is_finite());
+        }
+
         let y = x + self.m_a1u * (state.get_y_z1() - x);
         state.y_z1 = y;
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(y.is_finite());
+        }
+
         y
     }
     /// Processes a single input sample `x` with sticky absolute threshold behavior,
@@ -424,12 +546,28 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_sticky_abs(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(x.is_finite());
+        }
+
         let mut y = x + self.m_a1u * (state.get_y_z1() - x);
         let d = y - x;
         if d * d <= self.st2 {
             y = x
         }
         state.y_z1 = y;
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(y.is_finite());
+        }
 
         y
     }
@@ -441,12 +579,28 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_sticky_rel(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(x.is_finite());
+        }
+
         let mut y = x + self.m_a1u * (state.get_y_z1() - x);
         let d = y - x;
         if d * d <= self.st2 * x * x {
             y = x
         }
         state.y_z1 = y;
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(y.is_finite());
+        }
 
         y
     }
@@ -456,11 +610,27 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_asym(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(x.is_finite());
+        }
+
         let y_z1 = state.get_y_z1();
         let ma1 = if x >= y_z1 { self.m_a1u } else { self.m_a1d };
 
         let y = x + ma1 * (y_z1 - x);
         state.y_z1 = y;
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(y.is_finite());
+        }
 
         y
     }
@@ -472,6 +642,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_asym_sticky_abs(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(x.is_finite());
+        }
+
         let y_z1 = state.get_y_z1();
         let ma1 = if x >= y_z1 { self.m_a1u } else { self.m_a1d };
 
@@ -481,6 +659,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             y = x;
         }
         state.y_z1 = y;
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(y.is_finite());
+        }
 
         y
     }
@@ -492,6 +678,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Returns the corresponding output sample.
     #[inline(always)]
     pub fn process1_asym_sticky_rel(&mut self, state: &mut OnePoleState, x: f32) -> f32 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(x.is_finite());
+        }
+
         let y_z1 = state.get_y_z1();
         let ma1 = if x >= y_z1 { self.m_a1u } else { self.m_a1d };
 
@@ -501,6 +695,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
             y = x;
         }
         state.y_z1 = y;
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(y.is_finite());
+        }
 
         y
     }
@@ -513,11 +715,19 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         &mut self,
         state: &mut OnePoleState,
         x: &[f32],
-        y: Option<&mut [f32]>,
+        mut y: Option<&mut [f32]>,
         n_samples: usize,
     ) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(has_only_finite(x));
+        }
+
         self.update_coeffs_ctrl();
-        match y {
+        match &mut y {
             Some(y_values) => {
                 if self.is_asym() {
                     if self.is_sticky() {
@@ -599,6 +809,14 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                 }
             }
         }
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            debug_assert!(self.state_is_valid(state));
+            debug_assert!(y.as_ref().is_none_or(|array| has_only_finite(array)));
+        }
     }
     /// Processes the first `n_samples` of the `N_CHANNELS` input buffers `x` and writes the
     /// results to the first `n_samples` of the `N_CHANNELS` output buffers `y`,
@@ -609,16 +827,20 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
         &mut self,
         states: &mut [OnePoleState; N_CHANNELS],
         x: &[&[f32]; N_CHANNELS],
-        y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
+        mut y: Option<&mut [Option<&mut [f32]>; N_CHANNELS]>,
         n_samples: usize,
     ) {
-        // As for reset_multi no need to check states are in
-        // different addresses cause it is enforced by design
-        // Still need to investigate if the other assertions
-        // are sanity check only needed in c
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            (0..N_CHANNELS)
+                .for_each(|channel| debug_assert!(self.state_is_valid(&states[channel])));
+            (0..N_CHANNELS).for_each(|channel| debug_assert!(has_only_finite(x[channel])));
+        }
 
         self.update_coeffs_ctrl();
-        if let Some(y_values) = y {
+        if let Some(y_values) = &mut y {
             if self.is_asym() {
                 if self.is_sticky() {
                     match self.sticky_mode {
@@ -785,6 +1007,20 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
                 });
             });
         }
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::ResetCoeffs);
+            (0..N_CHANNELS).for_each(|channel| {
+                debug_assert!(self.state_is_valid(&states[channel]));
+                debug_assert!(y.as_ref().is_none_or(|ch_y| {
+                    ch_y[channel]
+                        .as_ref()
+                        .is_none_or(|array| has_only_finite(array))
+                }));
+            });
+        }
     }
     /// Sets both the upgoing (attack) and downgoing (decay) cutoff frequency to `value` (Hz) in the coefficients.
     ///
@@ -798,9 +1034,21 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn set_cutoff(&mut self, value: f32) {
         #[cfg(debug_assertions)]
-        debug_assert_positive(value);
+        {
+            debug_assert!(!value.is_nan(), "encountered {} value", value);
+            debug_assert!(value >= 0.0, "value must be non negative, got {}", value);
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         self.set_cutoff_up(value);
         self.set_cutoff_down(value);
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
     }
     /// Sets the upgoing (attack) cutoff frequency to `value` (Hz) in the coefficients.
     ///
@@ -813,10 +1061,22 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn set_cutoff_up(&mut self, value: f32) {
         #[cfg(debug_assertions)]
-        debug_assert_positive(value);
+        {
+            debug_assert!(!value.is_nan(), "encountered {} value", value);
+            debug_assert!(value >= 0.0, "value must be non negative, got {}", value);
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         if self.cutoff_up != value {
             self.cutoff_up = value;
             self.param_changed |= ParamChanged::CUTOFF_UP;
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
         }
     }
     /// Sets the downgoing (decay) cutoff frequency to `value` (Hz) in the coefficients.
@@ -830,10 +1090,22 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn set_cutoff_down(&mut self, value: f32) {
         #[cfg(debug_assertions)]
-        debug_assert_positive(value);
+        {
+            debug_assert!(!value.is_nan(), "encountered {} value", value);
+            debug_assert!(value >= 0.0, "value must be non negative, got {}", value);
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         if self.cutoff_down != value {
             self.cutoff_down = value;
             self.param_changed |= ParamChanged::CUTOFF_DOWN;
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
         }
     }
     /// Sets both the upgoing (attack) and downgoing (decay) time constants to `value` (seconds) in the coefficients.
@@ -846,8 +1118,22 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Default: `0.0`.
     #[inline(always)]
     pub fn set_tau(&mut self, value: f32) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(!value.is_nan(), "encountered {} value", value);
+            debug_assert!(value >= 0.0, "value must be non negative, got {}", value);
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         self.set_tau_up(value);
         self.set_tau_down(value);
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
     }
     /// Sets the upgoing (attack) time constant to `value` (seconds) in the coefficients.
     ///
@@ -860,13 +1146,25 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn set_tau_up(&mut self, value: f32) {
         #[cfg(debug_assertions)]
-        debug_assert_positive(value);
+        {
+            debug_assert!(!value.is_nan(), "encountered {} value", value);
+            debug_assert!(value >= 0.0, "value must be non negative, got {}", value);
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         let cutoff = if value < NANO {
             f32::INFINITY
         } else {
             INVERSE_2_PI * rcpf(value)
         };
         self.set_cutoff_up(cutoff);
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
     }
     /// Sets the downgoing (decay) time constant to `value` (seconds) in the coefficients.
     ///
@@ -879,13 +1177,25 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     #[inline(always)]
     pub fn set_tau_down(&mut self, value: f32) {
         #[cfg(debug_assertions)]
-        debug_assert_positive(value);
+        {
+            debug_assert!(!value.is_nan(), "encountered {} value", value);
+            debug_assert!(value >= 0.0, "value must be non negative, got {}", value);
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         let cutoff = if value < NANO {
             f32::INFINITY
         } else {
             INVERSE_2_PI * rcpf(value)
         };
         self.set_cutoff_down(cutoff);
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
     }
     /// Sets the target-reach threshold in the coefficients.
     ///
@@ -898,11 +1208,27 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Default: `0.0`.
     #[inline(always)]
     pub fn set_sticky_thresh(&mut self, value: f32) {
+        debug_assert!(!value.is_nan(), "encountered {} value", value);
+        debug_assert!(
+            (0.0..=1e18).contains(&value),
+            "value must be in range [0.0, 1e18], got {:e}",
+            value
+        );
         #[cfg(debug_assertions)]
-        debug_assert_range(0.0..=1.0e18, value);
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         if self.sticky_thresh != value {
             self.sticky_thresh = value;
             self.param_changed |= ParamChanged::STICKY_TRESH;
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
         }
     }
     /// Sets the current distance metric for sticky behavior in the coefficients.
@@ -914,16 +1240,40 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Default: `StickyMode::Abs`.
     #[inline(always)]
     pub fn set_sticky_mode(&mut self, value: StickyMode) {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         self.sticky_mode = value;
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
     }
     /// Returns the current target-reach threshold from the coefficients.
     #[inline(always)]
     pub fn get_sticky_thresh(&self) -> f32 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         self.sticky_thresh
     }
     /// Returns the current sticky mode from the coefficients.
     #[inline(always)]
     pub fn get_sticky_mode(&self) -> StickyMode {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         self.sticky_mode
     }
     /// Returns the last output sample stored in the state.
@@ -934,22 +1284,63 @@ impl<const N_CHANNELS: usize> OnePoleCoeffs<N_CHANNELS> {
     /// Returns the last output sample as `f32`.
     #[inline(always)]
     pub fn get_y_z1(&self, state: OnePoleState) -> f32 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.coeffs_is_valid());
+            debug_assert!(self.state >= CoeffsState::Init);
+        }
+
         state.get_y_z1()
     }
-    /// Checks whether the coefficients are valid.
-    ///
-    /// # Notes
-    /// <div class="warning">Not implemented yet!</div>
+    /// Tries to determine whether coeffs is valid and returns true if it seems to
+    /// be the case and `false` if it is certainly not. False positives are possible,
+    /// false negatives are not.
+    #[cfg(debug_assertions)]
     #[inline(always)]
-    pub fn coeffs_is_valid(&self) {
-        todo!()
+    pub fn coeffs_is_valid(&self) -> bool {
+        if self.state < CoeffsState::Init || self.state > CoeffsState::ResetCoeffs {
+            return false;
+        }
+        if self.cutoff_up.is_nan() || self.cutoff_up < 0.0 {
+            return false;
+        }
+        if self.cutoff_down.is_nan() || self.cutoff_down < 0.0 {
+            return false;
+        }
+        if !self.sticky_thresh.is_finite() || self.sticky_thresh < 0.0 || self.sticky_thresh > 1e18
+        {
+            return false;
+        }
+
+        if self.state >= CoeffsState::SetSampleRate {
+            if !self.fs_2pi.is_finite() || self.fs_2pi <= 0.0 {
+                return false;
+            }
+        }
+
+        if self.state >= CoeffsState::ResetCoeffs {
+            if !self.m_a1u.is_finite() || self.m_a1u < 0.0 || self.m_a1u > 1.0 {
+                return false;
+            }
+            if !self.m_a1d.is_finite() || self.m_a1d < 0.0 || self.m_a1d > 1.0 {
+                return false;
+            }
+            if !self.st2.is_finite() || self.st2 < 0.0 {
+                return false;
+            }
+        }
+        true
     }
     /// Checks whether the given state is valid.
     ///
     /// # Parameters
     /// - `state`: the `OnePoleState` to check.
+    #[cfg(debug_assertions)]
     #[inline(always)]
-    pub fn state_is_valid(&self, state: OnePoleState) -> bool {
+    pub fn state_is_valid(&self, state: &OnePoleState) -> bool {
+        if self.reset_id != state.coeffs_reset_id {
+            return false;
+        }
         state.get_y_z1().is_finite()
     }
 
@@ -1182,7 +1573,7 @@ pub(crate) mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "value must be in range [0e0, 1e18], got -1e0")]
+    #[should_panic(expected = "value must be in range [0.0, 1e18], got -1e0")]
     fn set_sticky_tresh_negative() {
         let mut rust_one_pole = OnePoleT::new();
 
@@ -1191,7 +1582,7 @@ pub(crate) mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "value must be in range [0e0, 1e18], got 1.1e18")]
+    #[should_panic(expected = "value must be in range [0.0, 1e18], got 1.1e18")]
     fn set_sticky_tresh_too_high() {
         let mut rust_one_pole = OnePoleT::new();
 
@@ -1248,7 +1639,7 @@ pub(crate) mod tests {
         rust_one_pole.set_sticky_thresh(sticky_tresh);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
 
-        c_one_pole.reset(&x0, None);
+        c_one_pole.reset_multi(&x0, None);
         rust_one_pole.reset_multi(&x0, None);
 
         assert_one_pole(&rust_one_pole, &c_one_pole);
@@ -1272,7 +1663,7 @@ pub(crate) mod tests {
         rust_one_pole.set_sticky_thresh(sticky_thresh);
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
 
-        c_one_pole.reset(&x0_input, Some(&mut c_y0_output));
+        c_one_pole.reset_multi(&x0_input, Some(&mut c_y0_output));
         rust_one_pole.reset_multi(&x0_input, Some(&mut rust_y0_output));
 
         for i in 0..N_CHANNELS {
@@ -1299,7 +1690,7 @@ pub(crate) mod tests {
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_cutoff(CUTOFF);
-        c_one_pole.reset(&x0, None);
+        c_one_pole.reset_multi(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
             c_y[channel] = c_one_pole
@@ -1338,7 +1729,7 @@ pub(crate) mod tests {
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_sticky_mode(StikyModeWrapper::Abs);
-        c_one_pole.reset(&x0, None);
+        c_one_pole.reset_multi(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
             c_y[channel] = c_one_pole
@@ -1377,7 +1768,7 @@ pub(crate) mod tests {
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_sticky_mode(StikyModeWrapper::Rel);
-        c_one_pole.reset(&x0, None);
+        c_one_pole.reset_multi(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
             c_y[channel] = c_one_pole
@@ -1417,7 +1808,7 @@ pub(crate) mod tests {
         c_one_pole.set_cutoff_up(CUTOFF_UP);
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
-        c_one_pole.reset(&x0, None);
+        c_one_pole.reset_multi(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
             c_y[channel] = c_one_pole
@@ -1459,7 +1850,7 @@ pub(crate) mod tests {
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_sticky_mode(StikyModeWrapper::Abs);
-        c_one_pole.reset(&x0, None);
+        c_one_pole.reset_multi(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
             c_y[channel] = c_one_pole
@@ -1501,7 +1892,7 @@ pub(crate) mod tests {
         c_one_pole.set_cutoff_down(CUTOFF_DOWN);
         c_one_pole.set_sticky_thresh(STICKY_TRESH);
         c_one_pole.set_sticky_mode(StikyModeWrapper::Rel);
-        c_one_pole.reset(&x0, None);
+        c_one_pole.reset_multi(&x0, None);
 
         (0..N_CHANNELS).for_each(|channel| {
             c_y[channel] = c_one_pole
@@ -1541,7 +1932,7 @@ pub(crate) mod tests {
         let mut c_one_pole = OnePoleWrapperT::new();
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sample_rate(SAMPLE_RATE);
-        c_one_pole.reset(&[0.0; N_CHANNELS], None);
+        c_one_pole.reset_multi(&[0.0; N_CHANNELS], None);
 
         c_one_pole.process(&x0, Some(&mut c_output), N_SAMPLES);
 
@@ -1582,12 +1973,12 @@ pub(crate) mod tests {
         c_one_pole.set_sample_rate(SAMPLE_RATE);
         c_one_pole.set_cutoff(CUTOFF);
         c_one_pole.set_sticky_mode(StikyModeWrapper::Rel);
-        c_one_pole.reset(&x0, None);
+        c_one_pole.reset_multi(&x0, None);
 
         rust_one_pole.set_sample_rate(SAMPLE_RATE);
         rust_one_pole.set_cutoff(CUTOFF);
         rust_one_pole.set_sticky_mode(StickyMode::Rel);
-        c_one_pole.reset(&x0, None);
+        rust_one_pole.reset_multi(&x0, None);
 
         let input: [&[f32]; N_CHANNELS] = [&[1.0, 2.0, 3.0, 4.0], &[0.5, 1.5, 2.5, 3.5]];
 
@@ -1617,7 +2008,7 @@ pub(crate) mod tests {
     // By design I can not insert a non valid value
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "value must be non negative, got NaN")]
+    #[should_panic(expected = "encountered NaN value")]
     fn set_cutoff_to_nan() {
         let result = panic::catch_unwind(|| {
             let mut one_pole_coeffs = OnePoleCoeffsT::default();
@@ -1637,7 +2028,7 @@ pub(crate) mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "value must be in range [0e0, 1e18], got inf")]
+    #[should_panic(expected = "value must be in range [0.0, 1e18], got inf")]
     fn set_sticky_thresh_to_infinite() {
         let mut one_pole_coeffs = OnePoleCoeffsT::default();
 

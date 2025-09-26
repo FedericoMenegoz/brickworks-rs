@@ -1,4 +1,16 @@
 //! Common
+//!
+//!
+//!
+#[cfg(debug_assertions)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
+pub enum CoeffsState {
+    Invalid = 0,
+    Init = 1,
+    SetSampleRate = 2,
+    ResetCoeffs = 3,
+}
+
 #[cfg(debug_assertions)]
 #[inline(always)]
 pub(crate) fn has_inf(x: &[f32]) -> bool {

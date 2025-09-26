@@ -30,7 +30,7 @@
 //! one_pole.set_sticky_thresh(STICKY_THRESH);
 //!
 //! // Initialize and process
-//! one_pole.reset(&[0.0,0.0], None);
+//! one_pole.reset_multi(&[0.0,0.0], None);
 //! one_pole.process(&x, Some(&mut y), N_SAMPLES);
 //!
 //! // Output the filtered result
@@ -43,6 +43,8 @@
 //! For a fully native Rust implementation with the same interface,
 //! see [crate::native::one_pole].
 //! Original C library by [Orastron](https://www.orastron.com/algorithms/bw_one_pole).
+
+use std::ptr::null_mut;
 
 use super::*;
 use crate::c_wrapper::utils::{from_opt_to_raw, make_array};
@@ -96,21 +98,44 @@ impl<const N_CHANNELS: usize> OnePole<N_CHANNELS> {
             bw_one_pole_set_sample_rate(&mut self.coeffs, sample_rate);
         }
     }
-    /// Resets the filter state for all channels using the initial input `x0`.
-    /// If `y0` is provided, the resulting initial outputs are stored in it.
-    pub fn reset(&mut self, x0: &[f32], mut y0: Option<&mut [f32; N_CHANNELS]>) {
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value x0.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if it is Some.
+    pub fn reset(&mut self, x0: f32, y0: Option<&mut [f32; N_CHANNELS]>) {
         unsafe {
             bw_one_pole_reset_coeffs(&mut self.coeffs);
-            (0..N_CHANNELS).for_each(|channel| {
-                let result = bw_one_pole_reset_state(
-                    &mut self.coeffs,
-                    &mut self.states[channel],
-                    x0[channel],
-                );
-                if let Some(slice) = y0.as_deref_mut() {
-                    slice[channel] = result
-                }
-            });
+            match y0 {
+                Some(val) => (0..N_CHANNELS).for_each(|channel| {
+                    val[channel] =
+                        bw_one_pole_reset_state(&mut self.coeffs, &mut self.states[channel], x0);
+                }),
+                None => (0..N_CHANNELS).for_each(|channel| {
+                    bw_one_pole_reset_state(&mut self.coeffs, &mut self.states[channel], x0);
+                }),
+            }
+        }
+    }
+    /// Resets the coeffs and each of the `N_CHANNELS` states to its initial values
+    /// using the corresponding initial input value in the x0 array.
+    ///
+    /// The corresponding initial output values are written into the y0 array, if is Some.
+    pub fn reset_multi(&mut self, x0: &[f32], y0: Option<&mut [f32; N_CHANNELS]>) {
+        let y0_ptrs = match y0 {
+            Some(y) => y.as_mut_ptr(),
+            None => null_mut(),
+        };
+        let states_ptrs: [*mut bw_one_pole_state; N_CHANNELS] =
+            std::array::from_fn(|i| &mut self.states[i] as *mut _);
+        unsafe {
+            bw_one_pole_reset_coeffs(&mut self.coeffs);
+            bw_one_pole_reset_state_multi(
+                &mut self.coeffs,
+                states_ptrs.as_ptr(),
+                x0.as_ptr(),
+                y0_ptrs,
+                N_CHANNELS,
+            );
         }
     }
     /// Processes a block of input samples using a one-pole filter per channel.
@@ -504,7 +529,7 @@ mod tests {
         f.set_sample_rate(SAMPLE_RATE);
         let inverse = unsafe { f.coeffs.fs_2pi * bw_rcpf(f.coeffs.fs_2pi + cutoff) };
 
-        f.reset(&x0_input, None);
+        f.reset_multi(&x0_input, None);
 
         assert!(f.coeffs.param_changed == 0);
         assert_eq!(f.coeffs.mA1u, inverse);
@@ -523,7 +548,7 @@ mod tests {
         f.set_sticky_thresh(sticky_thresh);
         f.set_sample_rate(SAMPLE_RATE);
 
-        f.reset(&x0_input, Some(&mut y0_output));
+        f.reset_multi(&x0_input, Some(&mut y0_output));
 
         for i in 0..N_CHANNELS {
             assert_eq!(f.states[i].y_z1, x0_input[i]);
@@ -546,7 +571,7 @@ mod tests {
         let mut filter = OnePoleT::new();
         filter.set_cutoff(1000.0);
         filter.set_sample_rate(44100.0);
-        filter.reset(&x0_input, None);
+        filter.reset_multi(&x0_input, None);
 
         filter.process(&input_data, Some(&mut output_data), N_SAMPLES);
 
@@ -582,7 +607,7 @@ mod tests {
         let mut output_data: [Option<&mut [f32]>; N_CHANNELS] =
             [Some(&mut output_ch1), Some(&mut output_ch2)];
 
-        f.reset(&x0, None);
+        f.reset_multi(&x0, None);
         f.process(&PULSE_INPUT, Some(&mut output_data), N_SAMPLES);
 
         for i in 0..N_CHANNELS {
