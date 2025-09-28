@@ -197,6 +197,12 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
     }
 }
 
+impl <const N_CHANNELS: usize> Default for Dist<N_CHANNELS> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

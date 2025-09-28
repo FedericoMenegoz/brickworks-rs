@@ -74,6 +74,7 @@ mod test {
     const _NAN: f32 = f32::from_bits(0x7FC00000);
 
     // BW_HAS_INF
+    #[cfg(debug_assertions)]
     #[test]
     fn has_inf_is_false_for_normal_array() {
         let arr = [1.0, 2.0, 3.0];
@@ -82,6 +83,7 @@ mod test {
             assert_eq!(has_inf(&arr), bw_has_inf(arr.as_ptr(), arr.len()) != 0);
         }
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn has_inf_is_true_if_contains_infinity() {
         let arr = [1.0, INFTY, 3.0];
@@ -92,6 +94,7 @@ mod test {
     }
 
     // BW_HAS_NAN
+    #[cfg(debug_assertions)]
     #[test]
     fn has_nan_is_false_for_normal_array() {
         let arr = [1.0, 2.0, 3.0];
@@ -100,6 +103,7 @@ mod test {
             assert_eq!(has_nan(&arr), bw_has_nan(arr.as_ptr(), arr.len()) != 0);
         }
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn has_nan_is_true_if_contains_nan() {
         let arr = [1.0, f32::NAN, 3.0];
@@ -110,6 +114,7 @@ mod test {
     }
 
     // BW_HAS_ONLY_FINITE
+    #[cfg(debug_assertions)]
     #[test]
     fn has_only_finite_is_true_for_normal_array() {
         let arr = [1.0, 2.0, 3.0];
@@ -121,6 +126,7 @@ mod test {
             );
         }
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn has_only_finite_is_false_if_contains_inf_or_nan() {
         let arr = [1.0, f32::INFINITY, 3.0];
@@ -143,6 +149,7 @@ mod test {
     }
 
     // BW_HAS_SDBM
+    #[cfg(debug_assertions)]
     #[test]
     fn bw_hash_sdbm_is_consistent() {
         // Always send a reference to a string otherwise

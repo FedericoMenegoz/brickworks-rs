@@ -2,6 +2,7 @@
 pub mod clip;
 #[allow(dead_code)] // will use it when deep asserting and then remove this
 #[doc(hidden)]
+#[cfg(debug_assertions)]
 pub mod common;
 pub mod dist;
 pub mod gain;
