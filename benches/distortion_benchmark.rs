@@ -21,30 +21,86 @@ fn benchmarks(c: &mut Criterion) {
     let mut c_y: [&mut [f32]; N_CHANNELS] = [&mut y_ch0.clone(), &mut y_ch0.clone()];
 
     let mut group = c.benchmark_group("Dist Test");
-
-    group.bench_function("Rust Dist", |b| {
+    let mut rust_dist = Dist::default();
+    let mut c_dist = DistC::default();
+    
+    group.bench_function("Rust: dist instantiation", |b| {
         b.iter(|| {
-            let mut dist = Dist::<N_CHANNELS>::new();
-            dist.set_sample_rate(SAMPLE_RATE);
-            dist.set_distortion(0.5);
-            dist.set_volume(0.8);
-            dist.set_tone(0.6);
-
-            dist.reset(None, None);
-            dist.process(&input_x, &mut rust_y, N_SAMPLES);
+            rust_dist = Dist::<N_CHANNELS>::new();
         })
     });
 
-    group.bench_function("C Wrapper Dist", |b| {
+    group.bench_function("C Wrapper: dist instantiation", |b| {
         b.iter(|| {
-            let mut dist = DistC::<N_CHANNELS>::new();
-            dist.set_sample_rate(SAMPLE_RATE);
-            dist.set_distortion(0.5);
-            dist.set_volume(0.8);
-            dist.set_tone(0.6);
+            c_dist = DistC::<N_CHANNELS>::new();
+        })
+    });
 
-            dist.reset(None, None);
-            dist.process(&input_x, &mut c_y, N_SAMPLES);
+    group.bench_function("Rust: setting 'knobs'", |b| {
+    b.iter(|| {
+            rust_dist.set_sample_rate(SAMPLE_RATE);
+            rust_dist.set_distortion(0.5);
+            rust_dist.set_volume(0.8);
+            rust_dist.set_tone(0.6);
+        })
+    });
+
+    group.bench_function("C Wrapper: setting 'knobs'", |b| {
+    b.iter(|| {
+            c_dist.set_sample_rate(SAMPLE_RATE);
+            c_dist.set_distortion(0.5);
+            c_dist.set_volume(0.8);
+            c_dist.set_tone(0.6);
+        })
+    });
+
+    rust_dist.set_sample_rate(SAMPLE_RATE);
+    rust_dist.set_distortion(0.5);
+    rust_dist.set_volume(0.8);
+    rust_dist.set_tone(0.6);
+
+    group.bench_with_input("Rust: processing ", &input_x, |b, x| {
+    b.iter(|| {
+            rust_dist.reset(None, None);
+            rust_dist.process(&x, &mut rust_y, N_SAMPLES);
+        })
+    });
+
+    c_dist.set_sample_rate(SAMPLE_RATE);
+    c_dist.set_distortion(0.5);
+    c_dist.set_volume(0.8);
+    c_dist.set_tone(0.6);
+
+    group.bench_with_input("C Wrapper: processing ", &input_x, |b, x| {
+    b.iter(|| {
+            c_dist.reset(None, None);
+            c_dist.process(&x, &mut c_y, N_SAMPLES);
+        })
+    });
+
+    group.bench_with_input("Rust: from instantiation to processing ", &input_x, |b, x| {
+    b.iter(|| {
+            rust_dist = Dist::<N_CHANNELS>::new();
+            rust_dist.set_sample_rate(SAMPLE_RATE);
+            rust_dist.set_distortion(0.5);
+            rust_dist.set_volume(0.8);
+            rust_dist.set_tone(0.6);
+
+            rust_dist.reset(None, None);
+            rust_dist.process(&x, &mut rust_y, N_SAMPLES);
+        })
+    });
+    
+    group.bench_with_input("C Wrapper: from instantiation to processing ", &input_x, |b, x| {
+    b.iter(|| {
+            c_dist = DistC::<N_CHANNELS>::new();
+            c_dist.set_sample_rate(SAMPLE_RATE);
+            c_dist.set_distortion(0.5);
+            c_dist.set_volume(0.8);
+            c_dist.set_tone(0.6);
+
+            c_dist.reset(None, None);
+            c_dist.process(&x, &mut c_y, N_SAMPLES);
         })
     });
     group.finish();
