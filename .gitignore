@@ -22,5 +22,6 @@ Cargo.lock
 *.tmp
 *.swp
 
-# Personal Files
+# Other Files
 README_TEST.md
+old_build.rs
