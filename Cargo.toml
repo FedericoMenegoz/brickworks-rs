@@ -6,19 +6,24 @@ description = "Rust port of the Brickworks audio DSP library"
 edition = "2024"
 license = "GPL-3.0-only"
 
-[build-dependencies]
-bindgen = "0.72.1"
-
 [dependencies]
 bitflags = "2.9.1"
 rand = "*"
 
-[profile.release]
-lto = "fat"
-codegen-units = 1
+[build-dependencies]
+bindgen = "0.72.1"
+cc = "*"
 
 [dev-dependencies]
 criterion = "0.7"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+
+[profile.bench]
+inherits = "release"
 
 [[bench]]
 name = "distortion_benchmark"
