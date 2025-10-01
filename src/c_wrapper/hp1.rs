@@ -222,7 +222,8 @@ mod tests {
             hp1.coeffs.lp1_coeffs.smooth_coeffs.sticky_thresh,
             sticky_tresh_default
         );
-        #[cfg(debug_assertions)]{
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 hp1.coeffs.state,
                 bw_hp1_coeffs_state_bw_hp1_coeffs_state_init
@@ -240,7 +241,8 @@ mod tests {
             INVERSE_2_PI * SAMPLE_RATE
         );
         assert_eq!(hp1.coeffs.lp1_coeffs.t_k, PI / SAMPLE_RATE);
-        #[cfg(debug_assertions)]{
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 hp1.coeffs.state,
                 bw_hp1_coeffs_state_bw_hp1_coeffs_state_set_sample_rate
@@ -256,7 +258,8 @@ mod tests {
         let x0 = 0.0;
         hp1.reset(x0, None);
 
-        #[cfg(debug_assertions)]{
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 hp1.coeffs.state,
                 bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs
@@ -273,7 +276,8 @@ mod tests {
         let mut y0 = [3.0, 4.0];
         hp1.reset(x0, Some(&mut y0));
 
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 hp1.coeffs.state,
                 bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs
@@ -297,7 +301,8 @@ mod tests {
         hp1.reset_multi(&x0, Some(&mut y0));
 
         assert_eq!(y0, [0.0, 0.0]);
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 hp1.coeffs.state,
                 bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs
@@ -320,7 +325,8 @@ mod tests {
 
         let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
         hp1.process(&PULSE_INPUT, &mut y, N_SAMPLES);
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             assert!(hp1.coeffs.state >= bw_hp1_coeffs_state_bw_hp1_coeffs_state_reset_coeffs);
             assert_eq!(hp1.coeffs.reset_id, hp1.states[0].coeffs_reset_id);
         }

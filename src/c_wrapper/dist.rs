@@ -197,7 +197,7 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
     }
 }
 
-impl <const N_CHANNELS: usize> Default for Dist<N_CHANNELS> {
+impl<const N_CHANNELS: usize> Default for Dist<N_CHANNELS> {
     fn default() -> Self {
         Self::new()
     }
@@ -221,7 +221,8 @@ pub(crate) mod tests {
     #[test]
     fn new() {
         let dist = DistT::new();
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 dist.coeffs.state,
                 bw_dist_coeffs_state_bw_dist_coeffs_state_init
@@ -294,7 +295,8 @@ pub(crate) mod tests {
         assert_eq!(dist.coeffs.lp1_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
         assert_eq!(dist.coeffs.gain_coeffs.smooth_coeffs.fs_2pi, fs_2pi);
 
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 dist.coeffs.state,
                 bw_dist_coeffs_state_bw_dist_coeffs_state_set_sample_rate
@@ -309,7 +311,8 @@ pub(crate) mod tests {
 
         dist.reset(None, None);
 
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 dist.coeffs.state,
                 bw_dist_coeffs_state_bw_dist_coeffs_state_reset_coeffs
@@ -338,7 +341,8 @@ pub(crate) mod tests {
 
         dist.reset_multi(&x0, Some(&mut y0));
 
-        #[cfg(debug_assertions)]{
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 dist.coeffs.state,
                 bw_dist_coeffs_state_bw_dist_coeffs_state_reset_coeffs
@@ -378,7 +382,8 @@ pub(crate) mod tests {
         let mut y: [&mut [f32]; 2] = [&mut [0.0, 0.0], &mut [0.0, 0.0]];
         dist.process(&PULSE_INPUT, &mut y, N_SAMPLES);
 
-        #[cfg(debug_assertions)]{
+        #[cfg(debug_assertions)]
+        {
             assert!(dist.coeffs.state >= bw_dist_coeffs_state_bw_dist_coeffs_state_reset_coeffs);
             assert_eq!(dist.coeffs.reset_id, dist.states[0].coeffs_reset_id);
         }

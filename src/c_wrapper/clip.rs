@@ -240,8 +240,9 @@ mod tests {
         assert_eq!(clip.coeffs.bias, 0.);
         assert_eq!(clip.coeffs.gain, 1.);
         assert_eq!(clip.coeffs.gain_compensation, 0);
-        
-        #[cfg(debug_assertions)] {
+
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 clip.coeffs.state,
                 bw_clip_coeffs_state_bw_clip_coeffs_state_init
@@ -255,7 +256,8 @@ mod tests {
 
         clip.set_sample_rate(SAMPLE_RATE);
         assert_eq!(clip.coeffs.smooth_coeffs.fs_2pi, INVERSE_2_PI * SAMPLE_RATE);
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 clip.coeffs.state,
                 bw_clip_coeffs_state_bw_clip_coeffs_state_set_sample_rate
@@ -360,7 +362,8 @@ mod tests {
         clip.reset_multi(&x0, None);
         clip.process(&PULSE_INPUT, &mut y, N_SAMPLES);
 
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             assert!(clip.coeffs.state >= bw_clip_coeffs_state_bw_clip_coeffs_state_reset_coeffs);
         }
     }

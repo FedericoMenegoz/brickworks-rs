@@ -294,7 +294,8 @@ mod tests {
         assert_eq!(mm2.coeffs.gain_lp_coeffs.gain, 0.);
         assert_eq!(mm2.coeffs.gain_bp_coeffs.gain, 0.);
         assert_eq!(mm2.coeffs.gain_hp_coeffs.gain, 0.);
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             assert_eq!(
                 mm2.coeffs.state,
                 bw_mm2_coeffs_state_bw_mm2_coeffs_state_init
