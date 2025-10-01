@@ -2112,7 +2112,7 @@ pub(crate) mod tests {
             pre_message, post_message
         );
         assert_eq!(
-            rust_coeffs.sticky_mode as u32, c_coeffs.sticky_mode,
+            rust_coeffs.sticky_mode as u32, c_coeffs.sticky_mode.try_into().expect("try into i32 to u32 should hopefully work"),
             "{}sticky_mode {}",
             pre_message, post_message
         );
