@@ -32,17 +32,22 @@ fn main() {
 
     // Test and debug mode
     if cfg!(debug_assertions) {
+        println!("cargo:warning=debug assertion mode");
         bind_build = bind_build.clang_arg("-DBW_DEBUG_DEEP");
         compiler_build.define("BW_DEBUG_DEEP", None);
     }
     // Optimization for release and benchmark
     else {
-        // Windows msvc toolchain
+        println!("cargo:warning=release mode");
         if cfg!(target_env = "msvc") {
-            compiler_build
-                .flag("/O2") // Maximum optimization (speed)
-                .flag("/GL"); // Whole program optimization
-        } else {
+            println!("cargo:warning=msvc");
+            // Windows msvc toolchain cause the linker to fail
+            // compiler_build
+            //     .flag("/O2") // Maximum optimization (speed)
+            //     .flag("/GL"); // Whole program optimization
+        } else 
+        if cfg!(not(target_env = "msvc")) {
+            println!("cargo:warning=not msvc");
             compiler_build
                 .flag_if_supported("-O3")
                 .flag_if_supported("-flto")

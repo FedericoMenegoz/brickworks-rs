@@ -1,0 +1,6 @@
+[target.'cfg(target_os = "linux")']
+rustflags = [
+    "-Clinker-plugin-lto",
+    "-Clinker=clang",
+    "-Clink-arg=-fuse-ld=lld",
+]
