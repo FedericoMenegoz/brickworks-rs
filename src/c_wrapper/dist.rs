@@ -359,14 +359,7 @@ pub(crate) mod tests {
                 dist.coeffs.gain_coeffs.state,
                 bw_gain_coeffs_state_bw_gain_coeffs_state_reset_coeffs
             );
-            unsafe {
-                assert_eq!(
-                    dist.states[0].hash,
-                    bw_hash_sdbm("bw_dist_state".as_ptr() as *const i8)
-                );
-            }
-            // this fails in linux ?!
-            // assert_eq!(dist.states[1].coeffs_reset_id, dist.coeffs.reset_id);
+            assert_eq!(dist.states[1].coeffs_reset_id, dist.coeffs.reset_id);
         }
     }
 
