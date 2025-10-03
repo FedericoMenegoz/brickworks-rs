@@ -49,8 +49,8 @@ fn main() {
         if cfg!(not(target_env = "msvc")) {
             println!("cargo:warning=not msvc");
             compiler_build
-                .flag_if_supported("-O3")
-                .flag_if_supported("-flto")
+                .flag_if_supported("-O")
+                .flag_if_supported("-lto=thin")
                 .flag_if_supported("-fPIC");
             // .flag_if_supported("-march=native");
         }
