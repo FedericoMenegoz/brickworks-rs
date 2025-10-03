@@ -365,7 +365,7 @@ pub(crate) mod tests {
                     bw_hash_sdbm("bw_dist_state".as_ptr() as *const i8)
                 );
             }
-            // this fails in linux ?! 
+            // this fails in linux ?!
             // assert_eq!(dist.states[1].coeffs_reset_id, dist.coeffs.reset_id);
         }
     }
