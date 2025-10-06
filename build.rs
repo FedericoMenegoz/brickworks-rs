@@ -43,7 +43,7 @@ fn main() {
         // windows
         if cfg!(target_env = "msvc") {
             println!("cargo:warning=msvc");
-            compiler_build.flag("/O2");
+            compiler_build.flag("-O2");
         }
         // linux
         else if cfg!(target_os = "linux") {
