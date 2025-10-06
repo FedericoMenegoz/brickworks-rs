@@ -97,8 +97,6 @@ mod tests {
     use crate::c_wrapper::{bw_tanf, src_int::SRCInt};
 
     const N_CHANNELS: usize = 2;
-    const SAMPLE_RATE: f32 = 48_000.0;
-    const INVERSE_2_PI: f32 = 1.0 / (2.0 * PI);
 
     #[test]
     fn new() {
