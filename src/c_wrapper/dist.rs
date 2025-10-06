@@ -36,9 +36,9 @@
 //! see [crate::native::dist].
 //! Original C library by [Orastron](https://www.orastron.com/algorithms/bw_dist).
 use crate::c_wrapper::{
-    bw_dist_coeffs, bw_dist_init, bw_dist_process_multi, bw_dist_reset_coeffs, bw_dist_reset_state,
-    bw_dist_reset_state_multi, bw_dist_set_distortion, bw_dist_set_sample_rate, bw_dist_set_tone,
-    bw_dist_set_volume, bw_dist_state,
+    bw_dist_coeffs, bw_dist_init, bw_dist_process, bw_dist_process_multi, bw_dist_reset_coeffs,
+    bw_dist_reset_state, bw_dist_reset_state_multi, bw_dist_set_distortion,
+    bw_dist_set_sample_rate, bw_dist_set_tone, bw_dist_set_volume, bw_dist_state,
 };
 use std::ptr::null_mut;
 /// Distortion effect.
@@ -63,8 +63,8 @@ use std::ptr::null_mut;
 /// // dist.process(...)
 /// ```
 pub struct Dist<const N_CHANNELS: usize> {
-    pub(crate) coeffs: bw_dist_coeffs,
-    pub(crate) states: [bw_dist_state; N_CHANNELS],
+    pub coeffs: bw_dist_coeffs,
+    pub states: [bw_dist_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
@@ -200,6 +200,20 @@ impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
 impl<const N_CHANNELS: usize> Default for Dist<N_CHANNELS> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl bw_dist_coeffs {
+    pub fn process(
+        &mut self,
+        state: &mut bw_dist_state,
+        x: &[f32],
+        y: &mut [f32],
+        n_samples: usize,
+    ) {
+        unsafe {
+            bw_dist_process(self, state, x.as_ptr(), y.as_mut_ptr(), n_samples);
+        }
     }
 }
 

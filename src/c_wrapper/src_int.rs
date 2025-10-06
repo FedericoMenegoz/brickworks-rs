@@ -2,8 +2,8 @@ use super::*;
 use std::ptr::null_mut;
 
 pub struct SRCInt<const N_CHANNELS: usize> {
-    pub(crate) coeffs: bw_src_int_coeffs,
-    pub(crate) states: [bw_src_int_state; N_CHANNELS],
+    pub coeffs: bw_src_int_coeffs,
+    pub states: [bw_src_int_state; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> SRCInt<N_CHANNELS> {
@@ -86,6 +86,20 @@ impl<const N_CHANNELS: usize> SRCInt<N_CHANNELS> {
                 n_in_samples,
                 out_samples,
             );
+        }
+    }
+}
+
+impl bw_src_int_coeffs {
+    pub fn process(
+        &mut self,
+        state: &mut bw_src_int_state,
+        x: &[f32],
+        y: &mut [f32],
+        n_samples: usize,
+    ) {
+        unsafe {
+            bw_src_int_process(self, state, x.as_ptr(), y.as_mut_ptr(), n_samples);
         }
     }
 }

@@ -69,8 +69,8 @@ use crate::native::{
 /// // dist.process(...)
 /// ```
 pub struct Dist<const N_CHANNELS: usize> {
-    coeffs: DistCoeffs<N_CHANNELS>,
-    states: [DistState; N_CHANNELS],
+    pub coeffs: DistCoeffs<N_CHANNELS>,
+    pub states: [DistState; N_CHANNELS],
 }
 
 impl<const N_CHANNELS: usize> Dist<N_CHANNELS> {
