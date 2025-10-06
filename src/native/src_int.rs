@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 
 use crate::native::math::tanf;
 
+
 pub struct SRCInt<const N_CHANNELS: usize> {
     pub(crate) coeffs: SRCIntCoeffs<N_CHANNELS>,
     pub(crate) states: [SRCIntState; N_CHANNELS],
@@ -175,7 +176,6 @@ impl<const N_CHANNELS: usize> SRCIntCoeffs<N_CHANNELS> {
                 state.z4 = v0 + self.ma4 * o;
                 y[n] = o;
                 n += 1;
-                println!("[rust] n = {}", n);
                 (1..self.ratio).for_each(|_| {
                     o = state.z1;
                     state.z1 = self.ma1 * o + state.z2;
