@@ -13,4 +13,5 @@ pub mod mm2;
 pub mod one_pole;
 pub mod peak;
 pub mod satur;
+pub mod src_int;
 pub mod svf;

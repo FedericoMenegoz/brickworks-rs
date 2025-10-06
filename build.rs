@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 fn main() {
+    println!("cargo::rerun-if-changed=brickworks/include");
     let wrapper_path = PathBuf::from("src/c_wrapper/wrapper.h");
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
 

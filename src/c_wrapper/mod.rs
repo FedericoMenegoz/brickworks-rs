@@ -20,6 +20,8 @@ pub mod mm2;
 pub mod one_pole;
 pub mod peak;
 pub mod satur;
+#[allow(unused_variables, dead_code)]
+pub mod src_int;
 pub mod svf;
 
 // Helper functions
