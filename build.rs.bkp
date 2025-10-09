@@ -6,7 +6,7 @@ use std::process::Command;
 
 fn main() {
     println!("cargo::rerun-if-changed=brickworks/include");
-    
+
     let wrapper_path = PathBuf::from("src/c_wrapper/wrapper.h")
         .canonicalize()
         .expect("Cannot canonicalize wrapper path");
@@ -51,44 +51,39 @@ fn main() {
         .arg(&wrapper_path);
 
     // Debug and release mode configuration
-    // NOTE: cfg!(debug_assertions) checks the build script's mode, not the target!
-    // We need to check the PROFILE environment variable instead
-    let is_release = std::env::var("PROFILE")
-        .map(|p| p == "release")
-        .unwrap_or(false);
-    
-    if !is_release {
-        println!("cargo:warning=DEBUG MODE - No LTO");
+    if cfg!(debug_assertions) {
+        println!("cargo:warning=debug assertion mode");
         bind_build = bind_build.clang_arg("-DBW_DEBUG_DEEP");
         clang_cmd.arg("-DBW_DEBUG_DEEP");
         clang_cmd.arg("-O0").arg("-g");
     } else {
-        println!("cargo:warning=RELEASE MODE - LTO ENABLED");
+        println!("cargo:warning=release mode");
         bind_build = bind_build.clang_arg("-DBW_NO_DEBUG");
         clang_cmd.arg("-DBW_NO_DEBUG");
 
         // Platform-specific optimization flags
         if cfg!(target_os = "windows") {
-            println!("cargo:warning=Windows MSVC target with LTO");
+            println!("cargo:warning=Windows MSVC target");
             clang_cmd
                 .arg("-O3")
                 .arg("-flto")
-                .arg("-finline-functions")
-                .arg("-funroll-loops")
+                //                .arg("-finline-functions")
+                //                .arg("-funroll-loops")
+                //                .arg("-march=native")
+                //                .arg("-ffast-math")
                 .arg("-target")
                 .arg("x86_64-pc-windows-msvc");
         } else if cfg!(target_os = "linux") {
-            println!("cargo:warning=Linux target with thin LTO");
-            clang_cmd
-                .arg("-O3")
-                .arg("-flto=thin")
-                .arg("-fPIC")
-                .arg("-finline-functions")
-                .arg("-funroll-loops")
-                .arg("-ftree-vectorize")
-                .arg("-fslp-vectorize");
+            println!("cargo:warning=Linux target");
+            clang_cmd.arg("-O3");
+        //                .arg("-flto")
+        //                .arg("-fPIC")
+        //                .arg("-finline-functions")
+        //                .arg("-funroll-loops")
+        //                .arg("-ftree-vectorize")
+        //                .arg("-fslp-vectorize");
         } else if cfg!(target_os = "macos") {
-            println!("cargo:warning=macOS target with LTO");
+            println!("cargo:warning=macOS target");
             clang_cmd
                 .arg("-O3")
                 .arg("-flto")
@@ -102,22 +97,16 @@ fn main() {
                 .arg("-fslp-vectorize");
         }
     }
-    
-    // Print the actual clang command being executed
-    println!("cargo:warning=Clang command: clang {:?}", 
-             clang_cmd.get_args().collect::<Vec<_>>());
 
     // Generate bindings
-    let bindings = bind_build
-        .generate()
-        .expect("Unable to generate bindings");
+    let bindings = bind_build.generate().expect("Unable to generate bindings");
     bindings
         .write_to_file(out_dir.join("bindings.rs"))
         .expect("Could not write bindings file");
 
     // Compile the static wrapper with clang
     let clang_output = clang_cmd.output().expect("Failed to run clang");
-    
+
     if !clang_output.status.success() {
         panic!(
             "Could not compile object file:\nstdout: {}\nstderr: {}",

@@ -10,6 +10,7 @@
 # vscode
 .vscode/
 *.code-workspace
+.vs
 
 # Rust
 **/*.rs.bk

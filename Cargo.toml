@@ -12,7 +12,6 @@ rand = "*"
 
 [build-dependencies]
 bindgen = "0.72.1"
-cc = "*"
 
 [dev-dependencies]
 criterion = "0.7"

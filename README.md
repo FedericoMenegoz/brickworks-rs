@@ -26,13 +26,15 @@ error: linking with `clang` failed: exit status: 1
 This is a known issue with `lld` on macOS. A workaround and discussion can be found here: [rust-lang/rust issue #60059]((https://github.com/rust-lang/rust/issues/60059)).
 
 # Windows
+On windows in order to use LTO you need to use `lld-link`:
+
 Use default MSVC linker:
 ```bash
 # Build in release mode
-cargo build --release
+$env:RUSTFLAGS = "-C linker=lld-link" cargo build --release
 
 # Run benchmarks
-cargo bench
+$env:RUSTFLAGS = "-C linker=lld-link" cargo bench
 ```
 
 ## Example of use
