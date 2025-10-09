@@ -12,23 +12,24 @@ fn main() {
         .expect("Cannot canonicalize wrapper path");
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
 
-    // Paths for the static inline wrapper
+    // paths for the static inline wrapper
+    // where will be created the static library
     let static_filename = "static_inline_wrapper";
     let static_fns_path = out_dir.join(format!("{}.c", static_filename));
 
-    // Object file path (platform-specific extension)
+    // object file path (platform-specific extension)
     #[cfg(target_os = "windows")]
     let obj_path = out_dir.join(format!("{}.obj", static_filename));
-    #[cfg(not(target_os = "windows"))]
-    let obj_path = out_dir.join(format!("{}.o", static_filename));
-
-    // Library file path (platform-specific)
     #[cfg(target_os = "windows")]
     let lib_path = out_dir.join(format!("{}.lib", static_filename));
+    
+    // library file path (platform-specific)
+    #[cfg(not(target_os = "windows"))]
+    let obj_path = out_dir.join(format!("{}.o", static_filename));
     #[cfg(not(target_os = "windows"))]
     let lib_path = out_dir.join(format!("lib{}.a", static_filename));
-
-    // Generate Rust bindings with bindgen
+    
+    // generate Rust bindings with bindgen
     let mut bind_build = Builder::default()
         .header(wrapper_path.to_str().unwrap())
         .clang_arg("-I./brickworks/include")
@@ -38,7 +39,7 @@ fn main() {
         .wrap_static_fns(true)
         .wrap_static_fns_path(static_fns_path.to_str().unwrap());
 
-    // Prepare clang command for compilation
+    // prepare clang command for compilation
     let mut clang_cmd = Command::new("clang");
     clang_cmd
         .arg("-c")
@@ -50,72 +51,52 @@ fn main() {
         .arg("-include")
         .arg(&wrapper_path);
 
-    // Debug and release mode configuration
-    // NOTE: cfg!(debug_assertions) checks the build script's mode, not the target!
-    // We need to check the PROFILE environment variable instead
+    // debug and release mode configuration
     let is_release = std::env::var("PROFILE")
         .map(|p| p == "release")
         .unwrap_or(false);
     
     if !is_release {
-        println!("cargo:warning=DEBUG MODE - No LTO");
+        println!("cargo:warning=DEBUG MODE");
         bind_build = bind_build.clang_arg("-DBW_DEBUG_DEEP");
         clang_cmd.arg("-DBW_DEBUG_DEEP");
         clang_cmd.arg("-O0").arg("-g");
     } else {
-        println!("cargo:warning=RELEASE MODE - LTO ENABLED");
+        println!("cargo:warning=RELEASE MODE");
         bind_build = bind_build.clang_arg("-DBW_NO_DEBUG");
         clang_cmd.arg("-DBW_NO_DEBUG");
 
-        // Platform-specific optimization flags
+        // platform-specific optimization flags
         if cfg!(target_os = "windows") {
-            println!("cargo:warning=Windows MSVC target with LTO");
+            println!("cargo:warning=Windows");
             clang_cmd
                 .arg("-O3")
                 .arg("-flto")
-                .arg("-finline-functions")
-                .arg("-funroll-loops")
                 .arg("-target")
                 .arg("x86_64-pc-windows-msvc");
         } else if cfg!(target_os = "linux") {
-            println!("cargo:warning=Linux target with thin LTO");
+            println!("cargo:warning=Linux");
             clang_cmd
                 .arg("-O3")
                 .arg("-flto=thin")
-                .arg("-fPIC")
-                .arg("-finline-functions")
-                .arg("-funroll-loops")
-                .arg("-ftree-vectorize")
-                .arg("-fslp-vectorize");
+                .arg("-fPIC");
         } else if cfg!(target_os = "macos") {
-            println!("cargo:warning=macOS target with LTO");
+            println!("cargo:warning=macOS");
             clang_cmd
                 .arg("-O3")
                 .arg("-flto")
-                .arg("-march=native")
-                .arg("-ffast-math")
-                .arg("-funroll-loops")
-                .arg("-fomit-frame-pointer")
-                .arg("-fstrict-aliasing")
-                .arg("-finline-functions")
-                .arg("-ftree-vectorize")
-                .arg("-fslp-vectorize");
+                .arg("-march=native");
         }
     }
-    
-    // Print the actual clang command being executed
-    println!("cargo:warning=Clang command: clang {:?}", 
-             clang_cmd.get_args().collect::<Vec<_>>());
 
-    // Generate bindings
+    // generate bindings
     let bindings = bind_build
         .generate()
         .expect("Unable to generate bindings");
     bindings
         .write_to_file(out_dir.join("bindings.rs"))
         .expect("Could not write bindings file");
-
-    // Compile the static wrapper with clang
+    // compile the static wrapper with clang
     let clang_output = clang_cmd.output().expect("Failed to run clang");
     
     if !clang_output.status.success() {
@@ -126,7 +107,7 @@ fn main() {
         );
     }
 
-    // Create static library
+    // create static library
     #[cfg(target_os = "windows")]
     let lib_output = Command::new("llvm-lib")
         .arg(&obj_path)
@@ -150,12 +131,12 @@ fn main() {
         );
     }
 
-    // Tell cargo where to find the library
+    // tell cargo where to find the library
     println!("cargo:rustc-link-search=native={}", out_dir.display());
     println!("cargo:rustc-link-lib=static={}", static_filename);
 }
 
-// Ignore certain macros to avoid bindgen parsing errors
+// ignore certain macros to avoid bindgen parsing errors
 const IGNORE_MACROS: [&str; 5] = [
     "FP_INFINITE",
     "FP_NAN",
